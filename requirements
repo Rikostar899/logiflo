@@ -6,4 +6,5 @@ fpdf
 openai
 requests
 kaleido
-python-dotenv
+gspread
+google-auth
