@@ -30,7 +30,7 @@ st.set_page_config(page_title="LOGIFLO.IO | Control Tower", layout="wide", page_
 # =========================================
 # 0. INIT IA
 # =========================================
-client = OpenAI(api_key=st.secrets.get("OPENAI_API_KEY", "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"))
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # =========================================
 # 0.1 AUTH
