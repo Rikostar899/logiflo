@@ -844,7 +844,7 @@ def geocode_cities_mapbox(cities):
     if villes:
         bar=st.progress(0,text=_("step_geo"))
         for i,city in enumerate(villes):
-            _,coord=fetch_geo(city)
+            _discard,coord=fetch_geo(city)
             if coord: st.session_state.geo_cache[city]=coord
             time.sleep(1.1)
             bar.progress((i+1)/len(villes),text=f"📍 {_('step_geo')} ({i+1}/{len(villes)})")
@@ -878,7 +878,7 @@ def fetch_route(dep,arr,mode,coords,_t=None):
 def smart_multimodal_router(df,dep_col,arr_col,mode_col=None):
     coords=geocode_cities_mapbox(pd.concat([df[dep_col],df[arr_col]]).dropna().unique())
     uniq=[]
-    for _,row in df.iterrows():
+    for _r,row in df.iterrows():
         dep=row[dep_col];arr=row[arr_col]
         mode=str(row[mode_col]).lower() if mode_col and pd.notna(row.get(mode_col)) else "route"
         k=(dep,arr,mode)
@@ -892,7 +892,7 @@ def smart_multimodal_router(df,dep_col,arr_col,mode_col=None):
         st.session_state.route_cache.get(
             (row[dep_col],row[arr_col],
              str(row[mode_col]).lower() if mode_col and pd.notna(row.get(mode_col)) else "route"),0.0)
-        for _,row in df.iterrows()]
+        for _r,row in df.iterrows()]
     return df
 
 def detect_transport_mode(df,dep_col=None,arr_col=None,mode_col=None):
