@@ -501,12 +501,19 @@ def nettoyer(t):
     return re.sub(r'[^a-z0-9]','',t)
 
 class StepProgress:
+    """Barre de progression simple — 'Calcul en cours...' sans détail technique."""
     def __init__(self,steps):
-        self._ph=st.empty();self._steps=steps;self._n=len(steps);self._i=0
+        self._ph=st.empty()
+        self._n=max(len(steps),1)
+        self._i=0
+        # Affiche immédiatement la barre à 0
+        calc_txt = "Computing..." if st.session_state.get("language","fr")=="en" else "Calcul en cours..."
+        self._ph.progress(0,text=calc_txt)
     def step(self,label=None):
         self._i+=1
-        lbl=label or (self._steps[self._i-1] if self._i<=self._n else "")
-        self._ph.progress(self._i/self._n,text=f"⏳ {lbl}")
+        pct=min(self._i/self._n,1.0)
+        calc_txt = "Computing..." if st.session_state.get("language","fr")=="en" else "Calcul en cours..."
+        self._ph.progress(pct,text=calc_txt)
     def done(self): self._ph.empty()
 
 # =========================================
@@ -898,14 +905,24 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
         pdf.cell(0,10,ch_label,ln=True,align='C'); pdf.ln(6)
         for fig in figs:
             try:
-                img_bytes=fig.to_image(format="png",width=800,height=360)
-                with tempfile.NamedTemporaryFile(delete=False,suffix=".png") as tmp:
-                    tmp.write(img_bytes); tp=tmp.name
-                if pdf.get_y()>195: pdf.add_page(); pdf.ln(5)
-                pdf.image(tp,x=12,y=pdf.get_y(),w=186); pdf.ln(100)
+                import uuid
+                tp = os.path.join(tempfile.gettempdir(), f"logiflo_{uuid.uuid4().hex}.png")
+                try:
+                    fig.write_image(tp, format="png", width=900, height=380, scale=1.5)
+                except Exception:
+                    # fallback to_image
+                    img_bytes = fig.to_image(format="png", width=900, height=380)
+                    with open(tp,"wb") as f_img: f_img.write(img_bytes)
+                if os.path.exists(tp) and os.path.getsize(tp) > 1000:
+                    if pdf.get_y() > 195: pdf.add_page(); pdf.ln(5)
+                    pdf.image(tp, x=12, y=pdf.get_y(), w=186)
+                    pdf.ln(100)
                 try: os.unlink(tp)
                 except: pass
-            except: pass
+            except Exception as e_img:
+                # Si kaleido absent : ajouter un message dans le PDF
+                pdf.set_font("Arial","I",9); pdf.set_text_color(150,150,150)
+                pdf.cell(0,8,"[Graphique non disponible — installer kaleido]",ln=True,align='C')
 
     # ── PAGE 4 : ANALYSE IA ───────────────────────────────────────
     pdf.add_page()
@@ -1019,12 +1036,13 @@ def geocode_cities_mapbox(cities):
     villes=[c for c in set(str(v) for v in cities)
             if c not in st.session_state.geo_cache and c not in ("","nan","None")]
     if villes:
-        bar=st.progress(0,text=_("step_geo"))
+        calc_txt = "Computing..." if st.session_state.get("language","fr")=="en" else "Calcul en cours..."
+        bar=st.progress(0,text=calc_txt)
         for i,city in enumerate(villes):
             _discard,coord=fetch_geo(city)
             if coord: st.session_state.geo_cache[city]=coord
             time.sleep(1.1)
-            bar.progress((i+1)/len(villes),text=f"📍 {_('step_geo')} ({i+1}/{len(villes)})")
+            bar.progress((i+1)/len(villes),text=calc_txt)
         bar.empty()
     return {c:st.session_state.geo_cache[c] for c in set(str(v) for v in cities) if c in st.session_state.geo_cache}
 
