@@ -1073,44 +1073,146 @@ def smart_multimodal_router(df,dep_col,arr_col,mode_col=None):
     return df
 
 def detect_transport_mode(df,dep_col=None,arr_col=None,mode_col=None):
+    # Ports maritimes — noms complets (matching par inclusion sur tokens)
     PORTS=["havre","marseille","dunkerque","bordeaux","hamburg","rotterdam","antwerp",
-           "anvers","amsterdam","barcelona","genova","piraeus","istanbul","dakar",
-           "casablanca","lagos","mombasa","durban","santos","shanghai","ningbo",
-           "guangzhou","shenzhen","hongkong","singapore","singapour","busan","tokyo",
-           "los angeles","new york","sydney","dubai","mumbai","tanger"]
-    AIRPORTS=["cdg","ory","lyo","mrs","nce","bor","tls","jfk","lax","ord","mia",
-              "atl","sfo","fra","muc","ber","ham","vie","zrh","gva","ams","bru",
-              "lhr","lgw","dxb","auh","doh","ist","bom","del","hkg","nrt","icn",
-              "sin","kul","bkk","syd","mel","gru","mex","yyz","jnb","nbo"]
-    KW_AIR=["aerien","aerien","air","avion","airfreight","awb","fret aerien","airline","aerian","aérien"]
-    KW_SEA=["maritime","mer","sea","ocean","bateau","navire","conteneur","container","teu","fcl","lcl","armateur","roro","reefer"]
-    KW_RAIL=["ferroviaire","rail","train","sncf","wagon"]
-    KW_ROAD=["routier","route","camion","truck","ftl","ltl","vl","tir","messagerie","road"]
-    scores={"aerien":0,"maritime":0,"ferroviaire":0,"routier":0}
+           "anvers","amsterdam","barcelona","barcelone","genova","genes","piraeus","piree",
+           "istanbul","dakar","casablanca","lagos","mombasa","durban","santos","shanghai",
+           "ningbo","guangzhou","shenzhen","hongkong","singapore","singapour","busan",
+           "tokyo","yokohama","losangeles","newyork","savannah","miami","sydney","dubai",
+           "jeddah","mumbai","nhavasheva","colombo","tanger","tangermed","algier","alger",
+           "tunis","tripoli","beyrouth","callao","buenosaires"]
+
+    # Codes IATA aéroports — MATCHING EXACT PAR TOKEN uniquement
+    # On split la valeur en tokens et on compare chaque token exactement
+    AIRPORT_CODES={"cdg","ory","lyo","mrs","nce","bor","tls","sxb","bod","mlh",
+                   "jfk","lax","ord","mia","atl","sfo","sea","bos","iah","dfw","ewr",
+                   "lhr","lgw","man","fra","muc","txl","ber","ham","vie","zrh","gva",
+                   "ams","bru","cph","arn","hel","mad","bcn","fco","mxp","lin","fcm",
+                   "dxb","auh","doh","ist","tlv","bom","del","hkg","nrt","icn","kix",
+                   "sin","kul","bkk","syd","mel","per","akl","gru","gig","bog","lim",
+                   "mex","yyz","yvr","jnb","nbo","cai","cmn","dkr","los","acc","abv"}
+
+    # Villes clairement routières — boost score road
+    ROAD_CITIES={"paris","lyon","toulouse","bordeaux","lille","marseille","nantes",
+                 "strasbourg","rennes","nice","grenoble","montpellier","tours","dijon",
+                 "metz","nancy","reims","rouen","amiens","clermont","limoges","poitiers",
+                 "bruxelles","brussels","amsterdam","berlin","munich","francfort","cologne",
+                 "madrid","barcelona","rome","milan","geneve","zurich","vienne","varsovie",
+                 "bucarest","budapest","prague","bratislava","ljubljana","zagreb",
+                 "london","rotterdam","antwerp","hamburg","dusseldorf","Stuttgart",
+                 "birmingham","manchester","edinburgh","glasgow","bristol"}
+
+    KW_AIR  = ["aerien","aérien","air freight","airfreight","awb","air waybill",
+               "fret aerien","airline cargo","avion","aerian"]
+    KW_SEA  = ["maritime","seafreight","sea freight","ocean freight","bateau","navire",
+               "conteneur","container","teu","fcl","lcl","armateur","roro","ro-ro",
+               "reefer","vrac","bulk","mer","ocean"]
+    KW_RAIL = ["ferroviaire","rail","train","sncf","wagon","fret ferroviaire","railway"]
+    KW_ROAD = ["routier","road","camion","truck","ftl","ltl","vl","tir","messagerie",
+               "groupage","express","fret routier","road freight","haulage","trucking"]
+
+    scores = {"aerien":0,"maritime":0,"ferroviaire":0,"routier":0}
+
+    # ── 1. Colonne mode explicite (poids fort) ────────────────────
     if mode_col and mode_col in df.columns:
         for v in df[mode_col].dropna().astype(str).str.lower():
-            for kw in KW_AIR: scores["aerien"]+=2*(kw in v)
-            for kw in KW_SEA: scores["maritime"]+=2*(kw in v)
-            for kw in KW_RAIL: scores["ferroviaire"]+=2*(kw in v)
-            for kw in KW_ROAD: scores["routier"]+=2*(kw in v)
-    for col in [dep_col,arr_col]:
-        if col and col in df.columns:
-            for v in df[col].dropna().astype(str).str.lower():
-                vc=nettoyer(v)
-                if any(p in vc for p in AIRPORTS): scores["aerien"]+=1
-                if any(p in vc for p in PORTS): scores["maritime"]+=1
-    hdrs=[nettoyer(c) for c in df.columns]
-    if any("awb" in h for h in hdrs): scores["aerien"]+=5
-    if any("bl" in h or "conteneur" in h or "teu" in h for h in hdrs): scores["maritime"]+=5
-    dominant=max(scores,key=scores.get); total=sum(scores.values())
-    if total==0 or scores[dominant]<2: return "routier","🚛 Road (default)","🚛"
-    labels={"aerien":("✈️ Air mode detected","✈️"),"maritime":("⚓ Maritime mode detected","⚓"),
-            "ferroviaire":("🚂 Rail mode detected","🚂"),"routier":("🚛 Road mode detected","🚛")}
-    if st.session_state.get("language","fr")=="fr":
-        labels={"aerien":("✈️ Mode Aérien détecté","✈️"),"maritime":("⚓ Mode Maritime détecté","⚓"),
-                "ferroviaire":("🚂 Mode Ferroviaire détecté","🚂"),"routier":("🚛 Mode Routier détecté","🚛")}
-    label,emoji=labels[dominant]
-    return dominant,label,emoji
+            for kw in KW_AIR:
+                if kw in v: scores["aerien"] += 3
+            for kw in KW_SEA:
+                if kw in v: scores["maritime"] += 3
+            for kw in KW_RAIL:
+                if kw in v: scores["ferroviaire"] += 3
+            for kw in KW_ROAD:
+                if kw in v: scores["routier"] += 3
+
+    # ── 2. Colonnes dep/arr — MATCHING EXACT PAR TOKEN ───────────
+    for col in [dep_col, arr_col]:
+        if not col or col not in df.columns:
+            continue
+        for v in df[col].dropna().astype(str):
+            # Split en tokens individuels (espace, tiret, slash)
+            raw_tokens = re.split(r'[\s\-/,]+', v.strip())
+            tokens_clean = [nettoyer(t) for t in raw_tokens if t.strip()]
+
+            for tok in tokens_clean:
+                # Aéroport : code IATA exact (3 lettres)
+                if tok in AIRPORT_CODES:
+                    scores["aerien"] += 2
+                # Port : nom de port inclus dans le token ou vice versa
+                if any(p in tok or tok in p for p in PORTS if len(p) >= 5):
+                    scores["maritime"] += 1
+                # Ville routière identifiée
+                if tok in ROAD_CITIES or any(tok in rc for rc in ROAD_CITIES if len(rc) >= 5):
+                    scores["routier"] += 1
+
+    # ── 3. Analyse des headers du fichier ────────────────────────
+    hdrs = [nettoyer(c) for c in df.columns]
+
+    # Headers forte indication aérien
+    if any("awb" in h for h in hdrs):              scores["aerien"] += 6
+    if any("airwaybill" in h for h in hdrs):        scores["aerien"] += 6
+    if any("chargeableweight" in h for h in hdrs):  scores["aerien"] += 5
+    if any("flightdate" in h or "flightno" in h for h in hdrs): scores["aerien"] += 4
+
+    # Headers forte indication maritime
+    if any("bl" == h or "billoflading" in h for h in hdrs): scores["maritime"] += 6
+    if any("teu" in h for h in hdrs):              scores["maritime"] += 5
+    if any("conteneur" in h or "container" in h for h in hdrs): scores["maritime"] += 5
+    if any("etd" in h or "eta" in h for h in hdrs): scores["maritime"] += 3
+    if any("armateur" in h or "carrier" in h for h in hdrs): scores["maritime"] += 2
+
+    # Headers forte indication routière
+    if any("distancekm" in h or "km" in h for h in hdrs): scores["routier"] += 4
+    if any("plaque" in h or "immatricul" in h for h in hdrs): scores["routier"] += 3
+    if any("orderid" in h or "ordernum" in h for h in hdrs): scores["routier"] += 2
+
+    # Headers forte indication ferroviaire
+    if any("wagon" in h or "sncf" in h for h in hdrs): scores["ferroviaire"] += 6
+
+    # ── 4. Analyse du contenu global pour confirmation ────────────
+    # Si on a une colonne distance_km avec des valeurs typiques route
+    for col in df.columns:
+        if "km" in nettoyer(col) or "dist" in nettoyer(col):
+            try:
+                vals = pd.to_numeric(df[col], errors='coerce').dropna()
+                if len(vals) > 3:
+                    med = vals.median()
+                    # Distance routière typique : 50-3000 km
+                    if 50 <= med <= 3000:
+                        scores["routier"] += 3
+                    # Distance aérienne typique : > 500 km sans doute
+            except: pass
+
+    dominant = max(scores, key=scores.get)
+    total = sum(scores.values())
+
+    # Pas assez de signal → routier par défaut
+    if total == 0 or scores[dominant] < 2:
+        return "routier","🚛 Road (default)","🚛"
+
+    # Cas d'égalité → routier gagne (mode le plus courant)
+    top_val = scores[dominant]
+    rivals = [k for k,v in scores.items() if v == top_val and k != dominant]
+    if rivals:
+        dominant = "routier"
+
+    lang = st.session_state.get("language","fr")
+    if lang == "fr":
+        labels = {
+            "aerien":     ("✈️ Mode Aérien détecté",      "✈️"),
+            "maritime":   ("⚓ Mode Maritime détecté",    "⚓"),
+            "ferroviaire":("🚂 Mode Ferroviaire détecté", "🚂"),
+            "routier":    ("🚛 Mode Routier détecté",     "🚛"),
+        }
+    else:
+        labels = {
+            "aerien":     ("✈️ Air mode detected",        "✈️"),
+            "maritime":   ("⚓ Maritime mode detected",   "⚓"),
+            "ferroviaire":("🚂 Rail mode detected",       "🚂"),
+            "routier":    ("🚛 Road mode detected",       "🚛"),
+        }
+    label, emoji = labels[dominant]
+    return dominant, label, emoji
 
 def super_clean(val):
     if pd.isna(val): return 0.0
