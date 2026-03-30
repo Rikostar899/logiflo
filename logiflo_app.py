@@ -266,7 +266,7 @@ def get_historique_audits(username, module, n=4):
 
         # Construire l'historique
         history = []
-        for _, row in recent.iterrows():
+        for _hr, row in recent.iterrows():
             entry = {
                 "date":   row.get("date","?"),
                 "kpi_1":  row.get("kpi_1", 0),
@@ -797,20 +797,23 @@ def nettoyer(t):
     return re.sub(r'[^a-z0-9]','',t)
 
 class StepProgress:
-    """Barre de progression simple — 'Calcul en cours...' sans détail technique."""
-    def __init__(self,steps):
-        self._ph=st.empty()
-        self._n=max(len(steps),1)
-        self._i=0
-        # Affiche immédiatement la barre à 0
-        calc_txt = "Computing..." if st.session_state.get("language","fr")=="en" else "Calcul en cours..."
-        self._ph.progress(0,text=calc_txt)
-    def step(self,label=None):
-        self._i+=1
-        pct=min(self._i/self._n,1.0)
-        calc_txt = "Computing..." if st.session_state.get("language","fr")=="en" else "Calcul en cours..."
-        self._ph.progress(pct,text=calc_txt)
-    def done(self): self._ph.empty()
+    """Barre de progression simple — texte configurable, sans detail technique."""
+    def __init__(self, steps, text=None):
+        self._ph = st.empty()
+        self._n  = max(len(steps), 1)
+        self._i  = 0
+        lang = st.session_state.get("language", "fr")
+        if text:
+            self._txt = text
+        else:
+            self._txt = "Computing..." if lang == "en" else "Calcul en cours..."
+        self._ph.progress(0, text=self._txt)
+    def step(self, label=None):
+        self._i += 1
+        pct = min(self._i / self._n, 1.0)
+        self._ph.progress(pct, text=self._txt)
+    def done(self):
+        self._ph.empty()
 
 # =========================================
 # 4. SMART INGESTER V5
@@ -1164,7 +1167,7 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
     pdf.set_draw_color(0,200,150); pdf.set_line_width(0.8)
     pdf.line(40,pdf.get_y(),170,pdf.get_y()); pdf.ln(10)
     pdf.set_text_color(255,255,255); pdf.set_font("Arial","B",22)
-    pdf.multi_cell(0,12,_asc(title),align='C'); pdf.ln(8)
+    pdf.multi_cell(0,12,_s(title),align='C'); pdf.ln(8)
     pdf.set_font("Arial","",12); pdf.set_text_color(180,200,220)
     conf = "CONFIDENTIAL" if lang=="en" else "CONFIDENTIEL"
     pdf.cell(0,8,_s(f"Date : {datetime.date.today().strftime('%d/%m/%Y')}"),ln=True,align='C')
@@ -1244,7 +1247,7 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
             pdf.set_xy(bar_x+bar_total+4,bar_y-1)
             pdf.set_font("Arial","B",8); pdf.set_text_color(11,37,69)
             label_sc = sl.split(':')[0] if ':' in sl else sl
-            pdf.cell(50,6,_asc(label_sc)[:38])
+            pdf.cell(50,6,_s(label_sc)[:38])
             pdf.set_font("Arial","",8); pdf.set_text_color(rc,gc,bc)
             score_txt = f"{sv}/100" if sv>0 else ""
             pdf.cell(0,6,score_txt,ln=True)
@@ -1280,7 +1283,7 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
             except Exception as e_img:
                 # Si kaleido absent : ajouter un message dans le PDF
                 pdf.set_font("Arial","I",9); pdf.set_text_color(150,150,150)
-                pdf.cell(0,8,"[Graphique non disponible — installer kaleido]",ln=True,align='C')
+                pdf.cell(0,8,"[Graphique non disponible - installer kaleido]",ln=True,align='C')
 
     # ── PAGE 4 : ANALYSE IA ───────────────────────────────────────
     pdf.add_page()
@@ -1311,17 +1314,17 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
             pdf.set_fill_color(240,244,248); pdf.rect(10,pdf.get_y(),190,10,'F')
             pdf.set_fill_color(0,200,150); pdf.rect(10,pdf.get_y(),3,10,'F')
             pdf.set_font("Arial","B",10); pdf.set_text_color(11,37,69)
-            pdf.set_x(16); pdf.cell(184,10,t.upper(),ln=True); pdf.ln(3)
+            pdf.set_x(16); pdf.cell(184,10,_s(t).upper(),ln=True); pdf.ln(3)
         elif line.startswith(('- ','* ')):
             if pdf.get_y()>272: pdf.add_page(); pdf.ln(5)
             pdf.set_font("Arial","",10); pdf.set_text_color(40,40,40)
-            bt=_asc(line[2:].replace("**","").replace("→","->").replace("•","-").replace("✓","OK").replace("→","->"))
+            bt=_s(line[2:].replace("**",""))
             pdf.set_x(14); pdf.cell(5,6,"-"); pdf.set_x(19)
             pdf.multi_cell(181,6,bt)
         else:
             if pdf.get_y()>272: pdf.add_page(); pdf.ln(5)
             pdf.set_font("Arial","",10); pdf.set_text_color(40,40,40)
-            cleaned=_asc(line.replace("**","").replace("→","->").replace("←","<-").replace("•","-").replace("✓","OK").replace("✗","KO").replace("🔴","[!]").replace("🟠","[!]").replace("🟢","[ok]"))
+            cleaned=_s(line.replace("**",""))
             pdf.set_x(10); pdf.multi_cell(190,6,cleaned)
 
     # ── PAGE 5 : CALL TO ACTION ───────────────────────────────────
@@ -1885,7 +1888,8 @@ elif st.session_state.auth and st.session_state.page=="app":
                             else: st.warning(_("stock_save_err"))
 
                     if run_ia:
-                        pg2=StepProgress([_("step_read"),_("step_ia"),_("step_report")])
+                        _ia_txt = "Deep AI Analysis in progress..." if st.session_state.get("language","fr")=="en" else "Analyse approfondie IA en cours..."
+                        pg2=StepProgress([_("step_read"),_("step_ia"),_("step_report")],text=_ia_txt)
                         pg2.step(_("step_read"))
                         df_tox=df[df["Statut"].isin(["🔴 Dormant","🟠 Surstock"])]
                         pires=df_tox.nlargest(3,"quantite") if not df_tox.empty else df.nlargest(3,"quantite")
@@ -1934,7 +1938,8 @@ elif st.session_state.auth and st.session_state.page=="app":
                     else: st.success(_("stock_no_rupture"))
                     run_ops=st.button(_("stock_btn_ia_terrain"),use_container_width=True,key="terrain_ia")
                     if run_ops:
-                        pg3=StepProgress([_("step_read"),_("step_ia"),_("step_report")])
+                        _ia_txt_t = "Deep AI Analysis in progress..." if st.session_state.get("language","fr")=="en" else "Analyse approfondie IA en cours..."
+                        pg3=StepProgress([_("step_read"),_("step_ia"),_("step_report")],text=_ia_txt_t)
                         pg3.step(_("step_read"))
                         top_c=df.nsmallest(5,"quantite")
                         top_s=", ".join([f"{r['reference']} ({r['quantite']:.0f})" for _ii,r in top_c.iterrows()])
@@ -1966,23 +1971,23 @@ elif st.session_state.auth and st.session_state.page=="app":
             st.markdown("---")
 
             if up_t and st.session_state.trans_filename!=up_t.name:
-                pg4=StepProgress([_("step_read"),_("step_detect"),_("step_mode")])
-                pg4.step(_("step_read"))
+                _pg_trans=StepProgress([1,2,3,4])
+                _pg_trans.step()
                 try: df_t=pd.read_excel(up_t) if up_t.name.endswith("xlsx") else pd.read_csv(up_t,encoding='utf-8')
                 except UnicodeDecodeError:
                     up_t.seek(0);df_t=pd.read_csv(up_t,encoding='latin-1')
-                pg4.step(_("step_detect"))
+                _pg_trans.step()
                 mapping=auto_map_columns_with_ai(df_t)
-                pg4.step(_("step_mode"))
                 dep_c_tmp=mapping.get("dep") if mapping.get("dep") in df_t.columns else None
                 arr_c_tmp=mapping.get("arr") if mapping.get("arr") in df_t.columns else None
                 mode_c_tmp=mapping.get("mode") if mapping.get("mode") in df_t.columns else None
                 mode_det,mode_label,mode_emoji=detect_transport_mode(df_t,dep_c_tmp,arr_c_tmp,mode_c_tmp)
+                _pg_trans.step()
                 st.session_state.trans_mapping=mapping
                 st.session_state.df_trans=df_t
                 st.session_state.trans_filename=up_t.name
                 st.session_state.trans_mode_detected=(mode_det,mode_label,mode_emoji)
-                pg4.done()
+                _pg_trans.done()
 
             if st.session_state.df_trans is not None:
                 df_t=st.session_state.df_trans
@@ -1998,7 +2003,7 @@ elif st.session_state.auth and st.session_state.page=="app":
 
                 if not co_c:
                     for c in df_t.columns:
-                        if any(k in str(c).lower() for k in ["coût","cout","cost","achat"]): co_c=c;break
+                        if any(k in str(c).lower() for k in ["cout","cost","achat","charge"]): co_c=c;break
                 if not ca_c:
                     for c in df_t.columns:
                         if any(k in str(c).lower() for k in ["ca","revenue","revenu","facture"]): ca_c=c;break
@@ -2010,11 +2015,11 @@ elif st.session_state.auth and st.session_state.page=="app":
                 df_t["Marge_Nette"]=df_t["_CA"]-df_t["_CO"]
 
                 if dep_c and arr_c and "_DIST_CALCULEE" not in df_t.columns:
-                    pg5=StepProgress([_("step_geo"),_("step_dist"),"Done"])
-                    pg5.step(_("step_geo"))
+                    _pg_dist=StepProgress([1,2,3])
+                    _pg_dist.step()
                     df_t=smart_multimodal_router(df_t,dep_c,arr_c,mode_c)
-                    pg5.step(_("step_dist"))
-                    st.session_state.df_trans=df_t;pg5.done()
+                    _pg_dist.step()
+                    st.session_state.df_trans=df_t;_pg_dist.done()
 
                 df_t["_DIST_FINALE"]=(df_t["_DIST_CALCULEE"] if "_DIST_CALCULEE" in df_t.columns and df_t["_DIST_CALCULEE"].sum()>0
                                       else (df_t[dist_c].apply(super_clean) if dist_c else 0))
@@ -2144,7 +2149,8 @@ elif st.session_state.auth and st.session_state.page=="app":
                 fig_trans=fig_top  # pour le PDF
 
                 if run_ia_t:
-                    pg6=StepProgress([_("step_read"),_("step_ia"),_("step_report")])
+                    _ia_txt_tr2 = "Deep AI Analysis in progress..." if st.session_state.get("language","fr")=="en" else "Analyse approfondie IA en cours..."
+                    pg6=StepProgress([_("step_read"),_("step_ia"),_("step_report")],text=_ia_txt_tr2)
                     pg6.step(_("step_read"))
                     top3=df_t.nsmallest(3,"Marge_Nette")
                     pires_s=", ".join([f"{r[tour_c]} ({r['Marge_Nette']:.0f} EUR)" for _ii,r in top3.iterrows()]) if not top3.empty else "None"
