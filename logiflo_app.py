@@ -59,7 +59,7 @@ T = {
         "stock_import_sub":"Déposez votre fichier d'inventaire (CSV ou Excel).<br>Le <b>Smart Ingester™ V4</b> détecte automatiquement vos colonnes, même avec des noms atypiques.<br><span style='color:#00A87A;font-weight:600;'>✓ Prix optionnel &nbsp; ✓ Historique optionnel &nbsp; ✓ Tous formats</span>",
         "stock_kpi_capital":"Capital Immobilisé","stock_kpi_articles":"Articles en Stock",
         "stock_kpi_service":"Taux de Service","stock_kpi_rupture":"Articles en Rupture",
-        "stock_btn_ia":"GÉNÉRER L'AUDIT FINANCIER (IA)",
+        "stock_btn_ia":"GÉNÉRER L'AUDIT FINANCIER (IA)","stock_btn_ia_terrain":"GÉNÉRER L'AUDIT IA",
         "stock_btn_save":"💾 Sauvegarder","stock_btn_dl":"📥 Télécharger le Rapport (PDF)",
         "stock_badge_no_price":"📊 Mode opérationnel — analyse sans prix",
         "stock_badge_conso":"📈 Historique de consommation détecté",
@@ -128,7 +128,7 @@ T = {
         "stock_import_sub":"Drop your inventory file (CSV or Excel).<br>The <b>Smart Ingester™ V4</b> automatically detects your columns, even with unusual names.<br><span style='color:#00A87A;font-weight:600;'>✓ Price optional &nbsp; ✓ History optional &nbsp; ✓ All formats</span>",
         "stock_kpi_capital":"Tied-up Capital","stock_kpi_articles":"Items in Stock",
         "stock_kpi_service":"Service Level","stock_kpi_rupture":"Stock-outs",
-        "stock_btn_ia":"GENERATE FINANCIAL AUDIT (AI)",
+        "stock_btn_ia":"GENERATE FINANCIAL AUDIT (AI)","stock_btn_ia_terrain":"GENERATE AI AUDIT",
         "stock_btn_save":"💾 Save","stock_btn_dl":"📥 Download Report (PDF)",
         "stock_badge_no_price":"📊 Operational mode — analysis without prices",
         "stock_badge_conso":"📈 Consumption history detected",
@@ -957,13 +957,14 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
         elif line.startswith(('- ','* ')):
             if pdf.get_y()>272: pdf.add_page(); pdf.ln(5)
             pdf.set_font("Arial","",10); pdf.set_text_color(40,40,40)
-            bt=_asc(line[2:].replace("**",""))
+            bt=_asc(line[2:].replace("**","").replace("→","->").replace("•","-").replace("✓","OK").replace("→","->"))
             pdf.set_x(14); pdf.cell(5,6,"-"); pdf.set_x(19)
             pdf.multi_cell(181,6,bt)
         else:
             if pdf.get_y()>272: pdf.add_page(); pdf.ln(5)
             pdf.set_font("Arial","",10); pdf.set_text_color(40,40,40)
-            pdf.set_x(10); pdf.multi_cell(190,6,_asc(line.replace("**","")))
+            cleaned=_asc(line.replace("**","").replace("→","->").replace("←","<-").replace("•","-").replace("✓","OK").replace("✗","KO").replace("🔴","[!]").replace("🟠","[!]").replace("🟢","[ok]"))
+            pdf.set_x(10); pdf.multi_cell(190,6,cleaned)
 
     # ── PAGE 5 : CALL TO ACTION ───────────────────────────────────
     pdf.add_page()
@@ -1009,7 +1010,11 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
         pdf.set_text_color(br,br,br)
         pdf.cell(0,9,_asc(txt),ln=True,align='C')
 
-    return pdf.output(dest='S').encode('latin-1')
+    # Encodage sécurisé : remplace tout caractère non latin-1 avant output
+    raw = pdf.output(dest='S')
+    if isinstance(raw, str):
+        return raw.encode('latin-1', errors='replace')
+    return raw
 
 
 # =========================================
@@ -1565,7 +1570,7 @@ elif st.session_state.auth and st.session_state.page=="app":
                         if has_conso: cols_s.append("_conso_moy")
                         st.dataframe(ruptures[cols_s],use_container_width=True)
                     else: st.success(_("stock_no_rupture"))
-                    run_ops=st.button(_("stock_btn_ia"),use_container_width=True,key="terrain_ia")
+                    run_ops=st.button(_("stock_btn_ia_terrain"),use_container_width=True,key="terrain_ia")
                     if run_ops:
                         pg3=StepProgress([_("step_read"),_("step_ia"),_("step_report")])
                         pg3.step(_("step_read"))
