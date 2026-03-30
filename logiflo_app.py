@@ -764,59 +764,236 @@ class PDFReport(FPDF):
         footer_text=_("pdf_footer")
         self.multi_cell(0,4,unicodedata.normalize('NFKD',footer_text).encode('ASCII','ignore').decode('utf-8'),align="C")
 
-def generate_expert_pdf(title,content,figs=None):
-    pdf=PDFReport()
-    pdf.add_page();pdf.set_fill_color(11,37,69);pdf.rect(0,0,210,297,'F')
-    pdf.set_y(100);pdf.set_text_color(255,255,255)
-    pdf.set_font("Arial","B",32);pdf.cell(0,15,"LOGIFLO.IO",ln=True,align='C')
-    pdf.set_font("Arial","",14);pdf.set_text_color(200,200,200)
-    strategic=unicodedata.normalize('NFKD',_("pdf_strategic")).encode('ASCII','ignore').decode('utf-8')
-    pdf.cell(0,10,strategic,ln=True,align='C')
-    pdf.ln(30);pdf.set_text_color(255,255,255);pdf.set_font("Arial","B",20)
-    pdf.cell(0,10,unicodedata.normalize('NFKD',title).encode('ASCII','ignore').decode('utf-8'),ln=True,align='C')
-    pdf.ln(10);pdf.set_font("Arial","",12)
-    date_label=unicodedata.normalize('NFKD',_("pdf_date")).encode('ASCII','ignore').decode('utf-8')
-    conf_label=unicodedata.normalize('NFKD',_("pdf_confidential")).encode('ASCII','ignore').decode('utf-8')
-    pdf.cell(0,10,f"{date_label} : {datetime.date.today().strftime('%d/%m/%Y')}",ln=True,align='C')
-    pdf.cell(0,10,conf_label,ln=True,align='C')
+def _asc(text):
+    """Convertit en ASCII pour fpdf."""
+    return unicodedata.normalize('NFKD', str(text)).encode('ASCII', 'ignore').decode('utf-8')
+
+def _clean_pdf(text):
+    """Nettoie le texte pour fpdf."""
+    return _asc(text.replace("\u2019","'").replace("\u2018","'")
+                     .replace("\u201c",'"').replace("\u201d",'"')
+                     .replace("\u20ac","EUR").replace("\u2022","-")
+                     .replace("\u2013","-").replace("\u2014","-")
+                     .replace("**",""))
+
+def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, module="stock"):
+    """
+    PDF structuré 5 pages :
+    P1 Couverture | P2 Synthese executive | P3 Graphiques | P4 Analyse IA | P5 CTA
+    """
+    if kpis is None: kpis = []
+    if labels is None: labels = []
+    pdf = PDFReport()
+    lang = st.session_state.get("language","fr")
+
+    # ── PAGE 1 : COUVERTURE ──────────────────────────────────────
     pdf.add_page()
-    pdf.set_fill_color(240,244,248);pdf.rect(0,0,210,30,'F')
-    pdf.set_y(10);pdf.set_text_color(11,37,69);pdf.set_font("Arial","B",18)
-    report_label=unicodedata.normalize('NFKD',_("pdf_report")).encode('ASCII','ignore').decode('utf-8')
-    pdf.cell(0,10,report_label,ln=True,align='L')
-    pdf.line(10,25,200,25);pdf.ln(15)
+    pdf.set_fill_color(11,37,69); pdf.rect(0,0,210,297,'F')
+    pdf.set_fill_color(0,200,150); pdf.rect(0,0,210,6,'F')
+    pdf.set_y(80)
+    pdf.set_text_color(255,255,255)
+    pdf.set_font("Arial","B",38); pdf.cell(0,18,"LOGIFLO.IO",ln=True,align='C')
+    pdf.set_font("Arial","",14); pdf.set_text_color(0,200,150)
+    pdf.cell(0,10,"[ Logistics Intelligence ]",ln=True,align='C')
+    pdf.ln(8)
+    pdf.set_draw_color(0,200,150); pdf.set_line_width(0.8)
+    pdf.line(40,pdf.get_y(),170,pdf.get_y()); pdf.ln(10)
+    pdf.set_text_color(255,255,255); pdf.set_font("Arial","B",22)
+    pdf.multi_cell(0,12,_asc(title),align='C'); pdf.ln(8)
+    pdf.set_font("Arial","",12); pdf.set_text_color(180,200,220)
+    conf = "CONFIDENTIAL" if lang=="en" else "CONFIDENTIEL"
+    pdf.cell(0,8,f"Date : {datetime.date.today().strftime('%d/%m/%Y')}",ln=True,align='C')
+    pdf.cell(0,8,conf,ln=True,align='C')
+    pdf.set_fill_color(0,200,150); pdf.rect(0,291,210,6,'F')
+
+    # ── PAGE 2 : SYNTHESE EXECUTIVE ──────────────────────────────
+    pdf.add_page()
+    pdf.set_fill_color(11,37,69); pdf.rect(0,0,210,18,'F')
+    pdf.set_y(4); pdf.set_text_color(255,255,255); pdf.set_font("Arial","B",11)
+    h2 = "EXECUTIVE SUMMARY" if lang=="en" else "SYNTHESE EXECUTIVE"
+    pdf.cell(0,10,h2,ln=True,align='C'); pdf.ln(8)
+
+    # Titre
+    pdf.set_text_color(11,37,69); pdf.set_font("Arial","B",16)
+    kpi_title = "Key Indicators" if lang=="en" else "Indicateurs Cles"
+    pdf.cell(0,10,kpi_title,ln=True,align='L')
+    pdf.set_draw_color(0,200,150); pdf.set_line_width(0.6)
+    pdf.line(10,pdf.get_y(),200,pdf.get_y()); pdf.ln(8)
+
+    # KPI cards
+    if kpis and labels:
+        n = min(len(kpis),len(labels),3)
+        card_w = 56
+        total_w = n*card_w+(n-1)*8
+        start_x = (210-total_w)/2
+        card_colors = [(0,168,122),(0,168,122),(232,48,74)]
+        card_y = pdf.get_y()
+        for i in range(n):
+            cx = start_x + i*(card_w+8)
+            pdf.set_fill_color(240,244,248); pdf.rect(cx,card_y,card_w,38,'F')
+            r,g,b = card_colors[i] if i < len(card_colors) else (0,168,122)
+            pdf.set_fill_color(r,g,b); pdf.rect(cx,card_y,card_w,3,'F')
+            # Label
+            pdf.set_xy(cx+2, card_y+5)
+            pdf.set_font("Arial","",7); pdf.set_text_color(74,96,128)
+            pdf.cell(card_w-4,6,_asc(labels[i]).upper()[:22],align='C')
+            # Valeur
+            pdf.set_xy(cx+2, card_y+14)
+            pdf.set_font("Arial","B",18)
+            pdf.set_text_color(r,g,b)
+            val = kpis[i]
+            if isinstance(val,float) and abs(val)>=1000:
+                val_str = f"{val:,.0f}"
+            elif isinstance(val,float) and abs(val)<=100:
+                val_str = f"{val:.1f}%"
+            else:
+                val_str = str(int(val)) if isinstance(val,float) else str(val)
+            pdf.cell(card_w-4,12,val_str,align='C')
+        pdf.ln(46)
+
+    # Scoring extrait du contenu IA
+    pdf.set_font("Arial","B",13); pdf.set_text_color(11,37,69)
+    sc_title = "Logiflo Scoring" if lang=="en" else "Scoring Logiflo"
+    pdf.cell(0,8,sc_title,ln=True); pdf.ln(2)
+    scoring_lines=[]
+    in_sc=False
+    for line in content.split('\n'):
+        ls=line.strip()
+        if 'SCORING' in ls.upper():
+            in_sc=True; continue
+        if in_sc:
+            if ls.startswith('###') or ls.startswith('---'): break
+            if ls and ('/' in ls or ':' in ls): scoring_lines.append(ls)
+    if scoring_lines:
+        for sl in scoring_lines[:3]:
+            sv=0
+            import re as _re
+            nums=_re.findall(r'(\d+)\s*/\s*100',sl)
+            if nums: sv=int(nums[0])
+            bar_x=10; bar_y=pdf.get_y()+1; bar_total=140
+            bar_fill=int((sv/100)*bar_total) if sv>0 else 0
+            pdf.set_fill_color(225,232,240); pdf.rect(bar_x,bar_y,bar_total,5,'F')
+            rc,gc,bc=(0,168,122) if sv>=70 else (243,156,18) if sv>=40 else (232,48,74)
+            pdf.set_fill_color(rc,gc,bc)
+            if bar_fill>0: pdf.rect(bar_x,bar_y,bar_fill,5,'F')
+            pdf.set_xy(bar_x+bar_total+4,bar_y-1)
+            pdf.set_font("Arial","B",8); pdf.set_text_color(11,37,69)
+            label_sc = sl.split(':')[0] if ':' in sl else sl
+            pdf.cell(50,6,_asc(label_sc)[:38])
+            pdf.set_font("Arial","",8); pdf.set_text_color(rc,gc,bc)
+            score_txt = f"{sv}/100" if sv>0 else ""
+            pdf.cell(0,6,score_txt,ln=True)
+            pdf.ln(3)
+    else:
+        pdf.set_font("Arial","I",10); pdf.set_text_color(74,96,128)
+        no_sc = "Generate AI analysis to see scoring." if lang=="en" else "Generez l'analyse IA pour voir le scoring."
+        pdf.cell(0,8,no_sc,ln=True)
+
+    # ── PAGE 3 : GRAPHIQUES ───────────────────────────────────────
     if figs:
+        pdf.add_page()
+        pdf.set_fill_color(11,37,69); pdf.rect(0,0,210,18,'F')
+        pdf.set_y(4); pdf.set_text_color(255,255,255); pdf.set_font("Arial","B",11)
+        ch_label = "CHARTS & VISUALIZATIONS" if lang=="en" else "GRAPHIQUES & VISUALISATIONS"
+        pdf.cell(0,10,ch_label,ln=True,align='C'); pdf.ln(6)
         for fig in figs:
             try:
-                img=fig.to_image(format="png",width=800,height=350)
+                img_bytes=fig.to_image(format="png",width=800,height=360)
                 with tempfile.NamedTemporaryFile(delete=False,suffix=".png") as tmp:
-                    tmp.write(img);tp=tmp.name
-                pdf.image(tp,x=15,y=pdf.get_y()+2,w=180);pdf.ln(95)
+                    tmp.write(img_bytes); tp=tmp.name
+                if pdf.get_y()>195: pdf.add_page(); pdf.ln(5)
+                pdf.image(tp,x=12,y=pdf.get_y(),w=186); pdf.ln(100)
+                try: os.unlink(tp)
+                except: pass
             except: pass
-    if pdf.get_y()>220: pdf.add_page()
-    content=(content.replace("\u2019","'").replace("\u2018","'")
-             .replace("\u201c",'"').replace("\u201d",'"')
-             .replace("\u20ac","EUR").replace("\u2022","-"))
-    for line in content.split('\n'):
-        line=line.strip()
-        if not line: pdf.ln(4);continue
-        if line.startswith('### '):
-            t=unicodedata.normalize('NFKD',line[4:]).encode('ASCII','ignore').decode('utf-8')
-            pdf.ln(6);pdf.set_font("Arial","BU",12);pdf.set_text_color(11,37,69)
-            pdf.cell(0,8,t.upper(),ln=True)
-            pdf.set_font("Arial","",11);pdf.set_text_color(40,40,40)
-        else:
-            pdf.multi_cell(0,6,unicodedata.normalize('NFKD',line.replace("**","")).encode('ASCII','ignore').decode('utf-8'))
-    # CTA page finale
+
+    # ── PAGE 4 : ANALYSE IA ───────────────────────────────────────
     pdf.add_page()
-    pdf.set_fill_color(11,37,69);pdf.rect(0,0,210,297,'F')
-    pdf.set_y(120)
-    cta=unicodedata.normalize('NFKD',_("pdf_cta")).encode('ASCII','ignore').decode('utf-8')
-    for line in cta.split('\n'):
-        pdf.set_text_color(255,255,255 if not line.startswith('contact') else 0)
-        pdf.set_font("Arial","B" if line.startswith("Ce rapport") or line.startswith("This report") else "",12)
-        pdf.cell(0,10,line,ln=True,align='C')
+    pdf.set_fill_color(11,37,69); pdf.rect(0,0,210,18,'F')
+    pdf.set_y(4); pdf.set_text_color(255,255,255); pdf.set_font("Arial","B",11)
+    ai_label = "AI ANALYSIS & RECOMMENDATIONS" if lang=="en" else "ANALYSE IA & RECOMMANDATIONS"
+    pdf.cell(0,10,ai_label,ln=True,align='C'); pdf.ln(8)
+
+    content_r=(content.replace("\u2019","'").replace("\u2018","'")
+                      .replace("\u201c",'"').replace("\u201d",'"')
+                      .replace("\u20ac","EUR").replace("\u2022","-")
+                      .replace("\u2013","-").replace("\u2014","-"))
+    skip_scoring=False
+    for line in content_r.split('\n'):
+        line=line.strip()
+        if 'SCORING' in line.upper() and line.startswith('###'):
+            skip_scoring=True
+        if skip_scoring and not line.startswith('###'):
+            continue
+        if skip_scoring and line.startswith('###') and 'SCORING' not in line.upper():
+            skip_scoring=False
+        if not line:
+            pdf.ln(2); continue
+        if line.startswith('### '):
+            if pdf.get_y()>255: pdf.add_page(); pdf.ln(5)
+            t=_asc(line[4:])
+            pdf.ln(4)
+            pdf.set_fill_color(240,244,248); pdf.rect(10,pdf.get_y(),190,10,'F')
+            pdf.set_fill_color(0,200,150); pdf.rect(10,pdf.get_y(),3,10,'F')
+            pdf.set_font("Arial","B",10); pdf.set_text_color(11,37,69)
+            pdf.set_x(16); pdf.cell(184,10,t.upper(),ln=True); pdf.ln(3)
+        elif line.startswith(('- ','* ')):
+            if pdf.get_y()>272: pdf.add_page(); pdf.ln(5)
+            pdf.set_font("Arial","",10); pdf.set_text_color(40,40,40)
+            bt=_asc(line[2:].replace("**",""))
+            pdf.set_x(14); pdf.cell(5,6,"-"); pdf.set_x(19)
+            pdf.multi_cell(181,6,bt)
+        else:
+            if pdf.get_y()>272: pdf.add_page(); pdf.ln(5)
+            pdf.set_font("Arial","",10); pdf.set_text_color(40,40,40)
+            pdf.set_x(10); pdf.multi_cell(190,6,_asc(line.replace("**","")))
+
+    # ── PAGE 5 : CALL TO ACTION ───────────────────────────────────
+    pdf.add_page()
+    pdf.set_fill_color(11,37,69); pdf.rect(0,0,210,297,'F')
+    pdf.set_fill_color(0,200,150); pdf.rect(0,0,210,6,'F'); pdf.rect(0,291,210,6,'F')
+    pdf.set_y(85)
+    pdf.set_text_color(0,200,150); pdf.set_font("Arial","B",32)
+    pdf.cell(0,16,"LOGIFLO.IO",ln=True,align='C')
+    pdf.ln(6)
+    pdf.set_draw_color(0,200,150); pdf.set_line_width(0.6)
+    pdf.line(50,pdf.get_y(),160,pdf.get_y()); pdf.ln(12)
+    if lang=="en":
+        cta_lines=[
+            ("This report was generated by LOGIFLO.IO",True,255),
+            ("","",200),
+            ("Designed by a field logistics professional.",False,200),
+            ("Not by a consultant.",False,200),
+            ("","",200),
+            ("Because real margin leaks don't show",False,170),
+            ("up in dashboards.",False,170),
+            ("","",200),
+            ("To go further :",True,255),
+            ("contact@logiflo.io",False,150),
+            ("logiflo-io.streamlit.app",False,150),
+        ]
+    else:
+        cta_lines=[
+            ("Ce rapport a ete genere par LOGIFLO.IO",True,255),
+            ("","",200),
+            ("Concu par un logisticien terrain.",False,200),
+            ("Pas par un consultant.",False,200),
+            ("","",200),
+            ("Parce que les vraies fuites de marge",False,170),
+            ("ne se voient pas dans les tableaux de bord.",False,170),
+            ("","",200),
+            ("Pour aller plus loin :",True,255),
+            ("contact@logiflo.io",False,150),
+            ("logiflo-io.streamlit.app",False,150),
+        ]
+    for (txt,bold,br) in cta_lines:
+        if not txt: pdf.ln(5); continue
+        pdf.set_font("Arial","B" if bold else "",12 if bold else 11)
+        pdf.set_text_color(br,br,br)
+        pdf.cell(0,9,_asc(txt),ln=True,align='C')
+
     return pdf.output(dest='S').encode('latin-1')
+
 
 # =========================================
 # 8. ROUTING ORS
@@ -1245,7 +1422,7 @@ elif st.session_state.auth and st.session_state.page=="app":
                             f"Prices: {'No' if sans_prix else 'Yes'}. Consumption history: {'Yes' if has_conso else 'No'}.")
                         figs_pdf=[fig_pie]
                         if has_conso: figs_pdf.append(fig_conso)
-                        st.session_state.last_pdf=generate_expert_pdf(_("pdf_title_stock"),st.session_state.analysis_stock,figs_pdf)
+                        st.session_state.last_pdf=generate_expert_pdf(_("pdf_title_stock"),st.session_state.analysis_stock,figs_pdf,kpis=st.session_state.last_kpis,labels=st.session_state.last_labels,module="stock")
                         kpi1=val_totale if not sans_prix else float(len(df))
                         label1=_("stock_kpi_capital") if not sans_prix else _("stock_kpi_articles")
                         st.session_state.last_kpis=[kpi1,tx_serv,len(ruptures)]
@@ -1485,7 +1662,7 @@ elif st.session_state.auth and st.session_state.page=="app":
                     st.session_state.analysis_trans=generate_ai_analysis(
                         f"Routes: {len(df_t)}. Total margin: {marge_tot:.0f} EUR. Rate: {taux:.1f}%. "
                         f"Loss routes: {traj_def}. Top 3 worst: {pires_s}. Avg cost/km: {cout_km:.2f} EUR.{poids_info}{mode_info}")
-                    st.session_state.last_pdf=generate_expert_pdf(_("pdf_title_trans"),st.session_state.analysis_trans,[fig_trans])
+                    st.session_state.last_pdf=generate_expert_pdf(_("pdf_title_trans"),st.session_state.analysis_trans,[fig_trans],kpis=st.session_state.last_kpis,labels=st.session_state.last_labels,module="transport")
                     st.session_state.last_kpis=[marge_tot,taux,nb_tox]
                     st.session_state.last_labels=[_("trans_kpi_marge"),_("trans_kpi_taux"),"Toxic"]
                     pg6.done()
