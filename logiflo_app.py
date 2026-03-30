@@ -236,7 +236,7 @@ def load_archives_from_sheets(username):
         return pd.DataFrame(records) if records else pd.DataFrame()
     except: return None
 
-def get_historique_audits(username, module, n=4):
+def get_historique_audits(username, module, n=4, current_kpis=None, current_labels=None):
     """
     Charge les n derniers audits du même module depuis Google Sheets.
     Retourne un dict avec les tendances calculées ou None si pas d'historique.
@@ -264,7 +264,7 @@ def get_historique_audits(username, module, n=4):
 
         recent = df.head(n).iloc[::-1]  # remettre chronologique
 
-        # Construire l'historique
+        # Construire l'historique depuis les archives
         history = []
         for _hr, row in recent.iterrows():
             entry = {
@@ -278,6 +278,21 @@ def get_historique_audits(username, module, n=4):
                 "resume": str(row.get("resume_ia",""))[:400],
             }
             history.append(entry)
+
+        # Ajouter l'audit ACTUEL (non encore sauvegardé) comme dernier point
+        if current_kpis and len(current_kpis) >= 2:
+            import datetime as _dt
+            current_labels_safe = current_labels or ["KPI1","KPI2","KPI3"]
+            history.append({
+                "date":    _dt.date.today().strftime("%d/%m/%Y"),
+                "kpi_1":  float(current_kpis[0]) if len(current_kpis) > 0 else 0,
+                "kpi_2":  float(current_kpis[1]) if len(current_kpis) > 1 else 0,
+                "kpi_3":  float(current_kpis[2]) if len(current_kpis) > 2 else 0,
+                "label_1": current_labels_safe[0] if len(current_labels_safe) > 0 else "KPI1",
+                "label_2": current_labels_safe[1] if len(current_labels_safe) > 1 else "KPI2",
+                "label_3": current_labels_safe[2] if len(current_labels_safe) > 2 else "KPI3",
+                "resume":  "",
+            })
 
         if len(history) < 2:
             return None
@@ -1265,25 +1280,30 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
         ch_label = "CHARTS & VISUALIZATIONS" if lang=="en" else "GRAPHIQUES & VISUALISATIONS"
         pdf.cell(0,10,_s(ch_label),ln=True,align='C'); pdf.ln(6)
         for fig in figs:
+            _tp = None
             try:
-                import uuid
-                tp = os.path.join(tempfile.gettempdir(), f"logiflo_{uuid.uuid4().hex}.png")
+                import uuid, plotly.io as _pio
+                _tp = os.path.join(tempfile.gettempdir(), f"lgf_{uuid.uuid4().hex}.png")
+                # Méthode 1 : to_image bytes puis write
                 try:
-                    fig.write_image(tp, format="png", width=900, height=380, scale=1.5)
+                    _img_bytes = _pio.to_image(fig, format="png", width=860, height=360, scale=2)
+                    with open(_tp,"wb") as _f: _f.write(_img_bytes)
                 except Exception:
-                    # fallback to_image
-                    img_bytes = fig.to_image(format="png", width=900, height=380)
-                    with open(tp,"wb") as f_img: f_img.write(img_bytes)
-                if os.path.exists(tp) and os.path.getsize(tp) > 1000:
-                    if pdf.get_y() > 195: pdf.add_page(); pdf.ln(5)
-                    pdf.image(tp, x=12, y=pdf.get_y(), w=186)
-                    pdf.ln(100)
-                try: os.unlink(tp)
-                except: pass
-            except Exception as e_img:
-                # Si kaleido absent : ajouter un message dans le PDF
-                pdf.set_font("Arial","I",9); pdf.set_text_color(150,150,150)
-                pdf.cell(0,8,"[Graphique non disponible - installer kaleido]",ln=True,align='C')
+                    # Méthode 2 : write_image direct
+                    try:
+                        fig.write_image(_tp, format="png", width=860, height=360)
+                    except Exception:
+                        _tp = None
+                if _tp and os.path.exists(_tp) and os.path.getsize(_tp) > 500:
+                    if pdf.get_y() > 200: pdf.add_page(); pdf.ln(5)
+                    pdf.image(_tp, x=12, y=pdf.get_y(), w=186)
+                    pdf.ln(96)
+            except Exception:
+                pass
+            finally:
+                if _tp:
+                    try: os.unlink(_tp)
+                    except: pass
 
     # ── PAGE 4 : ANALYSE IA ───────────────────────────────────────
     pdf.add_page()
@@ -1827,6 +1847,7 @@ elif st.session_state.auth and st.session_state.page=="app":
                 if has_conso: st.markdown(f"<span class='sans-prix-badge'>{_('stock_badge_conso')}</span>",unsafe_allow_html=True)
                 else: st.markdown(f"<span class='sans-prix-badge'>{_('stock_badge_no_conso')}</span>",unsafe_allow_html=True)
 
+                # Statuts uniformes — toujours présents quel que soit has_conso
                 if has_conso:
                     df["_conso_moy"]=df["_conso_moy"].fillna(0)
                     df["Couverture_mois"]=np.where(df["_conso_moy"]>0,df["quantite"]/df["_conso_moy"],9999)
@@ -1834,13 +1855,16 @@ elif st.session_state.auth and st.session_state.page=="app":
                         [(df["quantite"]<=st.session_state.seuil_rupture),
                          (df["quantite"]>0)&(df["_conso_moy"]==0),
                          (df["quantite"]>0)&(df["Couverture_mois"]>6)],
-                        ["🚨 RUPTURE","🔴 Dormant","🟠 Surstock"],default="✅ OK")
+                        ["🔴 Rupture","🔴 Dormant","🟠 Surstock"],default="🟢 OK")
                 else:
-                    df["Statut"]=np.where(df["quantite"]<=st.session_state.seuil_rupture,"🚨 RUPTURE","✅ OK")
+                    df["Statut"]=np.where(
+                        df["quantite"]<=st.session_state.seuil_rupture,
+                        "🔴 Rupture","🟢 OK"
+                    )
 
                 df["valeur_totale"]=df["quantite"]*df["prix_unitaire"]
                 val_totale=df["valeur_totale"].sum()
-                ruptures=df[df["Statut"]=="🚨 RUPTURE"]
+                ruptures=df[df["Statut"]=="🔴 Rupture"]
                 tx_serv=(1-len(ruptures)/len(df))*100 if len(df)>0 else 100
 
                 if not st.session_state.history_stock or st.session_state.history_stock[-1].get("valeur")!=val_totale:
@@ -1856,7 +1880,7 @@ elif st.session_state.auth and st.session_state.page=="app":
                     c3.markdown(f"<div class='kpi-card'><h4>{_('stock_kpi_rupture')}</h4><h2 style='color:#E8304A;'>{len(ruptures)}</h2></div>",unsafe_allow_html=True)
                     st.markdown("<br>",unsafe_allow_html=True)
                     cp,cl2=st.columns(2)
-                    cmap={"🚨 RUPTURE":"#E8304A","✅ OK":"#00C896","✅ Sain":"#00C896",
+                    cmap={"🔴 Rupture":"#E8304A","🟢 OK":"#00C896","🟢 OK":"#00C896",
                           "🔴 Dormant":"#c0392b","🟠 Surstock":"#f39c12"}
                     with cp:
                         fig_pie=px.pie(df,names="Statut",hole=0.4,color="Statut",color_discrete_map=cmap)
@@ -1903,21 +1927,27 @@ elif st.session_state.auth and st.session_state.page=="app":
                             med_info=f" Avg consumption: {cm_glob:.1f}/period. Avg coverage: {cv_moy:.1f} months."
                         prix_info="" if sans_prix else f" Tied-up capital: {val_totale:.0f} EUR."
                         pg2.step(_("step_ia"))
-                        # Chargement historique
-                        _hist_s = get_historique_audits(st.session_state.current_user,"stock")
-                        _hist_txt_s = format_historique_pour_prompt(_hist_s,"stock",st.session_state.get("language","fr"))
+                        # Chargement historique avec KPIs courants
+                        _kpis_curr_s=[val_totale if not sans_prix else float(len(df)),tx_serv,float(len(ruptures))]
+                        _labels_curr_s=[_("stock_kpi_capital") if not sans_prix else _("stock_kpi_articles"),_("stock_kpi_service"),_("stock_kpi_rupture")]
+                        _hist_s=get_historique_audits(st.session_state.current_user,"stock",
+                                                      current_kpis=_kpis_curr_s,current_labels=_labels_curr_s)
+                        _hist_txt_s=format_historique_pour_prompt(_hist_s,"stock",st.session_state.get("language","fr"))
                         st.session_state.analysis_stock=generate_ai_analysis(
                             f"Items: {len(df)}. Service level: {tx_serv:.1f}%. Stock-outs: {len(ruptures)}. "
                             f"Top dormant: {top_str}. Top stock-outs: {rupt_l}.{prix_info}{med_info} "
                             f"Prices: {'No' if sans_prix else 'Yes'}. Consumption history: {'Yes' if has_conso else 'No'}.",
                             historique_txt=_hist_txt_s)
-                        figs_pdf=[fig_pie]
-                        if has_conso: figs_pdf.append(fig_conso)
-                        st.session_state.last_pdf=generate_expert_pdf(_("pdf_title_stock"),st.session_state.analysis_stock,figs_pdf,kpis=st.session_state.last_kpis,labels=st.session_state.last_labels,module="stock")
+                        # KPIs calculés AVANT generate_expert_pdf
                         kpi1=val_totale if not sans_prix else float(len(df))
                         label1=_("stock_kpi_capital") if not sans_prix else _("stock_kpi_articles")
-                        st.session_state.last_kpis=[kpi1,tx_serv,len(ruptures)]
-                        st.session_state.last_labels=[label1,_("stock_kpi_service"),_("stock_kpi_rupture")]
+                        _kpis_final=[kpi1, tx_serv, float(len(ruptures))]
+                        _labels_final=[label1, _("stock_kpi_service"), _("stock_kpi_rupture")]
+                        st.session_state.last_kpis=_kpis_final
+                        st.session_state.last_labels=_labels_final
+                        figs_pdf=[fig_pie]
+                        if has_conso: figs_pdf.append(fig_conso)
+                        st.session_state.last_pdf=generate_expert_pdf(_("pdf_title_stock"),st.session_state.analysis_stock,figs_pdf,kpis=_kpis_final,labels=_labels_final,module="stock")
                         pg2.done()
 
                     if st.session_state.analysis_stock:
@@ -2150,22 +2180,26 @@ elif st.session_state.auth and st.session_state.page=="app":
 
                 if run_ia_t:
                     _ia_txt_tr2 = "Deep AI Analysis in progress..." if st.session_state.get("language","fr")=="en" else "Analyse approfondie IA en cours..."
-                    pg6=StepProgress([_("step_read"),_("step_ia"),_("step_report")],text=_ia_txt_tr2)
-                    pg6.step(_("step_read"))
+                    pg6=StepProgress([1,2,3],text=_ia_txt_tr2)
+                    pg6.step()
                     top3=df_t.nsmallest(3,"Marge_Nette")
                     pires_s=", ".join([f"{r[tour_c]} ({r['Marge_Nette']:.0f} EUR)" for _ii,r in top3.iterrows()]) if not top3.empty else "None"
                     mode_info=f" Dominant transport mode: {st.session_state.trans_mode_detected[0] if st.session_state.trans_mode_detected else 'road'}."
-                    pg6.step(_("step_ia"))
-                    # Chargement historique transport
-                    _hist_tr = get_historique_audits(st.session_state.current_user,"transport")
-                    _hist_txt_tr = format_historique_pour_prompt(_hist_tr,"transport",st.session_state.get("language","fr"))
+                    # KPIs calculés AVANT generate_pdf
+                    _kpis_tr=[marge_tot,taux,nb_tox]
+                    _labels_tr=[_("trans_kpi_marge"),_("trans_kpi_taux"),"Toxic"]
+                    pg6.step()
+                    # Historique avec KPIs courants
+                    _hist_tr=get_historique_audits(st.session_state.current_user,"transport",
+                                                   current_kpis=_kpis_tr,current_labels=_labels_tr)
+                    _hist_txt_tr=format_historique_pour_prompt(_hist_tr,"transport",st.session_state.get("language","fr"))
                     st.session_state.analysis_trans=generate_ai_analysis(
                         f"Routes: {len(df_t)}. Total margin: {marge_tot:.0f} EUR. Rate: {taux:.1f}%. "
                         f"Loss routes: {traj_def}. Top 3 worst: {pires_s}. Avg cost/km: {cout_km:.2f} EUR.{poids_info}{mode_info}",
                         historique_txt=_hist_txt_tr)
-                    st.session_state.last_pdf=generate_expert_pdf(_("pdf_title_trans"),st.session_state.analysis_trans,[fig_trans],kpis=st.session_state.last_kpis,labels=st.session_state.last_labels,module="transport")
-                    st.session_state.last_kpis=[marge_tot,taux,nb_tox]
-                    st.session_state.last_labels=[_("trans_kpi_marge"),_("trans_kpi_taux"),"Toxic"]
+                    st.session_state.last_kpis=_kpis_tr
+                    st.session_state.last_labels=_labels_tr
+                    st.session_state.last_pdf=generate_expert_pdf(_("pdf_title_trans"),st.session_state.analysis_trans,[fig_trans],kpis=_kpis_tr,labels=_labels_tr,module="transport")
                     pg6.done()
 
                 if st.session_state.analysis_trans:
