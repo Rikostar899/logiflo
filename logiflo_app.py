@@ -236,6 +236,234 @@ def load_archives_from_sheets(username):
         return pd.DataFrame(records) if records else pd.DataFrame()
     except: return None
 
+def get_historique_audits(username, module, n=4):
+    """
+    Charge les n derniers audits du même module depuis Google Sheets.
+    Retourne un dict avec les tendances calculées ou None si pas d'historique.
+    """
+    try:
+        df = load_archives_from_sheets(username)
+        if df is None or df.empty:
+            return None
+        # Filtrer par module
+        df = df[df["module"] == module].copy()
+        if len(df) < 2:
+            return None  # pas assez d'historique pour une tendance
+
+        # Convertir les colonnes numériques
+        for col in ["kpi_1","kpi_2","kpi_3"]:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        # Trier par date/heure descendant, prendre les n derniers
+        try:
+            df["_dt"] = pd.to_datetime(df["date"] + " " + df["heure"],
+                                        format="%d/%m/%Y %H:%M", errors="coerce")
+            df = df.sort_values("_dt", ascending=False)
+        except:
+            pass  # si parse date échoue, on garde l'ordre sheets
+
+        recent = df.head(n).iloc[::-1]  # remettre chronologique
+
+        # Construire l'historique
+        history = []
+        for _, row in recent.iterrows():
+            entry = {
+                "date":   row.get("date","?"),
+                "kpi_1":  row.get("kpi_1", 0),
+                "kpi_2":  row.get("kpi_2", 0),
+                "kpi_3":  row.get("kpi_3", 0),
+                "label_1":row.get("kpi_label_1","KPI1"),
+                "label_2":row.get("kpi_label_2","KPI2"),
+                "label_3":row.get("kpi_label_3","KPI3"),
+                "resume": str(row.get("resume_ia",""))[:400],
+            }
+            history.append(entry)
+
+        if len(history) < 2:
+            return None
+
+        # Calculer les tendances entre le plus ancien et le plus récent
+        first = history[0]
+        last  = history[-1]
+
+        def delta_pct(new, old):
+            try:
+                new, old = float(new), float(old)
+                if old == 0: return None
+                return round((new - old) / abs(old) * 100, 1)
+            except:
+                return None
+
+        def tendance_label(d, lang="fr", invert=False):
+            """invert=True : une baisse est bonne (ex: nb ruptures)"""
+            if d is None: return ""
+            if lang == "en":
+                if invert:
+                    return f"{'▼ improving' if d < 0 else '▲ worsening'} ({abs(d):.1f}%)"
+                return f"{'▲ up' if d > 0 else '▼ down'} ({abs(d):.1f}%)"
+            else:
+                if invert:
+                    return f"{'▼ en amelioration' if d < 0 else '▲ en degradation'} ({abs(d):.1f}%)"
+                return f"{'▲ hausse' if d > 0 else '▼ baisse'} ({abs(d):.1f}%)"
+
+        d1 = delta_pct(last["kpi_1"], first["kpi_1"])
+        d2 = delta_pct(last["kpi_2"], first["kpi_2"])
+        d3 = delta_pct(last["kpi_3"], first["kpi_3"])
+
+        return {
+            "history":   history,
+            "n_audits":  len(history),
+            "first_date":first["date"],
+            "last_date": last["date"],
+            "delta_1":   d1,
+            "delta_2":   d2,
+            "delta_3":   d3,
+        }
+    except Exception:
+        return None
+
+
+def format_historique_pour_prompt(hist, module, lang="fr"):
+    """
+    Formate l'historique en texte structuré pour injection dans le prompt IA.
+    Adapte le vocabulaire selon le module et la langue.
+    """
+    if not hist:
+        return ""
+
+    h = hist["history"]
+    n = hist["n_audits"]
+
+    if lang == "en":
+        lines = [f"\n=== HISTORICAL TREND — last {n} audits ==="]
+        lines.append(f"Period: {hist['first_date']} → {hist['last_date']}")
+        lines.append("")
+
+        for i, entry in enumerate(h):
+            tag = "CURRENT" if i == len(h)-1 else f"Audit {i+1}"
+            l1 = entry["label_1"][:20]
+            l2 = entry["label_2"][:20]
+            l3 = entry["label_3"][:20]
+            lines.append(f"[{tag} — {entry['date']}]")
+            lines.append(f"  {l1}: {entry['kpi_1']:.1f} | {l2}: {entry['kpi_2']:.1f} | {l3}: {entry['kpi_3']:.1f}")
+            if entry["resume"] and i == len(h)-1:
+                pass  # ne pas répéter le résumé actuel
+
+        lines.append("")
+        lines.append("COMPUTED TRENDS (first → last):")
+
+        d1,d2,d3 = hist["delta_1"], hist["delta_2"], hist["delta_3"]
+
+        if module == "transport":
+            if d1 is not None:
+                direction = "improving" if d1 > 0 else "declining"
+                lines.append(f"  Net margin: {direction} ({d1:+.1f}%)")
+            if d2 is not None:
+                direction = "improving" if d2 > 0 else "declining"
+                lines.append(f"  Profitability rate: {direction} ({d2:+.1f}%)")
+            if d3 is not None:
+                direction = "improving" if d3 < 0 else "worsening"
+                lines.append(f"  Toxic routes: {direction} ({d3:+.1f}%)")
+            lines.append("")
+            lines.append("INSTRUCTIONS FOR THIS ANALYSIS:")
+            lines.append("- Compare current figures to this historical trend")
+            lines.append("- If margin is declining: identify root cause (new routes? lost client? fuel?)")
+            lines.append("- If toxic routes increasing: flag as structural risk, not anomaly")
+            lines.append("- Mention explicit trend in your PROFITABILITY AUDIT section")
+            lines.append("- If trend reversal detected: highlight it as a positive signal")
+
+        elif module in ("stock","terrain"):
+            if d1 is not None:
+                lines.append(f"  Capital/Items: {d1:+.1f}% vs first audit")
+            if d2 is not None:
+                direction = "improving" if d2 > 0 else "declining"
+                lines.append(f"  Service level: {direction} ({d2:+.1f}%)")
+            if d3 is not None:
+                direction = "worsening" if d3 > 0 else "improving"
+                lines.append(f"  Stock-outs: {direction} ({d3:+.1f}%)")
+            lines.append("")
+            lines.append("INSTRUCTIONS FOR THIS ANALYSIS:")
+            lines.append("- Compare current figures to this historical trend")
+            lines.append("- If service level declining: flag as urgent priority")
+            lines.append("- If stock-outs increasing: identify if structural or seasonal")
+            lines.append("- If dormant stock growing: estimate cash impact over trend period")
+            lines.append("- Mention trend explicitly in your OPERATIONAL DIAGNOSIS section")
+
+        lines.append("=== END HISTORICAL DATA ===\n")
+
+    else:
+        lines = [f"\n=== TENDANCE HISTORIQUE — {n} derniers audits ==="]
+        lines.append(f"Periode : {hist['first_date']} -> {hist['last_date']}")
+        lines.append("")
+
+        for i, entry in enumerate(h):
+            tag = "ACTUEL" if i == len(h)-1 else f"Audit {i+1}"
+            l1 = entry["label_1"][:25]
+            l2 = entry["label_2"][:25]
+            l3 = entry["label_3"][:25]
+            lines.append(f"[{tag} — {entry['date']}]")
+            lines.append(f"  {l1}: {entry['kpi_1']:.1f} | {l2}: {entry['kpi_2']:.1f} | {l3}: {entry['kpi_3']:.1f}")
+
+        lines.append("")
+        lines.append("TENDANCES CALCULEES (premier -> dernier audit) :")
+
+        d1,d2,d3 = hist["delta_1"], hist["delta_2"], hist["delta_3"]
+
+        if module == "transport":
+            if d1 is not None:
+                sens = "en hausse" if d1 > 0 else "en baisse"
+                lines.append(f"  Marge nette : {sens} ({d1:+.1f}%)")
+            if d2 is not None:
+                sens = "en hausse" if d2 > 0 else "en baisse"
+                lines.append(f"  Taux de rentabilite : {sens} ({d2:+.1f}%)")
+            if d3 is not None:
+                sens = "en hausse" if d3 > 0 else "en baisse"
+                lines.append(f"  Trajets toxiques : {sens} ({d3:+.1f}%)")
+            lines.append("")
+            lines.append("INSTRUCTIONS POUR CETTE ANALYSE :")
+            lines.append("- Compare les chiffres actuels a cette tendance historique")
+            lines.append("- Si la marge baisse : identifie la cause racine (nouveaux trajets? perte client? carburant?)")
+            lines.append("- Si les trajets toxiques augmentent : signal de risque structurel, pas une anomalie")
+            lines.append("- Mentionne explicitement la tendance dans ta section AUDIT DE RENTABILITE")
+            lines.append("- Si retournement de tendance : le signaler comme signal positif")
+            lines.append("- Si un client disparait entre deux audits : le nommer et analyser l impact")
+
+        elif module == "stock":
+            if d1 is not None:
+                sens = "en hausse" if d1 > 0 else "en baisse"
+                lines.append(f"  Capital/Articles : {sens} ({d1:+.1f}%)")
+            if d2 is not None:
+                sens = "en amelioration" if d2 > 0 else "en degradation"
+                lines.append(f"  Taux de service : {sens} ({d2:+.1f}%)")
+            if d3 is not None:
+                sens = "en hausse" if d3 > 0 else "en baisse"
+                lines.append(f"  Ruptures : {sens} ({d3:+.1f}%)")
+            lines.append("")
+            lines.append("INSTRUCTIONS POUR CETTE ANALYSE :")
+            lines.append("- Compare les chiffres actuels a cette tendance historique")
+            lines.append("- Si taux de service en baisse : priorite urgente dans ton plan d action")
+            lines.append("- Si ruptures croissantes : identifier si structurel ou saisonnier")
+            lines.append("- Si stock dormant augmente : estimer l impact cash sur la periode")
+            lines.append("- Mentionne la tendance dans ton DIAGNOSTIC OPERATIONNEL")
+
+        elif module == "terrain":
+            if d2 is not None:
+                sens = "meilleure" if d2 > 0 else "moins bonne"
+                lines.append(f"  Disponibilite : {sens} ({d2:+.1f}%)")
+            if d3 is not None:
+                sens = "plus" if d3 > 0 else "moins"
+                lines.append(f"  Articles a reapprovisionner : {sens} ({d3:+.1f}%)")
+            lines.append("")
+            lines.append("INSTRUCTIONS POUR CETTE ANALYSE :")
+            lines.append("- Dis si la situation s ameliore ou se degrade par rapport aux semaines precedentes")
+            lines.append("- Nomme les articles qui etaient deja en rupture la derniere fois")
+            lines.append("- Signale si un article ne bouge pas depuis plusieurs audits consecutifs")
+
+        lines.append("=== FIN DONNEES HISTORIQUES ===\n")
+
+    return "\n".join(lines)
+
+
 # =========================================
 # 0.3 PROMPTS IA BILINGUES
 # =========================================
@@ -245,175 +473,243 @@ def get_prompt_stock():
         return """You are a Senior Financial Auditor and Supply Chain Director for Logiflo.io.
 RESPOND ENTIRELY IN ENGLISH.
 
-RULE on data:
-- If prices available → full financial analysis (tied-up capital, dormant stock, cash trap)
-- If NO prices → pure operational analysis (rotation, velocity, stock-outs in quantities)
-- If consumption history available → calculate coverage in months and trend
-- If NO consumption → flag BLIND SPOT and give sector benchmark (2-4 months healthy coverage)
+RULES on data:
+- If prices available: full financial analysis (tied-up capital, dormant stock, cash trap)
+- If NO prices: pure operational analysis (rotation, velocity, stock-outs in quantities)
+- If consumption history available: calculate coverage in months and 3-year trend
+- If NO consumption: flag BLIND SPOT, give sector benchmark (2-4 months healthy coverage)
+- If historical audit data present: MANDATORY trend integration into diagnosis
 
 Mandatory structure:
 
 ### OPERATIONAL DIAGNOSIS
 Service level and rotation. Name the 3 most critical references with exact figures.
+If historical data: compare to previous audit, state clearly improving or worsening.
 
-### FINANCIAL DIAGNOSIS & DORMANT STOCK
-If prices: tied-up capital, dormant stock, cash trap.
-If no prices: velocity, zero-rotation items, hidden risks.
+### TREND AND EVOLUTION
+INCLUDE ONLY IF HISTORICAL DATA IS AVAILABLE.
+Which indicators improve, which deteriorate. Name recurring stock-outs across audits.
+If critical threshold approaching on trend: issue explicit alert with projection.
+
+### FINANCIAL DIAGNOSIS AND DORMANT STOCK
+If prices: tied-up capital, dormant stock, cash trap estimate.
+If no prices: velocity per reference, zero-rotation items, hidden risks.
 
 ### IMMEDIATE ACTION PLAN (TOP 3)
-3 concrete recommendations.
+3 concrete actionable recommendations.
+If historical data: prioritize recurring issues across multiple audits.
 Potential impact: High/Medium/Low | Execution difficulty: 1 to 5
 
 ### LOGIFLO SCORE
-- Stock Performance & Rotation: /100
+- Stock Performance and Rotation: /100
 - Stock-out Risk: /100
 - Supply Chain Resilience: /100
 
-RULES: Never invent amounts. Leave a blank line between each idea."""
+RULES: Never invent amounts. Leave blank line between ideas.
+If no historical data: analyze normally without mentioning its absence."""
     return """Tu es l'Auditeur Financier et Directeur Supply Chain Senior pour Logiflo.io.
-RÉPONDS IMPÉRATIVEMENT EN FRANÇAIS.
+REPONDS IMPERATIVEMENT EN FRANCAIS.
 
-RÈGLE sur les données :
-- Si prix disponibles → analyse financière complète (capital immobilisé, dormants, cash trap)
-- Si PAS de prix → analyse opérationnelle pure (rotation, vélocité, ruptures en quantités)
-- Si consommations disponibles → calcule couverture en mois et tendance
-- Si PAS de consommations → signale ANGLE MORT et donne médiane sectorielle (2-4 mois couverture saine)
+REGLE sur les donnees :
+- Si prix disponibles : analyse financiere complete (capital immobilise, dormants, cash trap)
+- Si PAS de prix : analyse operationnelle pure (rotation, velocite, ruptures en quantites)
+- Si consommations disponibles : calcule couverture en mois et tendance sur 3 ans
+- Si PAS de consommations : signale ANGLE MORT et donne mediane sectorielle (2-4 mois couverture saine)
+- Si donnees historiques presentes : integre OBLIGATOIREMENT la tendance dans le diagnostic
 
 Structure obligatoire :
 
 ### DIAGNOSTIC OPERATIONNEL
-Taux de service et rotation. Nomme les 3 références critiques avec chiffres exacts.
+Taux de service et rotation. Nomme les 3 references critiques avec chiffres exacts.
+Si historique : compare a l'audit precedent et indique si la situation s'ameliore ou se degrade.
 
-### DIAGNOSTIC FINANCIER & STOCKS DORMANTS
-Si prix : capital immobilisé, dormants, cash trap.
-Si pas de prix : vélocité, articles à rotation nulle, risques cachés.
+### TENDANCE ET EVOLUTION
+PRESENTE UNIQUEMENT SI HISTORIQUE DISPONIBLE.
+Quels indicateurs progressent, lesquels se degradent. Nomme les ruptures recurrentes d'un audit a l'autre.
+Si un seuil critique approche sur la tendance : emet une alerte explicite avec projection.
 
-### PLAN D'ACTION IMMÉDIAT (TOP 3)
-3 recommandations concrètes.
-Impact potentiel : Fort/Moyen/Faible | Difficulté : 1 à 5
+### DIAGNOSTIC FINANCIER ET STOCKS DORMANTS
+Si prix : capital immobilise, dormants, cash trap.
+Si pas de prix : velocite par reference, articles a rotation nulle, risques caches.
+
+### PLAN D'ACTION IMMEDIAT (TOP 3)
+3 recommandations concretes et actionnables.
+Si historique : priorise les problemes recurrents sur plusieurs audits consecutifs.
+Impact potentiel : Fort/Moyen/Faible | Difficulte : 1 a 5
 
 ### SCORING LOGIFLO
-- Performance & Rotation stock : /100
+- Performance et Rotation stock : /100
 - Risque de rupture : /100
-- Résilience supply chain : /100
+- Resilience supply chain : /100
 
-RÈGLES : N'invente aucun montant. Saute une ligne entre chaque idée."""
+REGLES : N'invente aucun montant. Saute une ligne entre chaque idee.
+Si pas d'historique : analyse normalement sans mentionner son absence."""
 
 def get_prompt_terrain():
     lang=st.session_state.get("language","fr")
     if lang=="en":
         return """You are an experienced warehouse supervisor helping your team day-to-day.
-RESPOND IN ENGLISH. Direct tone, short sentences. No financial jargon.
+RESPOND IN ENGLISH. Direct tone, short sentences. No jargon.
 
-RULE on data:
-- If no prices → quantities only
-- If no consumption → say so clearly and observe what you can
-- If consumption available → calculate coverage in weeks/months
-- Always cite real references from the file
+RULES on data:
+- If no prices: quantities only
+- If no consumption: say so clearly, observe what you can
+- If consumption available: calculate coverage in weeks or months
+- If historical data: clearly state better or worse than last time
+- Always use real references from the file
 
 Structure:
 
-### What's urgent
-Items to reorder now. Exact references and quantities.
+### What is urgent
+Items to reorder today. Exact references, exact quantities.
+If historical data: flag items already out of stock last time - recurring is a serious signal.
 
-### What's sleeping
-Items with no movement. Concrete action for each.
+### What changed since last audit
+INCLUDE ONLY IF HISTORICAL DATA IS AVAILABLE.
+What improved: concrete list.
+What got worse: list with one action each.
+What is new: items appeared or disappeared from stock.
 
-### Your 3 actions for this week
-Difficulty: Easy / Medium / Hard
+### What is sleeping
+Items with no movement. For each: one concrete action.
+
+### Your 3 actions this week
+One line per action. Difficulty: Easy / Medium / Hard
 
 ### Summary
-2-3 sentences to brief your manager in 30 seconds.
+2 sentences max to brief your manager.
+If historical data: end with "overall: improving / stable / worsening".
 
-RULES: Concrete only. No invented figures."""
-    return """Tu es un chef magasinier expérimenté qui aide son équipe au quotidien.
-RÉPONDS EN FRANÇAIS. Ton direct, phrases courtes. Pas de jargon financier.
+RULES: Concrete only. No invented figures. Talk like a colleague."""
+    return """Tu es un chef magasinier experimente qui aide son equipe au quotidien.
+REPONDS EN FRANCAIS. Ton direct, phrases courtes. Pas de jargon financier.
 
-RÈGLE sur les données :
-- Si pas de prix → parle en quantités uniquement
-- Si pas de consommations → dis-le simplement et observe ce que tu peux
-- Si consommations disponibles → calcule couverture en semaines/mois
-- Cite toujours les vraies références du fichier
+REGLE sur les donnees :
+- Si pas de prix : parle en quantites uniquement
+- Si pas de consommations : dis-le clairement et observe ce que tu peux quand meme
+- Si consommations disponibles : calcule la couverture en semaines ou en mois
+- Si historique disponible : dis clairement si c'est mieux ou moins bien qu'avant
+- Cite toujours les vraies references du fichier (REF-001, ART-234, etc.)
 
 Structure :
 
 ### Ce qui est urgent
-Articles à commander maintenant. Références précises, quantités exactes.
+Les articles a commander aujourd'hui. References exactes, quantites exactes.
+Si historique : indique les articles qui etaient deja en rupture la derniere fois - si ca se repete c'est grave.
+
+### Ce qui a change depuis le dernier audit
+PRESENTE UNIQUEMENT SI HISTORIQUE DISPONIBLE.
+Ce qui s'est ameliore : liste courte, concret.
+Ce qui s'est degrade : liste courte, avec une action pour chaque point.
+Ce qui est nouveau : articles apparus ou disparus du stock.
 
 ### Ce qui dort
-Articles sans mouvement. Action concrète pour chacun.
+Articles sans mouvement depuis longtemps. Pour chacun : que faire maintenant ?
 
 ### Tes 3 actions pour cette semaine
-Difficulté : Facile / Moyen / Compliqué
+Une phrase par action. Difficulte : Facile / Moyen / Complique
 
-### En résumé
-2-3 phrases pour briefer ton responsable en 30 secondes.
+### En resume
+2 phrases max pour briefer ton chef en 30 secondes.
+Si historique : termine par "situation globale : en amelioration / stable / en degradation".
 
-RÈGLES : Concret uniquement. Pas de chiffres inventés."""
+REGLES : Concret uniquement. Pas de chiffres inventes. Parle comme a un collegue."""
 
 def get_prompt_transport():
     lang=st.session_state.get("language","fr")
     if lang=="en":
-        return """You are a Senior Transport & Supply Chain Strategy Auditor for Logiflo.io.
+        return """You are a Senior Transport and Supply Chain Strategy Auditor for Logiflo.io.
 RESPOND ENTIRELY IN ENGLISH.
-DON'T BE A PARROT: deduce hidden problems.
+DO NOT JUST REPEAT THE DATA: deduce hidden problems and root causes.
 If weight is missing: flag STRATEGIC BLIND SPOT.
-Adapt vocabulary to detected mode (maritime: TEU, demurrage / air: AWB, chargeable weight / road: FTL, cost/km).
+Adapt vocabulary to detected mode:
+- Maritime: TEU, container, demurrage, carrier, port, FCL/LCL
+- Air: AWB, chargeable weight, vol/actual ratio, airline, air freight
+- Road: FTL/LTL, cost/km, driver, lane, groupage, express
+- Rail: wagon, slot, corridor, tonne-km
 
-CNR sector benchmarks 2025-2026 (use for comparison):
-- Long-haul road (articulated diesel): 1.85–2.10 €/km reference
-- Regional road (rigid truck): 1.40–1.65 €/km
-- Fuel share: ~26.5% of total cost | Personnel: ~35%
-- Alert threshold: margin < 8% | Toxic: < 5% | Loss: < 0%
+CNR benchmarks 2025-2026 (cite them in your analysis):
+- Long-haul road articulated diesel: 1.85-2.10 EUR/km
+- Regional road rigid truck: 1.40-1.65 EUR/km
+- Fuel share: ~26.5% of total cost
+- Thresholds: alert < 8% margin | toxic < 5% | loss < 0%
 
 Mandatory structure:
 
 ### PROFITABILITY AUDIT
-Global margin and Yield. Name the 3 routes/clients destroying profitability. Expert hypothesis on cause.
+Global margin and Yield. Name the 3 routes/clients destroying profitability.
+Expert hypothesis on root cause - not just description.
+If historical data: state whether overall margin improving or worsening, cite trend in numbers.
+
+### NETWORK TREND AND EVOLUTION
+INCLUDE ONLY IF HISTORICAL DATA IS AVAILABLE.
+Evolution of margin, route count, toxic clients over the period.
+If a client disappears between audits: flag explicitly as potential revenue loss.
+If toxic routes increasing: structural risk signal requiring urgent priority.
 
 ### NETWORK DIAGNOSIS
-Spatial coherence and efficiency. Compare cost/km to CNR benchmarks. Flag if weight missing.
+Spatial coherence and operational efficiency.
+Compare cost/km to CNR benchmarks - cite percentage gaps.
+If weight available: load efficiency and cost per tonne.
 
 ### RATIONALIZATION PLAN (TOP 3)
-3 aggressive mode-specific recommendations.
+3 mode-specific immediately actionable recommendations.
+If historical data: start with previously recommended actions not yet implemented.
 Cash Impact: High/Medium/Low | Execution difficulty: 1 to 5
 
 ### LOGIFLO SCORE
-- Profitability & Transport Yield: /100
+- Profitability and Transport Yield: /100
 - Operational Efficiency: /100
 - OPEX Control: /100
 
-RULES: Never invent amounts. Leave a blank line between each idea."""
-    return """Tu es un Auditeur Senior en Stratégie Transport & Supply Chain pour Logiflo.io.
-RÉPONDS IMPÉRATIVEMENT EN FRANÇAIS.
-NE SOIS PAS UN PERROQUET : déduis les problèmes cachés.
-Si le poids est absent : signale ANGLE MORT STRATÉGIQUE.
-Adapte ton vocabulaire au mode détecté (maritime: TEU, demurrage / aérien: AWB, poids taxable / routier: FTL, coût/km).
+RULES: Never invent amounts. Leave blank line between ideas.
+If no historical data: analyze normally without mentioning its absence."""
+    return """Tu es un Auditeur Senior en Strategie Transport et Supply Chain pour Logiflo.io.
+REPONDS IMPERATIVEMENT EN FRANCAIS.
+NE REPETE PAS LES DONNEES : deduis les problemes caches et les causes racines.
+Si le poids est absent : signale ANGLE MORT STRATEGIQUE.
+Adapte ton vocabulaire au mode detecte :
+- Maritime : TEU, conteneur, demurrage, armateur, port, FCL/LCL
+- Aerien : AWB, poids taxable, ratio vol/reel, compagnie, fret aerien
+- Routier : FTL/LTL, cout/km, chauffeur, axe, messagerie, groupage
+- Ferroviaire : wagon, sillon, corridor, tonne-km
 
-Référentiels sectoriels CNR 2025-2026 (utilise pour la comparaison) :
-- Transport longue distance (ensemble articulé gazole) : 1,85–2,10 €/km de référence
-- Transport régional (porteur) : 1,40–1,65 €/km
-- Part carburant : ~26,5% du coût total | Personnel : ~35%
-- Seuil d'alerte : marge < 8% | Toxique : < 5% | Perte : < 0%
+Referentiels CNR 2025-2026 (cite-les dans ton analyse) :
+- Longue distance articulé gazole : 1,85-2,10 EUR/km de reference
+- Regional porteur : 1,40-1,65 EUR/km
+- Part carburant : ~26,5% du cout total
+- Seuils : alerte < 8% marge | toxique < 5% | perte < 0%
 
 Structure obligatoire :
 
 ### AUDIT DE RENTABILITE
-Marge globale et Yield. Nomme les 3 trajets/clients qui détruisent la rentabilité. Hypothèse experte sur la cause.
+Marge globale et Yield. Nomme les 3 trajets/clients qui detruisent la rentabilite.
+Hypothese experte sur la cause racine - pas juste une description des chiffres.
+Si historique : indique si la marge globale s'ameliore ou se degrade, cite la tendance en chiffres.
 
-### DIAGNOSTIC RÉSEAU
-Cohérence spatiale et efficacité. Compare le coût/km aux référentiels CNR. Signale si poids absent.
+### TENDANCE ET EVOLUTION DU RESEAU
+PRESENTE UNIQUEMENT SI HISTORIQUE DISPONIBLE.
+Evolution de la marge, du nombre de trajets, des clients toxiques sur la periode.
+Si un client disparait entre deux audits : le signaler explicitement comme perte potentielle de CA.
+Si les trajets toxiques augmentent : signal de risque structurel a traiter en priorite absolue.
+
+### DIAGNOSTIC RESEAU
+Coherence spatiale et efficacite operationnelle.
+Compare le cout/km aux referentiels CNR - cite les ecarts en pourcentage.
+Si poids disponible : analyse du taux de remplissage et du cout a la tonne.
 
 ### PLAN DE RATIONALISATION (TOP 3)
-3 recommandations agressives spécifiques au mode détecté.
-Impact Cash : Fort/Moyen/Faible | Difficulté : 1 à 5
+3 recommandations specifiques au mode detecte, actionnables immediatement.
+Si historique : commence par les actions recommandees precedemment non encore mises en oeuvre.
+Impact Cash : Fort/Moyen/Faible | Difficulte : 1 a 5
 
 ### SCORING LOGIFLO
-- Rentabilité & Yield Transport : /100
-- Efficacité Opérationnelle : /100
-- Maîtrise des OPEX : /100
+- Rentabilite et Yield Transport : /100
+- Efficacite Operationnelle : /100
+- Maitrise des OPEX : /100
 
-RÈGLES : N'invente aucun montant. Saute une ligne entre chaque idée."""
+REGLES : N'invente aucun montant. Saute une ligne entre chaque idee.
+Si pas d'historique : analyse normalement sans mentionner son absence."""
 
 # =========================================
 # 1. SESSION STATE
@@ -748,15 +1044,53 @@ JSON uniquement."""
 # =========================================
 # 6. GÉNÉRATION IA
 # =========================================
-def generate_ai_analysis(data_summary):
-    if st.session_state.module=="transport": prompt=get_prompt_transport()
-    elif st.session_state.get("stock_view")=="TERRAIN": prompt=get_prompt_terrain()
-    else: prompt=get_prompt_stock()
+def generate_ai_analysis(data_summary, historique_txt=""):
+    """
+    Génère l'analyse IA.
+    historique_txt : contexte historique formaté à injecter dans le prompt user.
+    """
+    if st.session_state.module=="transport":
+        prompt=get_prompt_transport()
+        module_key="transport"
+    elif st.session_state.get("stock_view")=="TERRAIN":
+        prompt=get_prompt_terrain()
+        module_key="terrain"
+    else:
+        prompt=get_prompt_stock()
+        module_key="stock"
+
+    lang = st.session_state.get("language","fr")
+
+    # Construction du message utilisateur avec historique si disponible
+    if historique_txt:
+        if lang == "en":
+            user_msg = (
+                f"Current audit data: {data_summary}\n\n"
+                f"{historique_txt}\n"
+                f"Generate the complete audit, integrating the historical trend into your analysis."
+            )
+        else:
+            user_msg = (
+                f"Donnees audit actuel : {data_summary}\n\n"
+                f"{historique_txt}\n"
+                f"Redige l audit complet en integrant la tendance historique dans ton analyse."
+            )
+    else:
+        if lang == "en":
+            user_msg = f"Data: {data_summary}. Generate the audit. No historical data available yet."
+        else:
+            user_msg = f"Donnees : {data_summary}. Redige l audit. Pas encore d historique disponible."
+
     try:
-        r=client.chat.completions.create(model="gpt-4o-mini",
-            messages=[{"role":"system","content":prompt},
-                      {"role":"user","content":f"Data: {data_summary}. Generate the audit."}],
-            temperature=0.3)
+        r=client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role":"system","content":prompt},
+                {"role":"user","content":user_msg}
+            ],
+            temperature=0.3,
+            max_tokens=1200
+        )
         texte=r.choices[0].message.content
         try: return texte.encode('latin-1').decode('utf-8')
         except: return texte
@@ -769,19 +1103,43 @@ class PDFReport(FPDF):
     def footer(self):
         self.set_y(-15);self.set_font("Arial","I",8);self.set_text_color(150,150,150)
         footer_text=_("pdf_footer")
-        self.multi_cell(0,4,unicodedata.normalize('NFKD',footer_text).encode('ASCII','ignore').decode('utf-8'),align="C")
+        self.multi_cell(0,4,_s(footer_text),align="C")
 
-def _asc(text):
-    """Convertit en ASCII pour fpdf."""
-    return unicodedata.normalize('NFKD', str(text)).encode('ASCII', 'ignore').decode('utf-8')
+def _s(text):
+    """
+    Safe string pour fpdf — garantit 100% compatibilité latin-1.
+    Remplace explicitement les caractères courants avant normalisation.
+    """
+    if text is None: return ""
+    text = str(text)
+    replacements = {
+        "’":"'","‘":"'","“":'"',"”":'"',
+        "–":"-","—":"-","…":"...","°":"deg",
+        "€":"EUR","£":"GBP","©":"(c)","®":"(R)",
+        "™":"TM","•":"-","‣":"-","●":"-",
+        "→":"->","←":"<-","⇒":"=>","✓":"OK",
+        "✔":"OK","✗":"X","✘":"X",
+        "±":"+/-","×":"x","÷":"/",
+        "≈":"~","≠":"!=","≤":"<=","≥":">=",
+        "🔴":"[!]","🟠":"[!]","🟢":"[ok]",
+        "📊":"","📈":"","📉":"",
+        "⚠":"[!]","ℹ":"[i]","★":"*","☆":"*",
+    }
+    for char,repl in replacements.items():
+        text = text.replace(char,repl)
+    text = unicodedata.normalize('NFKD',text).encode('ASCII','ignore').decode('utf-8')
+    try:
+        text.encode('latin-1')
+        return text
+    except UnicodeEncodeError:
+        return text.encode('latin-1',errors='ignore').decode('latin-1')
+
+# Alias pour compatibilité
+def _asc(text): return _s(text)
 
 def _clean_pdf(text):
-    """Nettoie le texte pour fpdf."""
-    return _asc(text.replace("\u2019","'").replace("\u2018","'")
-                     .replace("\u201c",'"').replace("\u201d",'"')
-                     .replace("\u20ac","EUR").replace("\u2022","-")
-                     .replace("\u2013","-").replace("\u2014","-")
-                     .replace("**",""))
+    """Nettoie le texte pour fpdf — utilise _s() pour garantie latin-1."""
+    return _s(str(text).replace("**",""))
 
 def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, module="stock"):
     """
@@ -809,8 +1167,8 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
     pdf.multi_cell(0,12,_asc(title),align='C'); pdf.ln(8)
     pdf.set_font("Arial","",12); pdf.set_text_color(180,200,220)
     conf = "CONFIDENTIAL" if lang=="en" else "CONFIDENTIEL"
-    pdf.cell(0,8,f"Date : {datetime.date.today().strftime('%d/%m/%Y')}",ln=True,align='C')
-    pdf.cell(0,8,conf,ln=True,align='C')
+    pdf.cell(0,8,_s(f"Date : {datetime.date.today().strftime('%d/%m/%Y')}"),ln=True,align='C')
+    pdf.cell(0,8,_s(conf),ln=True,align='C')
     pdf.set_fill_color(0,200,150); pdf.rect(0,291,210,6,'F')
 
     # ── PAGE 2 : SYNTHESE EXECUTIVE ──────────────────────────────
@@ -818,12 +1176,12 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
     pdf.set_fill_color(11,37,69); pdf.rect(0,0,210,18,'F')
     pdf.set_y(4); pdf.set_text_color(255,255,255); pdf.set_font("Arial","B",11)
     h2 = "EXECUTIVE SUMMARY" if lang=="en" else "SYNTHESE EXECUTIVE"
-    pdf.cell(0,10,h2,ln=True,align='C'); pdf.ln(8)
+    pdf.cell(0,10,_s(h2),ln=True,align='C'); pdf.ln(8)
 
     # Titre
     pdf.set_text_color(11,37,69); pdf.set_font("Arial","B",16)
     kpi_title = "Key Indicators" if lang=="en" else "Indicateurs Cles"
-    pdf.cell(0,10,kpi_title,ln=True,align='L')
+    pdf.cell(0,10,_s(kpi_title),ln=True,align='L')
     pdf.set_draw_color(0,200,150); pdf.set_line_width(0.6)
     pdf.line(10,pdf.get_y(),200,pdf.get_y()); pdf.ln(8)
 
@@ -850,18 +1208,18 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
             pdf.set_text_color(r,g,b)
             val = kpis[i]
             if isinstance(val,float) and abs(val)>=1000:
-                val_str = f"{val:,.0f}"
+                val_str = _s(f"{val:,.0f}")
             elif isinstance(val,float) and abs(val)<=100:
-                val_str = f"{val:.1f}%"
+                val_str = _s(f"{val:.1f}%")
             else:
-                val_str = str(int(val)) if isinstance(val,float) else str(val)
+                val_str = _s(str(int(val)) if isinstance(val,float) else str(val))
             pdf.cell(card_w-4,12,val_str,align='C')
         pdf.ln(46)
 
     # Scoring extrait du contenu IA
     pdf.set_font("Arial","B",13); pdf.set_text_color(11,37,69)
     sc_title = "Logiflo Scoring" if lang=="en" else "Scoring Logiflo"
-    pdf.cell(0,8,sc_title,ln=True); pdf.ln(2)
+    pdf.cell(0,8,_s(sc_title),ln=True); pdf.ln(2)
     scoring_lines=[]
     in_sc=False
     for line in content.split('\n'):
@@ -894,7 +1252,7 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
     else:
         pdf.set_font("Arial","I",10); pdf.set_text_color(74,96,128)
         no_sc = "Generate AI analysis to see scoring." if lang=="en" else "Generez l'analyse IA pour voir le scoring."
-        pdf.cell(0,8,no_sc,ln=True)
+        pdf.cell(0,8,_s(no_sc),ln=True)
 
     # ── PAGE 3 : GRAPHIQUES ───────────────────────────────────────
     if figs:
@@ -902,7 +1260,7 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
         pdf.set_fill_color(11,37,69); pdf.rect(0,0,210,18,'F')
         pdf.set_y(4); pdf.set_text_color(255,255,255); pdf.set_font("Arial","B",11)
         ch_label = "CHARTS & VISUALIZATIONS" if lang=="en" else "GRAPHIQUES & VISUALISATIONS"
-        pdf.cell(0,10,ch_label,ln=True,align='C'); pdf.ln(6)
+        pdf.cell(0,10,_s(ch_label),ln=True,align='C'); pdf.ln(6)
         for fig in figs:
             try:
                 import uuid
@@ -929,7 +1287,7 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
     pdf.set_fill_color(11,37,69); pdf.rect(0,0,210,18,'F')
     pdf.set_y(4); pdf.set_text_color(255,255,255); pdf.set_font("Arial","B",11)
     ai_label = "AI ANALYSIS & RECOMMENDATIONS" if lang=="en" else "ANALYSE IA & RECOMMANDATIONS"
-    pdf.cell(0,10,ai_label,ln=True,align='C'); pdf.ln(8)
+    pdf.cell(0,10,_s(ai_label),ln=True,align='C'); pdf.ln(8)
 
     content_r=(content.replace("\u2019","'").replace("\u2018","'")
                       .replace("\u201c",'"').replace("\u201d",'"')
@@ -1008,7 +1366,7 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
         if not txt: pdf.ln(5); continue
         pdf.set_font("Arial","B" if bold else "",12 if bold else 11)
         pdf.set_text_color(br,br,br)
-        pdf.cell(0,9,_asc(txt),ln=True,align='C')
+        pdf.cell(0,9,_s(txt),ln=True,align='C')
 
     # Encodage sécurisé : remplace tout caractère non latin-1 avant output
     raw = pdf.output(dest='S')
@@ -1541,10 +1899,14 @@ elif st.session_state.auth and st.session_state.page=="app":
                             med_info=f" Avg consumption: {cm_glob:.1f}/period. Avg coverage: {cv_moy:.1f} months."
                         prix_info="" if sans_prix else f" Tied-up capital: {val_totale:.0f} EUR."
                         pg2.step(_("step_ia"))
+                        # Chargement historique
+                        _hist_s = get_historique_audits(st.session_state.current_user,"stock")
+                        _hist_txt_s = format_historique_pour_prompt(_hist_s,"stock",st.session_state.get("language","fr"))
                         st.session_state.analysis_stock=generate_ai_analysis(
                             f"Items: {len(df)}. Service level: {tx_serv:.1f}%. Stock-outs: {len(ruptures)}. "
                             f"Top dormant: {top_str}. Top stock-outs: {rupt_l}.{prix_info}{med_info} "
-                            f"Prices: {'No' if sans_prix else 'Yes'}. Consumption history: {'Yes' if has_conso else 'No'}.")
+                            f"Prices: {'No' if sans_prix else 'Yes'}. Consumption history: {'Yes' if has_conso else 'No'}.",
+                            historique_txt=_hist_txt_s)
                         figs_pdf=[fig_pie]
                         if has_conso: figs_pdf.append(fig_conso)
                         st.session_state.last_pdf=generate_expert_pdf(_("pdf_title_stock"),st.session_state.analysis_stock,figs_pdf,kpis=st.session_state.last_kpis,labels=st.session_state.last_labels,module="stock")
@@ -1578,10 +1940,14 @@ elif st.session_state.auth and st.session_state.page=="app":
                         top_s=", ".join([f"{r['reference']} ({r['quantite']:.0f})" for _ii,r in top_c.iterrows()])
                         dorm_s="No history" if not has_conso else f"{len(df[df['_conso_moy']==0])} items no movement"
                         pg3.step(_("step_ia"))
+                        # Chargement historique terrain
+                        _hist_t = get_historique_audits(st.session_state.current_user,"stock")
+                        _hist_txt_t = format_historique_pour_prompt(_hist_t,"terrain",st.session_state.get("language","fr"))
                         st.session_state.analysis_stock=generate_ai_analysis(
                             f"Field stock: {len(df)} refs. Stock-outs: {len(ruptures)}. "
                             f"Lowest stocks: {top_s}. Dormant: {dorm_s}. "
-                            f"Prices: {'No' if sans_prix else 'Yes'}.")
+                            f"Prices: {'No' if sans_prix else 'Yes'}.",
+                            historique_txt=_hist_txt_t)
                         pg3.done()
                     if st.session_state.analysis_stock:
                         st.markdown(render_report(st.session_state.analysis_stock,"terrain"),unsafe_allow_html=True)
@@ -1784,9 +2150,13 @@ elif st.session_state.auth and st.session_state.page=="app":
                     pires_s=", ".join([f"{r[tour_c]} ({r['Marge_Nette']:.0f} EUR)" for _ii,r in top3.iterrows()]) if not top3.empty else "None"
                     mode_info=f" Dominant transport mode: {st.session_state.trans_mode_detected[0] if st.session_state.trans_mode_detected else 'road'}."
                     pg6.step(_("step_ia"))
+                    # Chargement historique transport
+                    _hist_tr = get_historique_audits(st.session_state.current_user,"transport")
+                    _hist_txt_tr = format_historique_pour_prompt(_hist_tr,"transport",st.session_state.get("language","fr"))
                     st.session_state.analysis_trans=generate_ai_analysis(
                         f"Routes: {len(df_t)}. Total margin: {marge_tot:.0f} EUR. Rate: {taux:.1f}%. "
-                        f"Loss routes: {traj_def}. Top 3 worst: {pires_s}. Avg cost/km: {cout_km:.2f} EUR.{poids_info}{mode_info}")
+                        f"Loss routes: {traj_def}. Top 3 worst: {pires_s}. Avg cost/km: {cout_km:.2f} EUR.{poids_info}{mode_info}",
+                        historique_txt=_hist_txt_tr)
                     st.session_state.last_pdf=generate_expert_pdf(_("pdf_title_trans"),st.session_state.analysis_trans,[fig_trans],kpis=st.session_state.last_kpis,labels=st.session_state.last_labels,module="transport")
                     st.session_state.last_kpis=[marge_tot,taux,nb_tox]
                     st.session_state.last_labels=[_("trans_kpi_marge"),_("trans_kpi_taux"),"Toxic"]
