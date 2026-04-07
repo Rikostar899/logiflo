@@ -1332,71 +1332,186 @@ def generate_ai_analysis(data_summary, historique_txt="", df_raw=None,
         except Exception:
             pass
 
-    # 5. Instruction prescriptive finale — 2 options, pas plus
+    # 5. Instruction prescriptive — structure complète + 2 options décisionnaires
     if lang == "en":
         if module == "transport":
-            parts.append("""=== YOUR MISSION ===
-Based on ALL data above (current + benchmarks + history):
-1. State your verdict in ONE sentence: is this network profitable, at risk, or in danger?
-2. Compare the key metric (cost/km or margin) to the sector benchmark — cite the exact gap.
-3. If history available: state if the trend is improving or deteriorating, with a projection.
-4. Propose EXACTLY 2 options for the decision-maker — no more, no less:
-   OPTION A (aggressive): the fastest action to recover margin. Name the specific client/route.
-   OPTION B (cautious): the action with least disruption risk.
-Each option: one concrete sentence + estimated cash impact.
-The decision belongs to the manager — you provide the ammunition.""")
+            parts.append("""=== YOUR INSTRUCTIONS ===
+Using ALL data above, write a complete structured audit with the following sections.
+Each section must be fully developed — not bullet points only, real analytical sentences.
+
+### PROFITABILITY AUDIT
+Start with your overall verdict (one sentence). Then develop: global margin vs sector benchmark
+(cite the exact gap in percentage points), identify the 3 worst routes/clients with their exact
+figures, and provide your expert hypothesis on the root cause of each loss.
+
+### NETWORK TREND AND EVOLUTION
+If historical data is available: analyze the trend in detail, cite the evolution of each KPI,
+project where the network will be in 3 months at this rate. If no history: skip this section entirely.
+
+### NETWORK DIAGNOSIS
+Analyze the cost/km vs CNR benchmarks for each route type. Assess spatial coherence,
+empty return load ratio if visible. Cite exact benchmark figures in your comparison.
+
+### IMMEDIATE ACTION PLAN
+Propose 3 concrete actions ranked by priority. For each: specific action, targeted client/route,
+expected impact in EUR, execution difficulty 1-5.
+Then close with EXACTLY 2 decision options for the manager:
+
+OPTION A - OFFENSIVE: [specific action, named target, estimated cash recovery in EUR]
+OPTION B - CAUTIOUS: [alternative action, named target, lower disruption risk]
+The manager decides. You provide the ammunition.
+
+### LOGIFLO SCORE
+- Profitability and Transport Yield: XX/100
+- Operational Efficiency: XX/100
+- OPEX Control: XX/100""")
         elif view == "TERRAIN":
-            parts.append("""=== YOUR MISSION ===
-Talk like a field supervisor who knows this warehouse.
-1. One sentence: is the situation under control, tense, or critical?
-2. Name the top 3 references to act on TODAY — exact references, exact quantities.
-3. Propose EXACTLY 2 options:
-   OPTION A: what to do this week if you have budget.
-   OPTION B: what to do this week if budget is tight.
-Direct language, no jargon. The team decides.""")
+            parts.append("""=== YOUR INSTRUCTIONS ===
+Write as a warehouse supervisor who knows this floor. Direct language, no financial jargon.
+Fully develop each section — real sentences, not just bullet points.
+
+### WHAT IS URGENT
+Name the references that must be ordered TODAY. For each: exact reference, exact quantity,
+why it is critical right now. If any were already in shortage last audit, flag it explicitly.
+
+### WHAT CHANGED SINCE LAST AUDIT
+Only if historical data available. What improved, what got worse, what is new. One paragraph.
+If no history: skip this section entirely.
+
+### WHAT IS SLEEPING
+References with zero movement. For each: how long inactive, what to do with it.
+
+### YOUR 3 ACTIONS THIS WEEK
+Ranked by urgency. One concrete sentence each. Difficulty: Easy / Medium / Hard.
+Then close with EXACTLY 2 options for the team:
+
+OPTION A - IF BUDGET AVAILABLE: [specific action, exact reference, expected result]
+OPTION B - IF BUDGET IS TIGHT: [alternative, lower cost, still effective]
+The team decides.
+
+### SUMMARY
+2-3 sentences to brief the manager in 30 seconds. End with overall situation: improving / stable / worsening.""")
         else:
-            parts.append("""=== YOUR MISSION ===
-Based on ALL data above (current + benchmarks + history):
-1. State your verdict in ONE sentence: is this stock healthy, under tension, or at risk?
-2. Compare the key metric (service level or coverage) to the sector benchmark — cite the gap.
-3. If history available: state the trend with a concrete projection.
-4. Propose EXACTLY 2 options for the decision-maker — no more, no less:
-   OPTION A (aggressive): the fastest action to free up cash or prevent stockout.
-   OPTION B (cautious): the action with the best cost/impact ratio.
-Each option: one concrete sentence + estimated impact.
-The decision belongs to the manager — you provide the ammunition.""")
+            parts.append("""=== YOUR INSTRUCTIONS ===
+Using ALL data above, write a complete structured audit. Fully develop each section
+with analytical sentences — not bullet points only.
+
+### OPERATIONAL DIAGNOSIS
+Overall verdict first (one sentence). Then: service level vs sector benchmark (cite the exact
+gap), rotation analysis, name the 3 most critical references with exact figures and why
+they are critical.
+
+### TREND AND EVOLUTION
+If historical data available: analyze the KPI evolution in detail, project the trajectory
+over the next 3 months. If no history: skip this section entirely.
+
+### FINANCIAL DIAGNOSIS AND DORMANT STOCK
+Analyze tied-up capital vs sector norms, identify dormant and overstock references with
+exact values, quantify the cash trap risk. If no prices: analyze velocity and hidden risks.
+
+### IMMEDIATE ACTION PLAN
+3 concrete prioritized recommendations. For each: specific action, targeted reference,
+expected impact, execution difficulty 1-5.
+Then close with EXACTLY 2 decision options for the manager:
+
+OPTION A - OFFENSIVE: [fastest action to free cash or prevent stockout, named reference, estimated impact]
+OPTION B - CAUTIOUS: [safer alternative, best cost/impact ratio, named reference]
+The manager decides. You provide the ammunition.
+
+### LOGIFLO SCORE
+- Stock Performance and Rotation: XX/100
+- Stock-out Risk: XX/100
+- Supply Chain Resilience: XX/100""")
     else:
         if module == "transport":
-            parts.append("""=== TA MISSION ===
-Sur la base de TOUTES les donnees ci-dessus (actuelles + benchmarks + historique) :
-1. Dis ton verdict en UNE phrase : ce reseau est-il rentable, sous tension ou en danger ?
-2. Compare la metrique cle (cout/km ou marge) au benchmark sectoriel — cite l'ecart exact.
-3. Si historique disponible : dis si la tendance s'ameliore ou se degrade, avec une projection chiffree.
-4. Propose EXACTEMENT 2 options au decideur — pas une de plus, pas une de moins :
-   OPTION A (offensive) : l'action la plus rapide pour recuperer de la marge. Nomme le client/trajet precis.
-   OPTION B (defensive) : l'action avec le moins de risque de rupture commerciale.
-Pour chaque option : une phrase concrete + impact cash estime.
-C'est le dirigeant qui decide — tu lui donnes les munitions.""")
+            parts.append("""=== TES INSTRUCTIONS ===
+En utilisant TOUTES les donnees ci-dessus, redige un audit structure et complet.
+Developpe chaque section avec de vraies phrases analytiques — pas seulement des puces.
+
+### AUDIT DE RENTABILITE
+Commence par ton verdict global (une phrase). Ensuite developpe : marge globale vs benchmark
+sectoriel (cite l'ecart exact en points de pourcentage), identifie les 3 pires trajets/clients
+avec leurs chiffres exacts, et donne ton hypothese experte sur la cause racine de chaque perte.
+
+### TENDANCE ET EVOLUTION DU RESEAU
+Si historique disponible : analyse la tendance en detail, cite l'evolution de chaque KPI,
+projette ou sera le reseau dans 3 mois a ce rythme. Si pas d'historique : saute cette section.
+
+### DIAGNOSTIC RESEAU
+Analyse le cout/km vs referentiels CNR pour chaque type de trajet. Evalue la coherence
+spatiale, le taux de retour a charge si visible. Cite les chiffres exacts des benchmarks.
+
+### PLAN DE RATIONALISATION
+3 actions concretes classees par priorite. Pour chacune : action precise, client/trajet cible,
+impact attendu en EUR, difficulte d'execution 1 a 5.
+Termine avec EXACTEMENT 2 options decisionnaires pour le dirigeant :
+
+OPTION A - OFFENSIVE : [action precise, cible nommee, recuperation cash estimee en EUR]
+OPTION B - DEFENSIVE : [alternative, cible nommee, moindre risque de rupture commerciale]
+C'est le dirigeant qui decide. Tu lui donnes les munitions.
+
+### SCORING LOGIFLO
+- Rentabilite et Yield Transport : XX/100
+- Efficacite Operationnelle : XX/100
+- Maitrise des OPEX : XX/100""")
         elif view == "TERRAIN":
-            parts.append("""=== TA MISSION ===
-Parle comme un chef de quai qui connait cet entrepot.
-1. Une phrase : la situation est-elle sous controle, tendue ou critique ?
-2. Nomme les 3 references a traiter AUJOURD'HUI — references exactes, quantites exactes.
-3. Propose EXACTEMENT 2 options :
-   OPTION A : ce qu'il faut faire cette semaine si on a du budget.
-   OPTION B : ce qu'il faut faire cette semaine si le budget est serre.
-Langage direct, pas de jargon. C'est l'equipe qui decide.""")
+            parts.append("""=== TES INSTRUCTIONS ===
+Ecris comme un chef de quai qui connait cet entrepot. Langage direct, pas de jargon financier.
+Developpe chaque section avec de vraies phrases — pas seulement des puces.
+
+### CE QUI EST URGENT
+Nomme les references a commander AUJOURD'HUI. Pour chacune : reference exacte, quantite exacte,
+pourquoi c'est critique maintenant. Si une reference etait deja en rupture au dernier audit, signale-le.
+
+### CE QUI A CHANGE DEPUIS LE DERNIER AUDIT
+Seulement si historique disponible. Ce qui s'est ameliore, ce qui s'est degrade, ce qui est nouveau.
+Un paragraphe complet. Si pas d'historique : saute cette section entierement.
+
+### CE QUI DORT
+References sans mouvement. Pour chacune : depuis combien de temps, que faire maintenant.
+
+### TES 3 ACTIONS POUR CETTE SEMAINE
+Classees par urgence. Une phrase concrete chacune. Difficulte : Facile / Moyen / Complique.
+Termine avec EXACTEMENT 2 options pour l'equipe :
+
+OPTION A - SI BUDGET DISPONIBLE : [action precise, reference exacte, resultat attendu]
+OPTION B - SI BUDGET SERRE : [alternative moins couteuse, tout aussi efficace]
+C'est l'equipe qui decide.
+
+### EN RESUME
+2-3 phrases pour briefer le responsable en 30 secondes. Termine par : situation globale : en amelioration / stable / en degradation.""")
         else:
-            parts.append("""=== TA MISSION ===
-Sur la base de TOUTES les donnees ci-dessus (actuelles + benchmarks + historique) :
-1. Dis ton verdict en UNE phrase : ce stock est-il sain, sous tension ou en danger ?
-2. Compare la metrique cle (taux de service ou couverture) au benchmark sectoriel — cite l'ecart.
-3. Si historique disponible : dis la tendance avec une projection concrete.
-4. Propose EXACTEMENT 2 options au decideur — pas une de plus, pas une de moins :
-   OPTION A (offensive) : l'action la plus rapide pour liberer du cash ou eviter la rupture.
-   OPTION B (defensive) : l'action avec le meilleur ratio cout/impact.
-Pour chaque option : une phrase concrete + impact estime.
-C'est le dirigeant qui decide — tu lui donnes les munitions.""")
+            parts.append("""=== TES INSTRUCTIONS ===
+En utilisant TOUTES les donnees ci-dessus, redige un audit structure et complet.
+Developpe chaque section avec de vraies phrases analytiques — pas seulement des puces.
+
+### DIAGNOSTIC OPERATIONNEL
+Commence par ton verdict global (une phrase). Ensuite developpe : taux de service vs benchmark
+sectoriel (cite l'ecart exact), analyse de la rotation, nomme les 3 references les plus critiques
+avec leurs chiffres exacts et explique pourquoi elles sont critiques.
+
+### TENDANCE ET EVOLUTION
+Si historique disponible : analyse l'evolution des KPIs en detail, projette la trajectoire
+sur les 3 prochains mois. Si pas d'historique : saute cette section entierement.
+
+### DIAGNOSTIC FINANCIER ET STOCKS DORMANTS
+Analyse le capital immobilise vs normes sectorielles, identifie les references dormantes et
+en surstock avec leurs valeurs exactes, quantifie le risque cash trap. Si pas de prix : analyse
+la velocite et les risques caches.
+
+### PLAN D'ACTION IMMEDIAT
+3 recommandations concretes classees par priorite. Pour chacune : action precise, reference
+ciblee, impact attendu, difficulte d'execution 1 a 5.
+Termine avec EXACTEMENT 2 options decisionnaires pour le dirigeant :
+
+OPTION A - OFFENSIVE : [action la plus rapide pour liberer du cash ou eviter la rupture, reference nommee, impact estime]
+OPTION B - DEFENSIVE : [alternative plus sure, meilleur ratio cout/impact, reference nommee]
+C'est le dirigeant qui decide. Tu lui donnes les munitions.
+
+### SCORING LOGIFLO
+- Performance et Rotation stock : XX/100
+- Risque de rupture : XX/100
+- Resilience supply chain : XX/100""")
 
     user_msg = "\n\n".join(parts)
 
@@ -1407,8 +1522,8 @@ C'est le dirigeant qui decide — tu lui donnes les munitions.""")
                 {"role": "system", "content": sys_prompt},
                 {"role": "user",   "content": user_msg}
             ],
-            temperature=0.3,
-            max_tokens=1400
+            temperature=0.35,
+            max_tokens=2400
         )
         texte = r.choices[0].message.content
         try: return texte.encode('latin-1').decode('utf-8')
