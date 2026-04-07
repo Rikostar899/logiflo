@@ -1352,15 +1352,15 @@ project where the network will be in 3 months at this rate. If no history: skip 
 Analyze the cost/km vs CNR benchmarks for each route type. Assess spatial coherence,
 empty return load ratio if visible. Cite exact benchmark figures in your comparison.
 
-### IMMEDIATE ACTION PLAN
-Propose 3 concrete actions ranked by priority. For each: specific action, targeted client/route,
-expected impact in EUR, execution difficulty 1-5.
-Then close with this urgency section:
-
-### A FAIRE - PRIORITE ABSOLUE
-State the single most urgent action in one sentence. Be direct: name the client or route,
-the action, and the cash impact. Then give one fallback if the first option is too risky.
+### WHAT TO DO - TOP PRIORITY
+Start this section with the single most urgent action. One direct sentence: name the client
+or route, the action, and the estimated cash recovery. Then one fallback if too risky.
 The manager decides — give them exactly what they need to act today.
+
+### RATIONALIZATION PLAN (1-2-3)
+Now develop 3 strategic recommendations for the medium term. For each: specific action,
+targeted client/route, expected impact in EUR, execution difficulty 1-5. These complement
+the urgent action above and guide the manager beyond this week.
 
 ### LOGIFLO SCORE
 - Profitability and Transport Yield: XX/100
@@ -1382,14 +1382,14 @@ If no history: skip this section entirely.
 ### WHAT IS SLEEPING
 References with zero movement. For each: how long inactive, what to do with it.
 
-### YOUR 3 ACTIONS THIS WEEK
-Ranked by urgency. One concrete sentence each. Difficulty: Easy / Medium / Hard.
-Then close with:
-
 ### WHAT TO DO NOW
-One sentence: the most urgent action, exact reference, exact quantity.
-If budget is tight: one cheaper alternative that still moves the needle.
+Start here: one sentence, the most urgent action, exact reference, exact quantity.
+If budget is tight: one cheaper alternative that still works.
 The team decides — no ambiguity.
+
+### YOUR 3 ACTIONS THIS WEEK
+Now develop 3 practical actions for the week. Ranked by urgency. One concrete sentence
+each with difficulty: Easy / Medium / Hard. These guide the team beyond today.
 
 ### SUMMARY
 2-3 sentences to brief the manager in 30 seconds. End with overall situation: improving / stable / worsening.""")
@@ -1411,16 +1411,15 @@ over the next 3 months. If no history: skip this section entirely.
 Analyze tied-up capital vs sector norms, identify dormant and overstock references with
 exact values, quantify the cash trap risk. If no prices: analyze velocity and hidden risks.
 
-### IMMEDIATE ACTION PLAN
-3 concrete prioritized recommendations. For each: specific action, targeted reference,
-expected impact, execution difficulty 1-5.
-Then close with this urgency section:
-
-### WHAT TO DO NOW - TOP PRIORITY
-State the single most urgent action in one sentence. Name the specific reference,
-the action, and the estimated impact in EUR or %. Then give one fallback option
-if budget or time is constrained.
+### WHAT TO DO - TOP PRIORITY
+Start this section with the single most urgent action. One direct sentence: name the reference,
+the action, and the estimated impact in EUR or %. One fallback if budget is constrained.
 The manager decides — give them exactly what they need to act today.
+
+### IMMEDIATE ACTION PLAN (1-2-3)
+Now develop 3 strategic recommendations for the medium term. For each: specific action,
+targeted reference, expected impact, execution difficulty 1-5. These complement the urgent
+action above and guide the manager on stock optimization beyond this week.
 
 ### LOGIFLO SCORE
 - Stock Performance and Rotation: XX/100
@@ -1445,16 +1444,15 @@ projette ou sera le reseau dans 3 mois a ce rythme. Si pas d'historique : saute 
 Analyse le cout/km vs referentiels CNR pour chaque type de trajet. Evalue la coherence
 spatiale, le taux de retour a charge si visible. Cite les chiffres exacts des benchmarks.
 
-### PLAN DE RATIONALISATION
-3 actions concretes classees par priorite. Pour chacune : action precise, client/trajet cible,
-impact attendu en EUR, difficulte d'execution 1 a 5.
-Termine par cette section d'urgence :
-
 ### A FAIRE - PRIORITE ABSOLUE
-Une phrase directe : quelle est l'action la plus urgente ? Nomme le client ou le trajet,
-l'action concrete, et l'impact cash estime. Puis donne une alternative si la premiere
-option est trop risquee commercialement.
-C'est le dirigeant qui decide — donne-lui exactement ce dont il a besoin pour agir aujourd'hui.
+Commence par l'action la plus urgente. Une phrase directe : nomme le client ou le trajet,
+l'action concrete, et l'impact cash estime. Puis une alternative si trop risque commercialement.
+C'est le dirigeant qui decide — donne-lui ce dont il a besoin pour agir aujourd'hui.
+
+### PLAN DE RATIONALISATION (1-2-3)
+Developpe maintenant 3 recommandations strategiques pour le moyen terme. Pour chacune :
+action precise, client/trajet cible, impact attendu en EUR, difficulte d'execution 1 a 5.
+Ces recommandations completent l'urgence ci-dessus et guident au-dela de cette semaine.
 
 ### SCORING LOGIFLO
 - Rentabilite et Yield Transport : XX/100
@@ -1476,14 +1474,14 @@ Un paragraphe complet. Si pas d'historique : saute cette section entierement.
 ### CE QUI DORT
 References sans mouvement. Pour chacune : depuis combien de temps, que faire maintenant.
 
-### TES 3 ACTIONS POUR CETTE SEMAINE
-Classees par urgence. Une phrase concrete chacune. Difficulte : Facile / Moyen / Complique.
-Termine par :
-
 ### A FAIRE MAINTENANT
-Une phrase : l'action la plus urgente, reference exacte, quantite exacte.
-Si le budget est serre : une alternative moins couteuse qui change quand meme la situation.
+Commence ici : une phrase, l'action la plus urgente, reference exacte, quantite exacte.
+Si budget serre : une alternative moins couteuse qui change quand meme la situation.
 C'est l'equipe qui decide — pas d'ambiguite.
+
+### TES 3 ACTIONS POUR CETTE SEMAINE
+Developpe maintenant 3 actions pratiques pour la semaine. Classees par urgence, une phrase
+concrete chacune. Difficulte : Facile / Moyen / Complique. Ces actions guident au-dela d'aujourd'hui.
 
 ### EN RESUME
 2-3 phrases pour briefer le responsable en 30 secondes. Termine par : situation globale : en amelioration / stable / en degradation.""")
@@ -1506,16 +1504,15 @@ Analyse le capital immobilise vs normes sectorielles, identifie les references d
 en surstock avec leurs valeurs exactes, quantifie le risque cash trap. Si pas de prix : analyse
 la velocite et les risques caches.
 
-### PLAN D'ACTION IMMEDIAT
-3 recommandations concretes classees par priorite. Pour chacune : action precise, reference
-ciblee, impact attendu, difficulte d'execution 1 a 5.
-Termine par cette section d'urgence :
-
 ### A FAIRE - PRIORITE ABSOLUE
-Une phrase directe : quelle est l'action la plus urgente ? Nomme la reference precise,
-l'action concrete, et l'impact estime en EUR ou en pourcentage. Puis donne une alternative
-si le budget ou le delai est contraint.
-C'est le dirigeant qui decide — donne-lui exactement ce dont il a besoin pour agir aujourd'hui.
+Commence par l'action la plus urgente. Une phrase directe : nomme la reference precise,
+l'action concrete, et l'impact estime en EUR ou en pourcentage. Une alternative si budget contraint.
+C'est le dirigeant qui decide — donne-lui ce dont il a besoin pour agir aujourd'hui.
+
+### PLAN D'ACTION (1-2-3)
+Developpe maintenant 3 recommandations strategiques pour le moyen terme. Pour chacune :
+action precise, reference ciblee, impact attendu, difficulte d'execution 1 a 5. Ces recommandations
+completent l'urgence ci-dessus et guident l'optimisation des stocks au-dela de cette semaine.
 
 ### SCORING LOGIFLO
 - Performance et Rotation stock : XX/100
@@ -2892,3 +2889,4 @@ elif st.session_state.auth and st.session_state.page=="app":
                     st.markdown("<br>",unsafe_allow_html=True)
                     if st.session_state.last_pdf:
                         st.download_button(_("trans_btn_dl"),st.session_state.last_pdf,"Transport_Logiflo.pdf",use_container_width=True)
+                    
