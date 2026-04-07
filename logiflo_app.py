@@ -32,6 +32,212 @@ client   = OpenAI(api_key=st.secrets.get("OPENAI_API_KEY", ""))
 ORS_API_KEY = st.secrets.get("ORS_API_KEY", "")
 SHEET_ID    = st.secrets.get("GOOGLE_SHEET_ID", "")
 
+# =========================================
+# SECTORAL BENCHMARKS DATABASE
+# =========================================
+SECTORAL_DB = {
+    "transport_routier": {
+        "keywords": ["routier","truck","ftl","ltl","camion","route","km","messagerie","groupage","road","distance"],
+        "fr": """BENCHMARKS TRANSPORT ROUTIER CNR 2026:
+- Cout complet longue distance articule: 1,85-2,10 EUR/km (mediane 1,95)
+- Cout complet regional porteur: 1,40-1,65 EUR/km (mediane 1,52)
+- Messagerie/groupage: 2,20-2,80 EUR/km
+- Carburant: 26-28% du cout total | Personnel: 33-36% | Peages: 6-8%
+- Marge nette PME transport saine: 6-10%
+- SEUILS: alerte <8% | toxique <5% | perte <0%
+- Trajets deficitaires tolerables: <10% du portefeuille
+- Taux de remplissage FTL cible: >85%
+- Seuil survie PME 8-25 camions: marge >5% ET cout/km <2,15 EUR""",
+        "en": """CNR 2026 ROAD TRANSPORT BENCHMARKS:
+- Long-haul full cost: 1.85-2.10 EUR/km (median 1.95)
+- Regional rigid truck: 1.40-1.65 EUR/km (median 1.52)
+- Groupage/LTL: 2.20-2.80 EUR/km
+- Fuel: 26-28% of total cost | Staff: 33-36% | Tolls: 6-8%
+- Healthy SME net margin: 6-10%
+- THRESHOLDS: alert <8% | toxic <5% | loss <0%
+- Acceptable loss routes: <10% of portfolio
+- FTL fill rate target: >85%
+- SME survival: margin >5% AND cost/km <2.15 EUR"""
+    },
+    "transport_maritime": {
+        "keywords": ["maritime","sea","ocean","conteneur","container","teu","fcl","lcl","navire","port","bl","armateur","havre","marseille"],
+        "fr": """BENCHMARKS TRANSPORT MARITIME 2026:
+- Marge brute transitaire maritime: 15-25% sur cout achat
+- Marge nette PME transitaire: 8-14%
+- Remplissage conteneur FCL cible: >90%
+- Demurrage & Detention: 120-180 EUR/jour/conteneur au-dela franchise
+- Transit moyen Europe-Asie: 28-35j | Europe-Ameriques: 12-18j
+- Seuil rentabilite: marge <8% sur flux regulier = restructurer""",
+        "en": """MARITIME TRANSPORT BENCHMARKS 2026:
+- Gross margin freight forwarder: 15-25% on buying rate
+- Net margin SME forwarder: 8-14%
+- FCL fill rate target: >90%
+- Demurrage & Detention: 120-180 EUR/day/container beyond free time
+- Avg transit Europe-Asia: 28-35d | Europe-Americas: 12-18d
+- Profitability threshold: margin <8% on regular flows = restructure"""
+    },
+    "transport_aerien": {
+        "keywords": ["aerien","air","avion","awb","airfreight","chargeable","airline","iata","cdg","ory","lyo","jfk","lhr"],
+        "fr": """BENCHMARKS FRET AERIEN 2026:
+- Marge brute transitaire aerien: 20-35% sur cout achat
+- Marge nette PME fret aerien: 10-18%
+- Cout Europe-USA: 2,80-4,50 EUR/kg | Europe-Asie: 2,20-3,80 EUR/kg
+- Surcharge carburant FSC: 25-40% du tarif de base
+- Seuil d'alerte: marge <10%
+- AWB rentable cible: >500 EUR de marge brute par expedition""",
+        "en": """AIR FREIGHT BENCHMARKS 2026:
+- Gross margin air forwarder: 20-35% on buying rate
+- Net margin SME air freight: 10-18%
+- Cost Europe-USA: 2.80-4.50 EUR/kg | Europe-Asia: 2.20-3.80 EUR/kg
+- Fuel surcharge FSC: 25-40% of base rate
+- Alert threshold: margin <10%
+- Profitable AWB target: >500 EUR gross margin per shipment"""
+    },
+    "stock_industrie": {
+        "keywords": ["industrie","manufacturing","usine","production","piece","composant","matiere","cable","machine","outil"],
+        "fr": """BENCHMARKS STOCK INDUSTRIEL 2026:
+- Couverture saine: 1,5-3 mois selon criticite
+- Taux de service cible: >97% (rupture = arret ligne)
+- Rotation annuelle cible: 4-8 fois
+- Stock dormant (>6 mois): alerte si >5% du capital
+- Capital stock / CA: alerte si >15%
+- Cout de possession: 20-25% de la valeur stock par an
+- Point de commande = conso moy x delai fournisseur x 1,3""",
+        "en": """INDUSTRIAL STOCK BENCHMARKS 2026:
+- Healthy coverage: 1.5-3 months by criticality
+- Target service level: >97% (stockout = line stoppage)
+- Target annual turns: 4-8x
+- Dormant stock (>6 months): alert if >5% of capital
+- Tied-up capital / revenue: alert if >15%
+- Holding cost: 20-25% of stock value per year"""
+    },
+    "stock_distribution": {
+        "keywords": ["distribution","negoce","grossiste","wholesale","article","references","catalogue","produit","stock"],
+        "fr": """BENCHMARKS STOCK DISTRIBUTION 2026:
+- Couverture saine: 1-2 mois
+- Taux de service cible: >95%
+- Rotation annuelle cible: 6-12 fois
+- Stock dormant (>4 mois): alerte si >8% du capital
+- BFR stock cible: 30-45 jours de CA
+- Taux de rupture acceptable B2B: <3%""",
+        "en": """DISTRIBUTION STOCK BENCHMARKS 2026:
+- Healthy coverage: 1-2 months
+- Target service level: >95%
+- Target annual turns: 6-12x
+- Dormant stock (>4 months): alert if >8% of capital
+- Target WCR: 30-45 days revenue
+- Acceptable B2B stockout rate: <3%"""
+    },
+    "stock_pharma": {
+        "keywords": ["pharma","medicament","sante","health","vaccin","clinique","hopital","laboratoire","dispositif","medical"],
+        "fr": """BENCHMARKS STOCK PHARMACEUTIQUE 2026:
+- Taux de service cible: >99,5% (rupture = risque patient)
+- Couverture produits critiques: 3-6 mois minimum
+- FEFO obligatoire DLC/DLUO
+- Taux de peremption acceptable: <0,5% en valeur
+- Cout de possession pharma: 25-30%
+- Tout ecart temperature >2 degres C = quarantaine immediate""",
+        "en": """PHARMACEUTICAL STOCK BENCHMARKS 2026:
+- Target service level: >99.5% (stockout = patient risk)
+- Critical product coverage: 3-6 months minimum
+- FEFO mandatory
+- Acceptable expiry rate: <0.5% in value
+- Holding cost pharma: 25-30%
+- Any temperature deviation >2 degrees C = immediate quarantine"""
+    },
+    "stock_retail": {
+        "keywords": ["retail","ecommerce","boutique","magasin","commande","livraison","b2c","web","shop","vente","mode","textile"],
+        "fr": """BENCHMARKS STOCK RETAIL / E-COMMERCE 2026:
+- Taux de service cible: >98%
+- Couverture cible: 2-4 semaines
+- Rotation annuelle cible: 8-15 fois
+- Stock mort (>90j sans mouvement): alerte si >10% des references
+- Taux retour client B2C: alerte si >8%""",
+        "en": """RETAIL / E-COMMERCE STOCK BENCHMARKS 2026:
+- Target service level: >98%
+- Target coverage: 2-4 weeks
+- Target annual turns: 8-15x
+- Dead stock (>90 days): alert if >10% of references
+- Customer return rate: alert if >8%"""
+    },
+    "stock_agroalim": {
+        "keywords": ["alimentaire","food","agro","epicerie","frais","surgele","boisson","restaurant","cuisine","traiteur","dlc"],
+        "fr": """BENCHMARKS STOCK AGROALIMENTAIRE 2026:
+- Taux de service cible: >96%
+- Couverture produits frais: 3-7 jours max
+- Couverture produits secs: 2-4 semaines
+- FEFO obligatoire DLC/DLUO
+- Taux de pertes acceptable: <2% frais, <0,5% sec
+- Rotation annuelle: 12-52 fois selon categorie""",
+        "en": """FOOD & BEVERAGE STOCK BENCHMARKS 2026:
+- Target service level: >96%
+- Fresh product coverage: 3-7 days max
+- Dry goods coverage: 2-4 weeks
+- FEFO mandatory
+- Acceptable waste: <2% fresh, <0.5% dry
+- Annual turns: 12-52x by category"""
+    },
+    "stock_btp": {
+        "keywords": ["btp","chantier","construction","batiment","materiau","ciment","acier","beton","travaux","site"],
+        "fr": """BENCHMARKS STOCK BTP / CHANTIER 2026:
+- Taux de service cible: >95% (arret chantier = surcout majeur)
+- Couverture consommables: 2-4 semaines
+- Stock securite materiaux longs delais: 6-8 semaines
+- Taux de vol/perte chantier: alerte si >3% en valeur
+- Approvisionnement d'urgence: premium 20-40% sur prix standard""",
+        "en": """CONSTRUCTION / SITE STOCK BENCHMARKS 2026:
+- Target service level: >95% (site stoppage = major cost)
+- Consumables coverage: 2-4 weeks
+- Safety stock long lead-time materials: 6-8 weeks
+- Site theft/loss rate: alert if >3% in value
+- Emergency procurement premium: 20-40% over standard"""
+    },
+    "generique": {
+        "keywords": [],
+        "fr": """BENCHMARKS GENERIQUES SUPPLY CHAIN 2026:
+- Taux de service B2B minimum: >93% | B2C minimum: >96%
+- Cout de possession stock: 18-28% valeur/an (tous secteurs)
+- Rotation stock annuelle saine: >4 fois/an
+- Stock dormant: alerte si >10% des references sans mouvement
+- Marge operationnelle transport saine: >6%
+- BFR cible: <60 jours de CA""",
+        "en": """GENERIC SUPPLY CHAIN BENCHMARKS 2026:
+- Minimum B2B service level: >93% | B2C: >96%
+- Stock holding cost: 18-28% value/year (all sectors)
+- Healthy annual inventory turns: >4x/year
+- Dormant stock: alert if >10% no movement
+- Healthy transport operating margin: >6%
+- Target WCR: <60 days revenue"""
+    }
+}
+
+def detect_sector(df=None, module="stock", mode_detected=None):
+    """Detecte le secteur pertinent selon le fichier et le module."""
+    if module == "transport":
+        if mode_detected:
+            m = str(mode_detected).lower()
+            if "maritime" in m: return "transport_maritime"
+            if "aerien" in m or "air" in m: return "transport_aerien"
+        return "transport_routier"
+    if df is not None:
+        all_text = " ".join([str(c).lower() for c in df.columns])
+        if len(df) > 0:
+            all_text += " " + " ".join(df.iloc[:,0].astype(str).str.lower().head(30).tolist())
+        scores = {}
+        for sk, sd in SECTORAL_DB.items():
+            if sk == "generique": continue
+            hits = sum(1 for kw in sd["keywords"] if kw in all_text)
+            if hits >= 2: scores[sk] = hits
+        if scores: return max(scores, key=scores.get)
+    return "generique"
+
+def get_sector_benchmarks(sector_key, lang="fr"):
+    """Retourne les benchmarks du secteur dans la bonne langue."""
+    s = SECTORAL_DB.get(sector_key, SECTORAL_DB["generique"])
+    return s.get(lang, s.get("fr",""))
+
+
+
 USERS_DB = {
     "eric":"logiflo2026","admin":"admin123","demo_client1":"audit2026",
     "demo_client2":"test2026","jury":"pitch2026","partenaire":"partner2026","test":"test123",
@@ -736,7 +942,7 @@ for k,v in {
     "seuil_bas":15,"seuil_rupture":0,"seuil_km":0,
     "geo_cache":{},"route_cache":{},"trans_mapping":None,"trans_filename":None,
     "analysis_stock":None,"analysis_trans":None,
-    "last_pdf":None,"last_kpis":[],"last_labels":[],"trans_mode_detected":None,
+    "last_pdf":None,"last_kpis":[],"last_labels":[],"trans_mode_detected":None,"audit_gratuit_done":False,
 }.items():
     if k not in st.session_state: st.session_state[k]=v
 
@@ -1062,57 +1268,201 @@ JSON uniquement."""
 # =========================================
 # 6. GÉNÉRATION IA
 # =========================================
-def generate_ai_analysis(data_summary, historique_txt=""):
+def generate_ai_analysis(data_summary, historique_txt="", df_raw=None,
+                          sector_key=None, mode_detected=None):
     """
-    Génère l'analyse IA.
-    historique_txt : contexte historique formaté à injecter dans le prompt user.
+    Moteur IA V2 — prescriptif, sectoriel, historique garanti.
+    Envoie : donnees enrichies + benchmarks sectoriels + historique + question precise.
     """
-    if st.session_state.module=="transport":
-        prompt=get_prompt_transport()
-        module_key="transport"
-    elif st.session_state.get("stock_view")=="TERRAIN":
-        prompt=get_prompt_terrain()
-        module_key="terrain"
-    else:
-        prompt=get_prompt_stock()
-        module_key="stock"
+    lang   = st.session_state.get("language","fr")
+    module = st.session_state.module
+    view   = st.session_state.get("stock_view","MANAGER")
 
-    lang = st.session_state.get("language","fr")
+    # Detecter le secteur si pas fourni
+    if not sector_key:
+        sector_key = detect_sector(
+            df=df_raw, module=module,
+            mode_detected=mode_detected or (
+                st.session_state.trans_mode_detected[0]
+                if st.session_state.get("trans_mode_detected") else None
+            )
+        )
 
-    # Construction du message utilisateur avec historique si disponible
-    if historique_txt:
-        if lang == "en":
-            user_msg = (
-                f"Current audit data: {data_summary}\n\n"
-                f"{historique_txt}\n"
-                f"Generate the complete audit, integrating the historical trend into your analysis."
-            )
-        else:
-            user_msg = (
-                f"Donnees audit actuel : {data_summary}\n\n"
-                f"{historique_txt}\n"
-                f"Redige l audit complet en integrant la tendance historique dans ton analyse."
-            )
+    # Benchmarks sectoriels
+    benchmarks = get_sector_benchmarks(sector_key, lang)
+
+    # Prompt systeme selon module et profil
+    if module == "transport":
+        sys_prompt = get_prompt_transport()
+    elif view == "TERRAIN":
+        sys_prompt = get_prompt_terrain()
+    else:
+        sys_prompt = get_prompt_stock()
+
+    # ── Construction du message utilisateur enrichi ──────────────────────
+    parts = []
+
+    # 1. Données actuelles
+    if lang == "en":
+        parts.append(f"=== CURRENT AUDIT DATA ===\n{data_summary}")
+    else:
+        parts.append(f"=== DONNEES AUDIT ACTUEL ===\n{data_summary}")
+
+    # 2. Benchmarks sectoriels — toujours présents
+    if lang == "en":
+        parts.append(f"=== SECTOR BENCHMARKS TO USE FOR COMPARISON ===\n{benchmarks}")
+    else:
+        parts.append(f"=== BENCHMARKS SECTORIELS A UTILISER POUR LA COMPARAISON ===\n{benchmarks}")
+
+    # 3. Historique — garanti ou explicitement absent
+    if historique_txt and historique_txt.strip():
+        parts.append(historique_txt)
     else:
         if lang == "en":
-            user_msg = f"Data: {data_summary}. Generate the audit. No historical data available yet."
+            parts.append("=== HISTORY ===\nFirst audit for this user — no historical comparison available. Focus on present situation and benchmarks.")
         else:
-            user_msg = f"Donnees : {data_summary}. Redige l audit. Pas encore d historique disponible."
+            parts.append("=== HISTORIQUE ===\nPremier audit de cet utilisateur — pas de comparaison historique disponible. Concentre-toi sur la situation presente et les benchmarks.")
+
+    # 4. Lignes brutes les plus significatives (si dataframe disponible)
+    if df_raw is not None:
+        try:
+            key_data = _extract_key_rows(df_raw, module, lang)
+            if key_data:
+                parts.append(key_data)
+        except Exception:
+            pass
+
+    # 5. Instruction prescriptive finale — 2 options, pas plus
+    if lang == "en":
+        if module == "transport":
+            parts.append("""=== YOUR MISSION ===
+Based on ALL data above (current + benchmarks + history):
+1. State your verdict in ONE sentence: is this network profitable, at risk, or in danger?
+2. Compare the key metric (cost/km or margin) to the sector benchmark — cite the exact gap.
+3. If history available: state if the trend is improving or deteriorating, with a projection.
+4. Propose EXACTLY 2 options for the decision-maker — no more, no less:
+   OPTION A (aggressive): the fastest action to recover margin. Name the specific client/route.
+   OPTION B (cautious): the action with least disruption risk.
+Each option: one concrete sentence + estimated cash impact.
+The decision belongs to the manager — you provide the ammunition.""")
+        elif view == "TERRAIN":
+            parts.append("""=== YOUR MISSION ===
+Talk like a field supervisor who knows this warehouse.
+1. One sentence: is the situation under control, tense, or critical?
+2. Name the top 3 references to act on TODAY — exact references, exact quantities.
+3. Propose EXACTLY 2 options:
+   OPTION A: what to do this week if you have budget.
+   OPTION B: what to do this week if budget is tight.
+Direct language, no jargon. The team decides.""")
+        else:
+            parts.append("""=== YOUR MISSION ===
+Based on ALL data above (current + benchmarks + history):
+1. State your verdict in ONE sentence: is this stock healthy, under tension, or at risk?
+2. Compare the key metric (service level or coverage) to the sector benchmark — cite the gap.
+3. If history available: state the trend with a concrete projection.
+4. Propose EXACTLY 2 options for the decision-maker — no more, no less:
+   OPTION A (aggressive): the fastest action to free up cash or prevent stockout.
+   OPTION B (cautious): the action with the best cost/impact ratio.
+Each option: one concrete sentence + estimated impact.
+The decision belongs to the manager — you provide the ammunition.""")
+    else:
+        if module == "transport":
+            parts.append("""=== TA MISSION ===
+Sur la base de TOUTES les donnees ci-dessus (actuelles + benchmarks + historique) :
+1. Dis ton verdict en UNE phrase : ce reseau est-il rentable, sous tension ou en danger ?
+2. Compare la metrique cle (cout/km ou marge) au benchmark sectoriel — cite l'ecart exact.
+3. Si historique disponible : dis si la tendance s'ameliore ou se degrade, avec une projection chiffree.
+4. Propose EXACTEMENT 2 options au decideur — pas une de plus, pas une de moins :
+   OPTION A (offensive) : l'action la plus rapide pour recuperer de la marge. Nomme le client/trajet precis.
+   OPTION B (defensive) : l'action avec le moins de risque de rupture commerciale.
+Pour chaque option : une phrase concrete + impact cash estime.
+C'est le dirigeant qui decide — tu lui donnes les munitions.""")
+        elif view == "TERRAIN":
+            parts.append("""=== TA MISSION ===
+Parle comme un chef de quai qui connait cet entrepot.
+1. Une phrase : la situation est-elle sous controle, tendue ou critique ?
+2. Nomme les 3 references a traiter AUJOURD'HUI — references exactes, quantites exactes.
+3. Propose EXACTEMENT 2 options :
+   OPTION A : ce qu'il faut faire cette semaine si on a du budget.
+   OPTION B : ce qu'il faut faire cette semaine si le budget est serre.
+Langage direct, pas de jargon. C'est l'equipe qui decide.""")
+        else:
+            parts.append("""=== TA MISSION ===
+Sur la base de TOUTES les donnees ci-dessus (actuelles + benchmarks + historique) :
+1. Dis ton verdict en UNE phrase : ce stock est-il sain, sous tension ou en danger ?
+2. Compare la metrique cle (taux de service ou couverture) au benchmark sectoriel — cite l'ecart.
+3. Si historique disponible : dis la tendance avec une projection concrete.
+4. Propose EXACTEMENT 2 options au decideur — pas une de plus, pas une de moins :
+   OPTION A (offensive) : l'action la plus rapide pour liberer du cash ou eviter la rupture.
+   OPTION B (defensive) : l'action avec le meilleur ratio cout/impact.
+Pour chaque option : une phrase concrete + impact estime.
+C'est le dirigeant qui decide — tu lui donnes les munitions.""")
+
+    user_msg = "\n\n".join(parts)
 
     try:
-        r=client.chat.completions.create(
+        r = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role":"system","content":prompt},
-                {"role":"user","content":user_msg}
+                {"role": "system", "content": sys_prompt},
+                {"role": "user",   "content": user_msg}
             ],
             temperature=0.3,
-            max_tokens=1200
+            max_tokens=1400
         )
-        texte=r.choices[0].message.content
+        texte = r.choices[0].message.content
         try: return texte.encode('latin-1').decode('utf-8')
         except: return texte
-    except Exception as e: return f"AI Error: {str(e)}"
+    except Exception as e:
+        return f"AI Error: {str(e)}"
+
+
+def _extract_key_rows(df, module, lang="fr"):
+    """
+    Extrait les lignes les plus significatives du dataframe brut.
+    Envoie les anomalies et extremes — pas tout le fichier.
+    """
+    try:
+        lines = []
+        if lang == "en":
+            lines.append("=== KEY DATA ROWS (worst performers + anomalies) ===")
+        else:
+            lines.append("=== LIGNES CLES DU FICHIER (pires performances + anomalies) ===")
+
+        if module == "transport":
+            if "Marge_Nette" in df.columns and "_CA" in df.columns:
+                pires = df.nsmallest(5, "Marge_Nette")
+                for _i, row in pires.iterrows():
+                    client_col = df.columns[0]
+                    lines.append(f"  - {row.get(client_col,'?')}: CA={row.get('_CA',0):.0f} EUR, Cout={row.get('_CO',0):.0f} EUR, Marge={row.get('Marge_Nette',0):.0f} EUR ({row.get('Rentabilite_%',0):.1f}%)")
+        else:
+            if "reference" in df.columns and "quantite" in df.columns:
+                # Ruptures
+                rupt = df[df["quantite"] <= 0]
+                if len(rupt) > 0:
+                    refs = rupt["reference"].astype(str).head(5).tolist()
+                    label = "Stockouts" if lang=="en" else "Ruptures"
+                    lines.append(f"  {label}: {', '.join(refs)}")
+                # Dormants
+                if "_conso_moy" in df.columns:
+                    dorm = df[(df["quantite"] > 0) & (df["_conso_moy"] == 0)]
+                    if len(dorm) > 0:
+                        refs_d = dorm.nlargest(5,"quantite")["reference"].astype(str).tolist()
+                        label2 = "Dormant (no consumption)" if lang=="en" else "Dormants (conso nulle)"
+                        lines.append(f"  {label2}: {', '.join(refs_d)}")
+                # Surstocks
+                if "Couverture_mois" in df.columns:
+                    surs = df[df["Couverture_mois"] > 6].nlargest(3,"valeur_totale") if "valeur_totale" in df.columns else df[df["Couverture_mois"] > 6].head(3)
+                    if len(surs) > 0:
+                        refs_s = surs["reference"].astype(str).tolist()
+                        cov = surs["Couverture_mois"].apply(lambda x: f"{x:.0f}m" if x < 9999 else "inf").tolist()
+                        label3 = "Overstock (>6 months coverage)" if lang=="en" else "Surstock (>6 mois couverture)"
+                        lines.append(f"  {label3}: {', '.join([f'{r}({c})' for r,c in zip(refs_s,cov)])}")
+
+        return "\n".join(lines) if len(lines) > 1 else ""
+    except Exception:
+        return ""
+
 
 # =========================================
 # 7. PDF
@@ -1158,6 +1508,90 @@ def _asc(text): return _s(text)
 def _clean_pdf(text):
     """Nettoie le texte pour fpdf — utilise _s() pour garantie latin-1."""
     return _s(str(text).replace("**",""))
+
+
+def generate_free_pdf(module, summary_text, kpis, labels):
+    """PDF ultra-leger audit gratuit — 2 pages, sans graphiques."""
+    pdf = PDFReport()
+    lang = st.session_state.get("language","fr")
+
+    # Page 1 — Couverture
+    pdf.add_page()
+    pdf.set_fill_color(11,37,69); pdf.rect(0,0,210,297,'F')
+    pdf.set_fill_color(0,200,150); pdf.rect(0,0,210,6,'F')
+    pdf.set_y(90)
+    pdf.set_text_color(255,255,255); pdf.set_font("Arial","B",34)
+    pdf.cell(0,16,"LOGIFLO.IO",ln=True,align='C')
+    pdf.set_font("Arial","",13); pdf.set_text_color(0,200,150)
+    lbl_free = "Free Audit" if lang=="en" else "Audit Gratuit"
+    pdf.cell(0,10,_s(f"[ {lbl_free} ]"),ln=True,align='C')
+    pdf.ln(10)
+    pdf.set_draw_color(0,200,150); pdf.set_line_width(0.6)
+    pdf.line(50,pdf.get_y(),160,pdf.get_y()); pdf.ln(10)
+    pdf.set_text_color(200,220,255); pdf.set_font("Arial","",12)
+    pdf.cell(0,8,_s(f"Date : {datetime.date.today().strftime('%d/%m/%Y')}"),ln=True,align='C')
+    mod_label = "STOCK" if module=="stock" else "TRANSPORT"
+    pdf.cell(0,8,_s(f"Module : {mod_label}"),ln=True,align='C')
+    pdf.set_fill_color(0,200,150); pdf.rect(0,291,210,6,'F')
+
+    # Page 2 — Resultats
+    pdf.add_page()
+    pdf.set_fill_color(11,37,69); pdf.rect(0,0,210,18,'F')
+    pdf.set_y(4); pdf.set_text_color(255,255,255); pdf.set_font("Arial","B",11)
+    res_label = "YOUR AUDIT RESULTS" if lang=="en" else "RESULTATS DE VOTRE AUDIT"
+    pdf.cell(0,10,_s(res_label),ln=True,align='C'); pdf.ln(8)
+
+    # KPI cards
+    if kpis and labels:
+        n=min(len(kpis),len(labels),3)
+        card_w=56; total_w=n*card_w+(n-1)*8; start_x=(210-total_w)/2
+        card_y=pdf.get_y()
+        for i in range(n):
+            cx=start_x+i*(card_w+8)
+            pdf.set_fill_color(240,244,248); pdf.rect(cx,card_y,card_w,34,'F')
+            pdf.set_fill_color(0,168,122); pdf.rect(cx,card_y,card_w,3,'F')
+            pdf.set_xy(cx+2,card_y+5)
+            pdf.set_font("Arial","",7); pdf.set_text_color(74,96,128)
+            pdf.cell(card_w-4,6,_s(labels[i]).upper()[:22],align='C')
+            pdf.set_xy(cx+2,card_y+13)
+            pdf.set_font("Arial","B",15); pdf.set_text_color(11,37,69)
+            val=kpis[i]
+            if isinstance(val,float) and abs(val)>=1000: vs=_s(f"{val:,.0f}")
+            elif isinstance(val,float): vs=_s(f"{val:.1f}%")
+            else: vs=_s(str(val))
+            pdf.cell(card_w-4,10,vs,align='C')
+        pdf.ln(42)
+
+    # Analyse rapide
+    pdf.set_font("Arial","B",11); pdf.set_text_color(11,37,69)
+    diag_label = "RAPID DIAGNOSIS" if lang=="en" else "DIAGNOSTIC RAPIDE"
+    pdf.cell(0,8,_s(diag_label),ln=True)
+    pdf.set_draw_color(0,200,150); pdf.line(10,pdf.get_y(),200,pdf.get_y()); pdf.ln(4)
+    lines_done=0
+    for line in summary_text.split("\n"):
+        line=line.strip()
+        if not line: pdf.ln(2); continue
+        if pdf.get_y()>258: break
+        if line.startswith("### "):
+            pdf.set_font("Arial","B",10); pdf.set_text_color(0,168,122)
+            pdf.cell(0,7,_s(line[4:].upper()),ln=True); lines_done+=1
+        elif lines_done < 25:
+            pdf.set_font("Arial","",9); pdf.set_text_color(40,40,40)
+            pdf.set_x(10); pdf.multi_cell(190,5,_s(line.replace("**",""))); lines_done+=1
+
+    # CTA
+    pdf.set_y(260)
+    pdf.set_fill_color(240,244,248); pdf.rect(10,pdf.get_y(),190,28,'F')
+    pdf.set_fill_color(0,200,150); pdf.rect(10,pdf.get_y(),3,28,'F')
+    pdf.set_xy(16,pdf.get_y()+5)
+    pdf.set_font("Arial","B",10); pdf.set_text_color(11,37,69)
+    cta1 = "Get the full audit with history, charts and scoring." if lang=="en" else "Obtenez l'audit complet avec historique, graphiques et scoring."
+    pdf.multi_cell(184,6,_s(cta1))
+    pdf.set_x(16); pdf.set_font("Arial","",9); pdf.set_text_color(74,96,128)
+    pdf.cell(0,6,"logiflo-io.streamlit.app  |  contact@logiflo.io",ln=True)
+
+    return pdf.output(dest='S').encode('latin-1',errors='replace')
+
 
 def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, module="stock"):
     """
@@ -1282,19 +1716,27 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
         for fig in figs:
             _tp = None
             try:
-                import uuid, plotly.io as _pio
+                import uuid
                 _tp = os.path.join(tempfile.gettempdir(), f"lgf_{uuid.uuid4().hex}.png")
-                # Méthode 1 : to_image bytes puis write
+                # Méthode la plus stable Streamlit Cloud : bytes directs sans scale
+                _ok = False
+                # Tentative 1 : to_image sans options avancées
                 try:
-                    _img_bytes = _pio.to_image(fig, format="png", width=860, height=360, scale=2)
-                    with open(_tp,"wb") as _f: _f.write(_img_bytes)
+                    _b = fig.to_image(format="png", width=800, height=380)
+                    if _b and len(_b) > 200:
+                        with open(_tp,"wb") as _f: _f.write(_b)
+                        _ok = True
                 except Exception:
-                    # Méthode 2 : write_image direct
+                    pass
+                # Tentative 2 : write_image si to_image a échoué
+                if not _ok:
                     try:
-                        fig.write_image(_tp, format="png", width=860, height=360)
+                        fig.write_image(_tp, format="png", width=800, height=380)
+                        if os.path.exists(_tp) and os.path.getsize(_tp) > 200:
+                            _ok = True
                     except Exception:
-                        _tp = None
-                if _tp and os.path.exists(_tp) and os.path.getsize(_tp) > 500:
+                        pass
+                if _ok and os.path.exists(_tp):
                     if pdf.get_y() > 200: pdf.add_page(); pdf.ln(5)
                     pdf.image(_tp, x=12, y=pdf.get_y(), w=186)
                     pdf.ln(96)
@@ -1648,6 +2090,11 @@ if st.session_state.page=="accueil":
     _c1,cm,_c2=st.columns([1,1,1])
     if cm.button(_("home_access"),use_container_width=True):
         st.session_state.page="contact";st.rerun()
+    st.markdown("<br>",unsafe_allow_html=True)
+    _ca1,_cf,_ca2=st.columns([1,2,1])
+    _free_label="→ Launch my free audit" if st.session_state.get("language","fr")=="en" else "→ Lancer mon audit gratuit"
+    if _cf.button(_free_label,use_container_width=True,key="btn_free_home"):
+        st.session_state.page="audit_gratuit";st.rerun()
 
 elif st.session_state.page=="contact":
     st.markdown(f"<h2 style='text-align:center;color:#0B2545;font-family:Syne,sans-serif;'>{_('contact_title')}</h2>",unsafe_allow_html=True)
@@ -1660,6 +2107,83 @@ elif st.session_state.page=="contact":
             if st.form_submit_button(_("contact_btn"),use_container_width=True):
                 st.success(_("contact_ok"))
         if st.button(_("login_back"),use_container_width=True): st.session_state.page="accueil";st.rerun()
+
+elif st.session_state.page=="audit_gratuit":
+    lang_ag=st.session_state.get("language","fr")
+    st.markdown("<h1 style='text-align:center;color:#0B2545;font-family:Syne,sans-serif;font-weight:800;'>"+("Free Audit" if lang_ag=="en" else "Audit Gratuit")+"</h1>",unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center;color:#4A6080;margin-bottom:24px;'>"+("Upload your file — get your diagnosis in 2 minutes. No login required." if lang_ag=="en" else "Uploadez votre fichier — obtenez votre diagnostic en 2 minutes. Sans inscription.")+"</p>",unsafe_allow_html=True)
+
+    if st.session_state.get("audit_gratuit_done"):
+        st.warning("You have already used your free audit." if lang_ag=="en" else "Vous avez deja utilise votre audit gratuit.")
+        st.info("Create an account for full audits with history and charts." if lang_ag=="en" else "Creez un compte pour les audits complets avec historique et graphiques.")
+        if st.button("Back" if lang_ag=="en" else "Retour",use_container_width=True,key="back_done2"):
+            st.session_state.page="accueil"; st.rerun()
+    else:
+        _fmc=st.radio("",["Stock","Transport"],horizontal=True,label_visibility="collapsed",key="fmc")
+        _fmod="stock" if "Stock" in _fmc else "transport"
+        _upf=st.file_uploader("Fichier Excel ou CSV" if lang_ag=="fr" else "Excel or CSV file",type=["csv","xlsx"],key="free_up2")
+        if _upf:
+            with st.spinner("Calcul en cours..." if lang_ag=="fr" else "Computing..."):
+                try:
+                    _dff=pd.read_excel(_upf) if _upf.name.endswith("xlsx") else pd.read_csv(_upf,encoding="utf-8")
+                except Exception:
+                    _upf.seek(0); _dff=pd.read_csv(_upf,encoding="latin-1")
+            if _fmod=="stock":
+                _dfok,_st2=smart_ingester_stock_ultime(_dff,client_ai=client)
+                if _dfok is None: st.error(_st2)
+                else:
+                    _sp=bool(_dfok.get("_sans_prix",pd.Series([True])).iloc[0]) if "_sans_prix" in _dfok.columns else True
+                    _dfok["valeur_totale"]=_dfok["quantite"]*_dfok["prix_unitaire"]
+                    _vt=_dfok["valeur_totale"].sum()
+                    _rf=_dfok[_dfok["quantite"]<=0]
+                    _txf=(1-len(_rf)/max(len(_dfok),1))*100
+                    _fkpis=[_vt if not _sp else float(len(_dfok)),_txf,float(len(_rf))]
+                    _flbl=["Capital EUR" if not _sp else "Articles","Service %","Ruptures"]
+                    with st.spinner("Analyse IA..." if lang_ag=="fr" else "AI Analysis..."):
+                        _fsum=generate_ai_analysis(f"Items:{len(_dfok)}. Service:{_txf:.1f}%. Stockouts:{len(_rf)}. Prices:{'No' if _sp else 'Yes'}. SIMPLIFIED - 3 key points max.")
+                    a1,a2,a3=st.columns(3)
+                    a1.metric("Capital EUR" if not _sp else "Articles",f"{_fkpis[0]:,.0f}")
+                    a2.metric("Service",f"{_txf:.1f}%")
+                    a3.metric("Ruptures",str(len(_rf)))
+                    st.markdown(render_report(_fsum,"manager"),unsafe_allow_html=True)
+                    _fpdf=generate_free_pdf("stock",_fsum,_fkpis,_flbl)
+                    st.download_button("Telecharger mon rapport (PDF)" if lang_ag=="fr" else "Download my report (PDF)",_fpdf,"Audit_Gratuit_Logiflo.pdf",use_container_width=True)
+                    st.session_state.audit_gratuit_done=True
+                    st.info("Audit gratuit utilise. Creez un compte pour l'analyse complete." if lang_ag=="fr" else "Free audit used. Create an account for full analysis.")
+            else:
+                _mapf=auto_map_columns_with_ai(_dff)
+                def _colf(k): return _mapf.get(k) if _mapf.get(k) in _dff.columns else None
+                _caf=_colf("ca"); _cof=_colf("co")
+                if not _cof:
+                    for _cc in _dff.columns:
+                        if any(k in str(_cc).lower() for k in ["cout","cost","achat"]): _cof=_cc; break
+                if not _caf:
+                    for _cc in _dff.columns:
+                        if any(k in str(_cc).lower() for k in ["ca","revenue","facture"]): _caf=_cc; break
+                if not _cof: st.error("Colonne cout introuvable." if lang_ag=="fr" else "Cost column not found.")
+                else:
+                    _dff["_CO"]=_dff[_cof].apply(super_clean)
+                    _dff["_CA"]=_dff[_caf].apply(super_clean) if _caf else _dff["_CO"]/0.85
+                    _dff["_MG"]=_dff["_CA"]-_dff["_CO"]
+                    _mgt=_dff["_MG"].sum(); _cat=_dff["_CA"].sum()
+                    _txt=(_mgt/_cat*100) if _cat>0 else 0
+                    _toxt=len(_dff[_dff["_MG"]<0])
+                    _fkpis=[_mgt,_txt,float(_toxt)]
+                    _flbl=["Marge EUR","Taux %","Deficitaires"]
+                    with st.spinner("Analyse IA..." if lang_ag=="fr" else "AI Analysis..."):
+                        _fsum=generate_ai_analysis(f"Routes:{len(_dff)}. Margin:{_mgt:.0f} EUR. Rate:{_txt:.1f}%. Loss:{_toxt}. SIMPLIFIED - 3 key points max.")
+                    a1,a2,a3=st.columns(3)
+                    a1.metric("Marge",f"{_mgt:,.0f} EUR")
+                    a2.metric("Taux",f"{_txt:.1f}%")
+                    a3.metric("Deficitaires",str(_toxt))
+                    st.markdown(render_report(_fsum,"manager"),unsafe_allow_html=True)
+                    _fpdf=generate_free_pdf("transport",_fsum,_fkpis,_flbl)
+                    st.download_button("Telecharger mon rapport (PDF)" if lang_ag=="fr" else "Download my report (PDF)",_fpdf,"Audit_Gratuit_Transport.pdf",use_container_width=True)
+                    st.session_state.audit_gratuit_done=True
+                    st.info("Audit gratuit utilise. Creez un compte pour l'analyse complete." if lang_ag=="fr" else "Free audit used. Create an account for full analysis.")
+        st.markdown("<br>",unsafe_allow_html=True)
+        if st.button("Retour" if lang_ag=="fr" else "Back",use_container_width=True,key="back_free2"):
+            st.session_state.page="accueil"; st.rerun()
 
 elif st.session_state.page=="choix_profil_stock":
     st.markdown(f"<h2 style='text-align:center;color:#0B2545;font-family:Syne,sans-serif;'>{_('profile_title')}</h2>",unsafe_allow_html=True)
@@ -1933,11 +2457,14 @@ elif st.session_state.auth and st.session_state.page=="app":
                         _hist_s=get_historique_audits(st.session_state.current_user,"stock",
                                                       current_kpis=_kpis_curr_s,current_labels=_labels_curr_s)
                         _hist_txt_s=format_historique_pour_prompt(_hist_s,"stock",st.session_state.get("language","fr"))
+                        _sector_s = detect_sector(df=df, module="stock")
                         st.session_state.analysis_stock=generate_ai_analysis(
                             f"Items: {len(df)}. Service level: {tx_serv:.1f}%. Stock-outs: {len(ruptures)}. "
                             f"Top dormant: {top_str}. Top stock-outs: {rupt_l}.{prix_info}{med_info} "
                             f"Prices: {'No' if sans_prix else 'Yes'}. Consumption history: {'Yes' if has_conso else 'No'}.",
-                            historique_txt=_hist_txt_s)
+                            historique_txt=_hist_txt_s,
+                            df_raw=df,
+                            sector_key=_sector_s)
                         # KPIs calculés AVANT generate_expert_pdf
                         kpi1=val_totale if not sans_prix else float(len(df))
                         label1=_("stock_kpi_capital") if not sans_prix else _("stock_kpi_articles")
@@ -1978,11 +2505,14 @@ elif st.session_state.auth and st.session_state.page=="app":
                         # Chargement historique terrain
                         _hist_t = get_historique_audits(st.session_state.current_user,"stock")
                         _hist_txt_t = format_historique_pour_prompt(_hist_t,"terrain",st.session_state.get("language","fr"))
+                        _sector_t = detect_sector(df=df, module="stock")
                         st.session_state.analysis_stock=generate_ai_analysis(
                             f"Field stock: {len(df)} refs. Stock-outs: {len(ruptures)}. "
                             f"Lowest stocks: {top_s}. Dormant: {dorm_s}. "
                             f"Prices: {'No' if sans_prix else 'Yes'}.",
-                            historique_txt=_hist_txt_t)
+                            historique_txt=_hist_txt_t,
+                            df_raw=df,
+                            sector_key=_sector_t)
                         pg3.done()
                     if st.session_state.analysis_stock:
                         st.markdown(render_report(st.session_state.analysis_stock,"terrain"),unsafe_allow_html=True)
@@ -2193,10 +2723,15 @@ elif st.session_state.auth and st.session_state.page=="app":
                     _hist_tr=get_historique_audits(st.session_state.current_user,"transport",
                                                    current_kpis=_kpis_tr,current_labels=_labels_tr)
                     _hist_txt_tr=format_historique_pour_prompt(_hist_tr,"transport",st.session_state.get("language","fr"))
+                    _mode_k = st.session_state.trans_mode_detected[0] if st.session_state.get("trans_mode_detected") else "routier"
+                    _sector_tr = detect_sector(df=df_t, module="transport", mode_detected=_mode_k)
                     st.session_state.analysis_trans=generate_ai_analysis(
                         f"Routes: {len(df_t)}. Total margin: {marge_tot:.0f} EUR. Rate: {taux:.1f}%. "
                         f"Loss routes: {traj_def}. Top 3 worst: {pires_s}. Avg cost/km: {cout_km:.2f} EUR.{poids_info}{mode_info}",
-                        historique_txt=_hist_txt_tr)
+                        historique_txt=_hist_txt_tr,
+                        df_raw=df_t,
+                        sector_key=_sector_tr,
+                        mode_detected=_mode_k)
                     st.session_state.last_kpis=_kpis_tr
                     st.session_state.last_labels=_labels_tr
                     st.session_state.last_pdf=generate_expert_pdf(_("pdf_title_trans"),st.session_state.analysis_trans,[fig_trans],kpis=_kpis_tr,labels=_labels_tr,module="transport")
