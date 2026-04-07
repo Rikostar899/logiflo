@@ -1873,10 +1873,13 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
                       .replace("\u201c",'"').replace("\u201d",'"')
                       .replace("\u20ac","EUR").replace("\u2022","-")
                       .replace("\u2013","-").replace("\u2014","-"))
+    # Pour stock : scoring déjà affiché en page 2 → on le saute en page 4
+    # Pour transport : on le garde car page 2 ne l'affiche pas toujours
+    _skip_scoring_in_p4 = (module != "transport")
     skip_scoring=False
     for line in content_r.split('\n'):
         line=line.strip()
-        if 'SCORING' in line.upper() and line.startswith('###'):
+        if _skip_scoring_in_p4 and 'SCORING' in line.upper() and line.startswith('###'):
             skip_scoring=True
         if skip_scoring and not line.startswith('###'):
             continue
@@ -2646,23 +2649,29 @@ elif st.session_state.auth and st.session_state.page=="app":
             st.markdown("---")
 
             if up_t and st.session_state.trans_filename!=up_t.name:
-                _pg_trans=StepProgress([1,2,3,4])
-                _pg_trans.step()
-                try: df_t=pd.read_excel(up_t) if up_t.name.endswith("xlsx") else pd.read_csv(up_t,encoding='utf-8')
+                # Barre unique — couvre tout le traitement initial y compris ORS
+                _bar_load = st.progress(0, text="Calcul en cours..." if st.session_state.get("language","fr")=="fr" else "Computing...")
+                try: df_t=pd.read_excel(up_t) if up_t.name.endswith("xlsx") else pd.read_csv(up_t,encoding="utf-8")
                 except UnicodeDecodeError:
-                    up_t.seek(0);df_t=pd.read_csv(up_t,encoding='latin-1')
-                _pg_trans.step()
+                    up_t.seek(0);df_t=pd.read_csv(up_t,encoding="latin-1")
+                _bar_load.progress(25, text="Calcul en cours..." if st.session_state.get("language","fr")=="fr" else "Computing...")
                 mapping=auto_map_columns_with_ai(df_t)
                 dep_c_tmp=mapping.get("dep") if mapping.get("dep") in df_t.columns else None
                 arr_c_tmp=mapping.get("arr") if mapping.get("arr") in df_t.columns else None
                 mode_c_tmp=mapping.get("mode") if mapping.get("mode") in df_t.columns else None
                 mode_det,mode_label,mode_emoji=detect_transport_mode(df_t,dep_c_tmp,arr_c_tmp,mode_c_tmp)
-                _pg_trans.step()
+                _bar_load.progress(60, text="Calcul en cours..." if st.session_state.get("language","fr")=="fr" else "Computing...")
                 st.session_state.trans_mapping=mapping
                 st.session_state.df_trans=df_t
                 st.session_state.trans_filename=up_t.name
                 st.session_state.trans_mode_detected=(mode_det,mode_label,mode_emoji)
-                _pg_trans.done()
+                # ORS inclus dans la même barre si colonnes dep/arr présentes
+                if dep_c_tmp and arr_c_tmp:
+                    df_t=smart_multimodal_router(df_t,dep_c_tmp,arr_c_tmp,mode_c_tmp)
+                    st.session_state.df_trans=df_t
+                    st.session_state.df_trans["_DIST_CALCULEE_DONE"]=True
+                _bar_load.progress(100, text="Calcul en cours..." if st.session_state.get("language","fr")=="fr" else "Computing...")
+                _bar_load.empty()
 
             if st.session_state.df_trans is not None:
                 df_t=st.session_state.df_trans
@@ -2689,12 +2698,11 @@ elif st.session_state.auth and st.session_state.page=="app":
                 else: df_t["_CA"]=df_t["_CO"]/0.85;st.warning(_("trans_ca_miss"))
                 df_t["Marge_Nette"]=df_t["_CA"]-df_t["_CO"]
 
-                if dep_c and arr_c and "_DIST_CALCULEE" not in df_t.columns:
-                    _pg_dist=StepProgress([1,2,3])
-                    _pg_dist.step()
-                    df_t=smart_multimodal_router(df_t,dep_c,arr_c,mode_c)
-                    _pg_dist.step()
-                    st.session_state.df_trans=df_t;_pg_dist.done()
+                # ORS déjà fait pendant l'import si dep/arr présents
+                if dep_c and arr_c and "_DIST_CALCULEE" not in df_t.columns and "_DIST_CALCULEE_DONE" not in df_t.columns:
+                    with st.spinner("Calcul en cours..." if st.session_state.get("language","fr")=="fr" else "Computing..."):
+                        df_t=smart_multimodal_router(df_t,dep_c,arr_c,mode_c)
+                        st.session_state.df_trans=df_t
 
                 df_t["_DIST_FINALE"]=(df_t["_DIST_CALCULEE"] if "_DIST_CALCULEE" in df_t.columns and df_t["_DIST_CALCULEE"].sum()>0
                                       else (df_t[dist_c].apply(super_clean) if dist_c else 0))
@@ -2783,10 +2791,19 @@ elif st.session_state.auth and st.session_state.page=="app":
                     num_cols=[_("trans_col_ca"),_("trans_col_co"),_("trans_col_marge")]
                     fmt={c:"{:,.0f}" for c in num_cols if c in display_df.columns}
                     if _("trans_col_pct") in display_df.columns: fmt[_("trans_col_pct")]="{:.1f}%"
-                    st.dataframe(display_df.style.format(fmt).applymap(
-                        lambda v:"color:#E8304A;font-weight:600" if isinstance(v,(int,float)) and v<0 else "",
-                        subset=[c for c in [_("trans_col_marge"),_("trans_col_pct")] if c in display_df.columns]),
-                        use_container_width=True,height=380)
+                    # pandas >= 2.1 : map() remplace applymap()
+                    _style = display_df.style.format(fmt)
+                    _neg_cols = [c for c in [_("trans_col_marge"),_("trans_col_pct")] if c in display_df.columns]
+                    if _neg_cols:
+                        try:
+                            _style = _style.map(
+                                lambda v:"color:#E8304A;font-weight:600" if isinstance(v,(int,float)) and v<0 else "",
+                                subset=_neg_cols)
+                        except AttributeError:
+                            _style = _style.applymap(
+                                lambda v:"color:#E8304A;font-weight:600" if isinstance(v,(int,float)) and v<0 else "",
+                                subset=_neg_cols)
+                    st.dataframe(_style, use_container_width=True, height=380)
 
                 with tab_global:
                     fig_scatter=px.scatter(df_plot,x="_CA",y="Rentabilité_%",
