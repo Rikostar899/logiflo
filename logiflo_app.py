@@ -1355,11 +1355,12 @@ empty return load ratio if visible. Cite exact benchmark figures in your compari
 ### IMMEDIATE ACTION PLAN
 Propose 3 concrete actions ranked by priority. For each: specific action, targeted client/route,
 expected impact in EUR, execution difficulty 1-5.
-Then close with EXACTLY 2 decision options for the manager:
+Then close with this urgency section:
 
-OPTION A - OFFENSIVE: [specific action, named target, estimated cash recovery in EUR]
-OPTION B - CAUTIOUS: [alternative action, named target, lower disruption risk]
-The manager decides. You provide the ammunition.
+### A FAIRE - PRIORITE ABSOLUE
+State the single most urgent action in one sentence. Be direct: name the client or route,
+the action, and the cash impact. Then give one fallback if the first option is too risky.
+The manager decides — give them exactly what they need to act today.
 
 ### LOGIFLO SCORE
 - Profitability and Transport Yield: XX/100
@@ -1383,11 +1384,12 @@ References with zero movement. For each: how long inactive, what to do with it.
 
 ### YOUR 3 ACTIONS THIS WEEK
 Ranked by urgency. One concrete sentence each. Difficulty: Easy / Medium / Hard.
-Then close with EXACTLY 2 options for the team:
+Then close with:
 
-OPTION A - IF BUDGET AVAILABLE: [specific action, exact reference, expected result]
-OPTION B - IF BUDGET IS TIGHT: [alternative, lower cost, still effective]
-The team decides.
+### WHAT TO DO NOW
+One sentence: the most urgent action, exact reference, exact quantity.
+If budget is tight: one cheaper alternative that still moves the needle.
+The team decides — no ambiguity.
 
 ### SUMMARY
 2-3 sentences to brief the manager in 30 seconds. End with overall situation: improving / stable / worsening.""")
@@ -1412,11 +1414,13 @@ exact values, quantify the cash trap risk. If no prices: analyze velocity and hi
 ### IMMEDIATE ACTION PLAN
 3 concrete prioritized recommendations. For each: specific action, targeted reference,
 expected impact, execution difficulty 1-5.
-Then close with EXACTLY 2 decision options for the manager:
+Then close with this urgency section:
 
-OPTION A - OFFENSIVE: [fastest action to free cash or prevent stockout, named reference, estimated impact]
-OPTION B - CAUTIOUS: [safer alternative, best cost/impact ratio, named reference]
-The manager decides. You provide the ammunition.
+### WHAT TO DO NOW - TOP PRIORITY
+State the single most urgent action in one sentence. Name the specific reference,
+the action, and the estimated impact in EUR or %. Then give one fallback option
+if budget or time is constrained.
+The manager decides — give them exactly what they need to act today.
 
 ### LOGIFLO SCORE
 - Stock Performance and Rotation: XX/100
@@ -1444,11 +1448,13 @@ spatiale, le taux de retour a charge si visible. Cite les chiffres exacts des be
 ### PLAN DE RATIONALISATION
 3 actions concretes classees par priorite. Pour chacune : action precise, client/trajet cible,
 impact attendu en EUR, difficulte d'execution 1 a 5.
-Termine avec EXACTEMENT 2 options decisionnaires pour le dirigeant :
+Termine par cette section d'urgence :
 
-OPTION A - OFFENSIVE : [action precise, cible nommee, recuperation cash estimee en EUR]
-OPTION B - DEFENSIVE : [alternative, cible nommee, moindre risque de rupture commerciale]
-C'est le dirigeant qui decide. Tu lui donnes les munitions.
+### A FAIRE - PRIORITE ABSOLUE
+Une phrase directe : quelle est l'action la plus urgente ? Nomme le client ou le trajet,
+l'action concrete, et l'impact cash estime. Puis donne une alternative si la premiere
+option est trop risquee commercialement.
+C'est le dirigeant qui decide — donne-lui exactement ce dont il a besoin pour agir aujourd'hui.
 
 ### SCORING LOGIFLO
 - Rentabilite et Yield Transport : XX/100
@@ -1472,11 +1478,12 @@ References sans mouvement. Pour chacune : depuis combien de temps, que faire mai
 
 ### TES 3 ACTIONS POUR CETTE SEMAINE
 Classees par urgence. Une phrase concrete chacune. Difficulte : Facile / Moyen / Complique.
-Termine avec EXACTEMENT 2 options pour l'equipe :
+Termine par :
 
-OPTION A - SI BUDGET DISPONIBLE : [action precise, reference exacte, resultat attendu]
-OPTION B - SI BUDGET SERRE : [alternative moins couteuse, tout aussi efficace]
-C'est l'equipe qui decide.
+### A FAIRE MAINTENANT
+Une phrase : l'action la plus urgente, reference exacte, quantite exacte.
+Si le budget est serre : une alternative moins couteuse qui change quand meme la situation.
+C'est l'equipe qui decide — pas d'ambiguite.
 
 ### EN RESUME
 2-3 phrases pour briefer le responsable en 30 secondes. Termine par : situation globale : en amelioration / stable / en degradation.""")
@@ -1502,11 +1509,13 @@ la velocite et les risques caches.
 ### PLAN D'ACTION IMMEDIAT
 3 recommandations concretes classees par priorite. Pour chacune : action precise, reference
 ciblee, impact attendu, difficulte d'execution 1 a 5.
-Termine avec EXACTEMENT 2 options decisionnaires pour le dirigeant :
+Termine par cette section d'urgence :
 
-OPTION A - OFFENSIVE : [action la plus rapide pour liberer du cash ou eviter la rupture, reference nommee, impact estime]
-OPTION B - DEFENSIVE : [alternative plus sure, meilleur ratio cout/impact, reference nommee]
-C'est le dirigeant qui decide. Tu lui donnes les munitions.
+### A FAIRE - PRIORITE ABSOLUE
+Une phrase directe : quelle est l'action la plus urgente ? Nomme la reference precise,
+l'action concrete, et l'impact estime en EUR ou en pourcentage. Puis donne une alternative
+si le budget ou le delai est contraint.
+C'est le dirigeant qui decide — donne-lui exactement ce dont il a besoin pour agir aujourd'hui.
 
 ### SCORING LOGIFLO
 - Performance et Rotation stock : XX/100
@@ -1797,25 +1806,28 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
             if ls.startswith('###') or ls.startswith('---'): break
             if ls and ('/' in ls or ':' in ls): scoring_lines.append(ls)
     if scoring_lines:
+        import re as _re2
         for sl in scoring_lines[:3]:
             sv=0
-            import re as _re
-            nums=_re.findall(r'(\d+)\s*/\s*100',sl)
+            nums=_re2.findall(r'(\d+)\s*/\s*100',sl)
             if nums: sv=int(nums[0])
-            bar_x=10; bar_y=pdf.get_y()+1; bar_total=140
-            bar_fill=int((sv/100)*bar_total) if sv>0 else 0
-            pdf.set_fill_color(225,232,240); pdf.rect(bar_x,bar_y,bar_total,5,'F')
             rc,gc,bc=(0,168,122) if sv>=70 else (243,156,18) if sv>=40 else (232,48,74)
+            # Layout : label(60) | barre(108) | score(22) — total 200mm
+            _lx=10; _bx=72; _sx=183; _row_y=pdf.get_y()
+            # Label à gauche
+            pdf.set_font("Arial","",8); pdf.set_text_color(74,96,128)
+            label_sc=_re2.sub(r'\s*[:\-]\s*\d+/100.*$','',sl).strip().lstrip('-').strip()
+            pdf.set_xy(_lx,_row_y); pdf.cell(60,7,_s(label_sc)[:32],align='L')
+            # Barre au centre
+            _bar_y=_row_y+1
+            pdf.set_fill_color(225,232,240); pdf.rect(_bx,_bar_y,108,5,'F')
             pdf.set_fill_color(rc,gc,bc)
-            if bar_fill>0: pdf.rect(bar_x,bar_y,bar_fill,5,'F')
-            pdf.set_xy(bar_x+bar_total+4,bar_y-1)
-            pdf.set_font("Arial","B",8); pdf.set_text_color(11,37,69)
-            label_sc = sl.split(':')[0] if ':' in sl else sl
-            pdf.cell(50,6,_s(label_sc)[:38])
-            pdf.set_font("Arial","",8); pdf.set_text_color(rc,gc,bc)
-            score_txt = f"{sv}/100" if sv>0 else ""
-            pdf.cell(0,6,score_txt,ln=True)
-            pdf.ln(3)
+            _fill=int((sv/100)*108) if sv>0 else 0
+            if _fill>0: pdf.rect(_bx,_bar_y,_fill,5,'F')
+            # Score à droite — largeur fixe 22mm
+            pdf.set_font("Arial","B",8); pdf.set_text_color(rc,gc,bc)
+            pdf.set_xy(_sx,_row_y); pdf.cell(22,7,f"{sv}/100",align='R')
+            pdf.ln(8)
     else:
         pdf.set_font("Arial","I",10); pdf.set_text_color(74,96,128)
         no_sc = "Generate AI analysis to see scoring." if lang=="en" else "Generez l'analyse IA pour voir le scoring."
@@ -1833,28 +1845,34 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
             try:
                 import uuid
                 _tp = os.path.join(tempfile.gettempdir(), f"lgf_{uuid.uuid4().hex}.png")
-                # Méthode la plus stable Streamlit Cloud : bytes directs sans scale
                 _ok = False
-                # Tentative 1 : to_image sans options avancées
+                # Export image — taille réduite pour tenir sur la page
                 try:
-                    _b = fig.to_image(format="png", width=800, height=380)
+                    _b = fig.to_image(format="png", width=740, height=320)
                     if _b and len(_b) > 200:
                         with open(_tp,"wb") as _f: _f.write(_b)
                         _ok = True
                 except Exception:
                     pass
-                # Tentative 2 : write_image si to_image a échoué
                 if not _ok:
                     try:
-                        fig.write_image(_tp, format="png", width=800, height=380)
+                        fig.write_image(_tp, format="png", width=740, height=320)
                         if os.path.exists(_tp) and os.path.getsize(_tp) > 200:
                             _ok = True
                     except Exception:
                         pass
                 if _ok and os.path.exists(_tp):
-                    if pdf.get_y() > 200: pdf.add_page(); pdf.ln(5)
-                    pdf.image(_tp, x=12, y=pdf.get_y(), w=186)
-                    pdf.ln(96)
+                    # Calculer l'espace dispo et adapter
+                    _space = 297 - pdf.get_y() - 20  # espace vertical restant
+                    _img_h = 84  # hauteur image en mm (320px @ ~72dpi)
+                    _img_w = 176  # largeur image en mm (740px)
+                    if _space < _img_h + 10:
+                        # Plus assez de place verticalement → nouvelle page
+                        pdf.add_page(); pdf.ln(5)
+                    # Centrer horizontalement
+                    _margin_x = (210 - _img_w) / 2
+                    pdf.image(_tp, x=_margin_x, y=pdf.get_y(), w=_img_w)
+                    pdf.ln(_img_h + 6)
             except Exception:
                 pass
             finally:
@@ -1873,18 +1891,18 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
                       .replace("\u201c",'"').replace("\u201d",'"')
                       .replace("\u20ac","EUR").replace("\u2022","-")
                       .replace("\u2013","-").replace("\u2014","-"))
-    # Pour stock : scoring déjà affiché en page 2 → on le saute en page 4
-    # Pour transport : on le garde car page 2 ne l'affiche pas toujours
-    _skip_scoring_in_p4 = (module != "transport")
+    # Scoring toujours en p2 uniquement — on le saute en p4 pour tous les modules
+    skip_scoring=True  # commence False, passe True quand on rencontre ### SCORING
+    _in_scoring=False
     skip_scoring=False
     for line in content_r.split('\n'):
         line=line.strip()
-        if _skip_scoring_in_p4 and 'SCORING' in line.upper() and line.startswith('###'):
-            skip_scoring=True
-        if skip_scoring and not line.startswith('###'):
+        if 'SCORING' in line.upper() and line.startswith('###'):
+            _in_scoring=True; skip_scoring=True
+        if skip_scoring and _in_scoring and not line.startswith('###'):
             continue
-        if skip_scoring and line.startswith('###') and 'SCORING' not in line.upper():
-            skip_scoring=False
+        if _in_scoring and line.startswith('###') and 'SCORING' not in line.upper():
+            _in_scoring=False; skip_scoring=False
         if not line:
             pdf.ln(2); continue
         if line.startswith('### '):
