@@ -2390,12 +2390,20 @@ elif st.session_state.auth and st.session_state.page=="app":
             st.markdown("""<div class="legal-text">
             <div class="legal-box"><p>Conforme au RGPD / GDPR compliant (EU) 2016/679<br>
             Contact DPO: contact@logiflo.io</p></div>
-            <h2>Zero Data Retention</h2>
+            <h2>Ce que nous stockons / What we store</h2>
             <div class="legal-box"><p>
-            ✅ Raw files processed in RAM only — never permanently stored<br>
-            ✅ Data never sold or shared with third parties<br>
-            ✅ Data never used to train public AI models<br>
-            ✅ Automatic purge on logout</p></div>
+            ✅ Fichiers bruts traites en RAM uniquement — jamais stockes sur nos serveurs<br>
+            ✅ Raw files processed in RAM only — never stored on our servers<br><br>
+            ℹ Pour votre historique d audit, nous conservons dans Google Sheets :<br>
+            ℹ For your audit history, we keep in Google Sheets:<br>
+            &nbsp;&nbsp;— Date et heure de l audit / Audit date and time<br>
+            &nbsp;&nbsp;— Indicateurs KPIs calcules (ex : marge 12%, 3 ruptures) / Calculated KPI metrics<br>
+            &nbsp;&nbsp;— Resume IA tronque (800 caracteres max) / Truncated AI summary (800 chars max)<br>
+            &nbsp;&nbsp;— Rapport PDF genere / Generated PDF report<br><br>
+            ✅ Ces donnees ne sont jamais revendues ni partagees avec des tiers<br>
+            ✅ This data is never sold or shared with third parties<br>
+            ✅ Non utilisees pour entrainer des modeles IA publics / Not used to train public AI models<br>
+            ✅ Suppression sur demande sous 30 jours / Deletion on request within 30 days</p></div>
             <h2>Sous-traitants / Sub-processors</h2>
             <ul><li>Streamlit Cloud (Snowflake) — hosting — USA (EU SCCs)</li>
             <li>OpenAI — AI analysis — USA (GDPR DPA)</li>
@@ -2889,4 +2897,3 @@ elif st.session_state.auth and st.session_state.page=="app":
                     st.markdown("<br>",unsafe_allow_html=True)
                     if st.session_state.last_pdf:
                         st.download_button(_("trans_btn_dl"),st.session_state.last_pdf,"Transport_Logiflo.pdf",use_container_width=True)
-                    
