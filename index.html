@@ -4,389 +4,725 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LOGIFLO.IO — Intelligence Logistique B2B</title>
+<meta name="description" content="Logiflo détecte les fuites de marge dans votre supply chain en 5 minutes. Audit stock et transport pour PME logistiques.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
 <style>
+/* ══ VARIABLES ══════════════════════════════════════════════════ */
 :root {
-  --navy:#0B2545; --navy2:#162D52; --green:#00C896; --green2:#00A87A;
-  --slate:#4A6080; --light:#F0F4F8; --white:#FFFFFF; --red:#E8304A;
+  --navy:    #0B2545;
+  --navy2:   #0f2f5a;
+  --green:   #00C896;
+  --green2:  #00A87A;
+  --slate:   #4A6080;
+  --light:   #F0F4F8;
+  --white:   #FFFFFF;
+  --red:     #E8304A;
+  --orange:  #F39C12;
+  --border:  rgba(255,255,255,0.08);
 }
+
+/* ══ RESET ══════════════════════════════════════════════════════ */
 *{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;font-size:16px;}
 body{font-family:'DM Sans',sans-serif;color:var(--navy);background:var(--white);overflow-x:hidden;}
 
-/* NAV */
-nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(11,37,69,0.97);backdrop-filter:blur(12px);padding:0 5%;}
-.nav-inner{display:flex;align-items:center;justify-content:space-between;height:64px;}
-.logo{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#fff;letter-spacing:-0.5px;text-decoration:none;}
-.logo span{color:var(--green);}
-.nav-right{display:flex;align-items:center;gap:20px;}
-.lang-btn{background:transparent;border:1px solid rgba(255,255,255,0.3);color:#fff;padding:6px 14px;border-radius:20px;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;transition:0.2s;}
-.lang-btn:hover,.lang-btn.active{background:var(--green);border-color:var(--green);color:var(--navy);}
-.nav-cta{background:var(--green);color:var(--navy);padding:8px 20px;border-radius:8px;font-weight:700;font-size:14px;text-decoration:none;font-family:'Syne',sans-serif;transition:0.2s;}
+/* ══ NAV ════════════════════════════════════════════════════════ */
+nav {
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  background:rgba(11,37,69,0.97);
+  backdrop-filter:blur(12px);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 6%;height:68px;
+  border-bottom:1px solid var(--border);
+}
+.nav-logo {
+  font-family:'Syne',sans-serif;font-size:20px;font-weight:800;
+  color:white;text-decoration:none;letter-spacing:-0.3px;
+  display:flex;align-items:center;gap:10px;
+}
+.nav-logo span{color:var(--green);}
+.nav-right{display:flex;align-items:center;gap:18px;}
+.lang-toggle{
+  background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.15);
+  border-radius:24px;padding:3px;display:flex;gap:2px;
+}
+.lang-btn{
+  padding:4px 12px;border-radius:20px;font-size:12px;
+  font-weight:600;color:rgba(255,255,255,0.55);
+  cursor:pointer;transition:all .2s;border:none;
+  background:transparent;font-family:'DM Sans',sans-serif;
+  letter-spacing:0.5px;
+}
+.lang-btn.active{background:var(--green);color:var(--navy);}
+.nav-cta {
+  background:var(--green);color:var(--navy);
+  font-family:'Syne',sans-serif;font-weight:700;
+  font-size:13px;padding:9px 22px;border-radius:8px;
+  text-decoration:none;transition:all .2s;letter-spacing:0.2px;
+}
 .nav-cta:hover{background:var(--green2);transform:translateY(-1px);}
 
-/* HERO */
-.hero{min-height:100vh;background:linear-gradient(135deg,var(--navy) 0%,#1a3a6b 50%,#0d2038 100%);display:flex;align-items:center;padding:100px 5% 60px;position:relative;overflow:hidden;}
-.hero::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2300C896' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat;opacity:0.5;}
-.hero-content{max-width:680px;position:relative;z-index:1;}
-.hero-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(0,200,150,0.15);border:1px solid rgba(0,200,150,0.3);color:var(--green);padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;margin-bottom:32px;}
-.hero h1{font-family:'Syne',sans-serif;font-size:clamp(36px,5vw,64px);font-weight:800;color:#fff;line-height:1.1;letter-spacing:-2px;margin-bottom:24px;}
-.hero h1 span{color:var(--green);}
-.hero p{font-size:18px;color:rgba(255,255,255,0.75);line-height:1.7;margin-bottom:40px;max-width:520px;}
-.hero-btns{display:flex;gap:16px;flex-wrap:wrap;}
-.btn-primary{background:var(--green);color:var(--navy);padding:14px 28px;border-radius:10px;font-weight:800;font-size:15px;text-decoration:none;font-family:'Syne',sans-serif;transition:0.2s;display:inline-block;}
-.btn-primary:hover{background:var(--green2);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,200,150,0.3);}
-.btn-secondary{background:transparent;color:#fff;padding:14px 28px;border-radius:10px;font-weight:600;font-size:15px;text-decoration:none;font-family:'Syne',sans-serif;border:1px solid rgba(255,255,255,0.3);transition:0.2s;display:inline-block;}
-.btn-secondary:hover{background:rgba(255,255,255,0.1);transform:translateY(-2px);}
-.hero-visual{position:absolute;right:5%;top:50%;transform:translateY(-50%);display:grid;grid-template-columns:1fr 1fr;gap:16px;width:min(420px,40%);opacity:0.9;}
-.stat-card{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:24px;backdrop-filter:blur(10px);}
-.stat-card .num{font-family:'Syne',sans-serif;font-size:32px;font-weight:800;color:var(--green);margin-bottom:4px;}
-.stat-card .lbl{font-size:12px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:1px;}
-.stat-card.large{grid-column:span 2;}
+/* ══ HERO ═══════════════════════════════════════════════════════ */
+.hero {
+  min-height:100vh;
+  background:linear-gradient(145deg,#060f1c 0%,var(--navy) 45%,#0d2035 100%);
+  display:flex;align-items:center;
+  padding:120px 6% 80px;
+  position:relative;overflow:hidden;
+}
+/* Grille de points en fond */
+.hero::before {
+  content:'';position:absolute;inset:0;
+  background-image:radial-gradient(rgba(0,200,150,0.12) 1px, transparent 1px);
+  background-size:32px 32px;
+}
+/* Halo vert */
+.hero::after {
+  content:'';position:absolute;
+  top:-20%;right:-10%;width:600px;height:600px;
+  background:radial-gradient(circle,rgba(0,200,150,0.07) 0%,transparent 65%);
+  border-radius:50%;
+}
+.hero-inner {
+  position:relative;z-index:1;
+  display:grid;grid-template-columns:1fr 1fr;gap:80px;
+  align-items:center;max-width:1200px;margin:0 auto;width:100%;
+}
+.hero-left{}
+.hero-badges {
+  display:flex;gap:8px;flex-wrap:wrap;margin-bottom:28px;
+}
+.badge {
+  background:rgba(0,200,150,0.1);
+  border:1px solid rgba(0,200,150,0.25);
+  color:var(--green);font-size:11px;font-weight:600;
+  padding:5px 12px;border-radius:20px;letter-spacing:0.8px;
+  text-transform:uppercase;
+}
+.hero-logo {
+  font-family:'Syne',sans-serif;
+  font-size:clamp(52px,6vw,72px);
+  font-weight:800;color:white;
+  letter-spacing:-2px;line-height:1;
+  margin-bottom:6px;
+}
+.hero-logo span{color:var(--green);}
+.hero-tagline {
+  font-size:clamp(17px,2vw,22px);
+  color:rgba(255,255,255,0.82);
+  font-weight:300;line-height:1.6;
+  margin:20px 0 32px;max-width:520px;
+}
+.hero-tagline strong{color:var(--green);font-weight:500;}
+.hero-ctas{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:48px;}
+.btn-primary {
+  background:var(--green);color:var(--navy);
+  font-family:'Syne',sans-serif;font-weight:700;
+  font-size:14px;padding:14px 30px;border-radius:10px;
+  text-decoration:none;transition:all .25s;
+  display:inline-flex;align-items:center;gap:8px;
+  letter-spacing:0.2px;
+}
+.btn-primary:hover{background:var(--green2);transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,200,150,0.3);}
+.btn-outline {
+  background:transparent;color:white;
+  font-family:'Syne',sans-serif;font-weight:600;
+  font-size:14px;padding:14px 30px;border-radius:10px;
+  text-decoration:none;
+  border:1px solid rgba(255,255,255,0.25);
+  transition:all .25s;
+}
+.btn-outline:hover{background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.4);}
+.hero-stats{display:flex;gap:36px;flex-wrap:wrap;}
+.stat-num{
+  font-family:'Syne',sans-serif;font-size:32px;
+  font-weight:800;color:var(--green);line-height:1;
+}
+.stat-label{font-size:12px;color:rgba(255,255,255,0.45);margin-top:5px;font-weight:300;}
 
-/* LOGOS */
-.logos{background:var(--light);padding:48px 5%;text-align:center;}
-.logos p{font-size:12px;text-transform:uppercase;letter-spacing:2px;color:var(--slate);margin-bottom:32px;font-weight:600;}
-.logos-row{display:flex;justify-content:center;align-items:center;gap:48px;flex-wrap:wrap;}
-.logo-item{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--slate);opacity:0.6;}
+/* Hero right — pitch card */
+.pitch-card {
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:20px;padding:40px;
+  backdrop-filter:blur(8px);
+}
+.pitch-card-label {
+  font-size:11px;font-weight:700;color:var(--green);
+  letter-spacing:2px;text-transform:uppercase;margin-bottom:16px;
+}
+.pitch-quote {
+  font-family:'Syne',sans-serif;
+  font-size:clamp(16px,1.8vw,20px);
+  font-weight:600;color:white;line-height:1.6;
+  border-left:3px solid var(--green);padding-left:20px;
+}
+.pitch-quote strong{color:var(--green);}
+.pitch-author{
+  font-size:13px;color:rgba(255,255,255,0.4);
+  margin-top:20px;padding-left:20px;font-style:italic;
+}
+.pitch-divider{
+  height:1px;background:rgba(255,255,255,0.08);
+  margin:24px 0;
+}
+.pitch-feature {
+  display:flex;align-items:center;gap:12px;
+  font-size:13px;color:rgba(255,255,255,0.7);
+  margin-bottom:12px;
+}
+.pitch-feature:last-child{margin-bottom:0;}
+.pitch-dot{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--green);flex-shrink:0;
+}
 
-/* FEATURES */
-.features{padding:96px 5%;background:var(--white);}
-.section-label{font-size:12px;text-transform:uppercase;letter-spacing:2px;color:var(--green2);font-weight:700;margin-bottom:12px;}
-.section-title{font-family:'Syne',sans-serif;font-size:clamp(28px,4vw,48px);font-weight:800;color:var(--navy);line-height:1.15;letter-spacing:-1px;margin-bottom:16px;}
-.section-sub{font-size:17px;color:var(--slate);line-height:1.7;max-width:560px;margin-bottom:64px;}
-.features-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:32px;}
-.feature-card{padding:36px;border-radius:16px;border:1px solid #E2EAF4;background:var(--white);transition:0.3s;position:relative;overflow:hidden;}
-.feature-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--green),var(--green2));transform:scaleX(0);transition:0.3s;transform-origin:left;}
-.feature-card:hover{transform:translateY(-4px);box-shadow:0 20px 40px rgba(11,37,69,0.08);}
-.feature-card:hover::before{transform:scaleX(1);}
-.feature-icon{font-size:40px;margin-bottom:20px;display:block;}
-.feature-card h3{font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:var(--navy);margin-bottom:12px;}
-.feature-card p{font-size:15px;color:var(--slate);line-height:1.6;}
-.feature-tag{display:inline-block;background:rgba(0,200,150,0.1);color:var(--green2);font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;margin-top:16px;text-transform:uppercase;letter-spacing:1px;}
+/* ══ SECTIONS ═══════════════════════════════════════════════════ */
+section{padding:100px 6%;}
+.section-inner{max-width:1200px;margin:0 auto;}
+.section-label{
+  font-size:11px;font-weight:700;color:var(--green);
+  letter-spacing:2.5px;text-transform:uppercase;margin-bottom:14px;
+}
+.section-title{
+  font-family:'Syne',sans-serif;
+  font-size:clamp(28px,4vw,44px);
+  font-weight:800;color:var(--navy);
+  line-height:1.1;margin-bottom:18px;letter-spacing:-0.5px;
+}
+.section-sub{
+  font-size:17px;color:var(--slate);
+  line-height:1.75;max-width:580px;font-weight:300;
+}
+.section-center{text-align:center;}
+.section-center .section-sub{margin:0 auto;}
 
-/* HOW */
-.how{padding:96px 5%;background:var(--light);}
-.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0;margin-top:48px;position:relative;}
-.steps::before{content:'';position:absolute;top:32px;left:10%;right:10%;height:2px;background:linear-gradient(90deg,var(--green),var(--navy));z-index:0;}
-.step{text-align:center;padding:24px;position:relative;z-index:1;}
-.step-num{width:64px;height:64px;background:var(--navy);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:22px;font-weight:800;margin:0 auto 20px;border:4px solid var(--green);}
-.step h4{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--navy);margin-bottom:8px;}
-.step p{font-size:14px;color:var(--slate);line-height:1.5;}
+/* ══ MODULES ════════════════════════════════════════════════════ */
+.modules-grid{
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:28px;margin-top:60px;
+}
+.module-card {
+  background:var(--white);border:1px solid #e2e8f0;
+  border-radius:18px;padding:40px;
+  border-top:3px solid var(--green);
+  box-shadow:0 4px 24px rgba(0,0,0,0.05);
+  transition:transform .25s,box-shadow .25s;
+}
+.module-card:hover{transform:translateY(-5px);box-shadow:0 16px 40px rgba(0,0,0,0.1);}
+.module-icon{font-size:36px;margin-bottom:18px;display:block;}
+.module-title{
+  font-family:'Syne',sans-serif;font-size:22px;
+  font-weight:800;color:var(--navy);margin-bottom:12px;
+}
+.module-desc{font-size:15px;color:var(--slate);line-height:1.7;margin-bottom:24px;font-weight:300;}
+.module-features{list-style:none;}
+.module-features li{
+  font-size:14px;color:var(--slate);
+  padding:7px 0;border-bottom:1px solid var(--light);
+  display:flex;align-items:center;gap:10px;
+}
+.module-features li::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--green);flex-shrink:0;}
 
-/* PRICING */
-.pricing{padding:96px 5%;background:var(--white);}
-.pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;max-width:900px;margin:0 auto;}
-.price-card{border-radius:20px;padding:40px;border:1px solid #E2EAF4;background:var(--white);transition:0.3s;}
-.price-card.featured{background:var(--navy);border-color:var(--navy);transform:scale(1.03);}
-.price-card.featured *{color:#fff!important;}
-.price-card.featured .price-badge{background:var(--green);color:var(--navy)!important;}
-.price-label{font-size:12px;text-transform:uppercase;letter-spacing:2px;font-weight:700;color:var(--slate);margin-bottom:12px;}
-.price-amount{font-family:'Syne',sans-serif;font-size:48px;font-weight:800;color:var(--navy);line-height:1;}
-.price-amount span{font-size:18px;font-weight:400;}
-.price-desc{font-size:14px;color:var(--slate);margin:12px 0 24px;}
-.price-badge{display:inline-block;background:rgba(0,200,150,0.1);color:var(--green2);font-size:11px;font-weight:700;padding:4px 12px;border-radius:20px;margin-bottom:20px;text-transform:uppercase;}
-.price-features{list-style:none;margin-bottom:32px;}
-.price-features li{font-size:14px;color:var(--slate);padding:8px 0;border-bottom:1px solid #f0f4f8;display:flex;align-items:center;gap:8px;}
-.price-features li::before{content:'✓';color:var(--green);font-weight:700;flex-shrink:0;}
-.price-card.featured .price-features li{border-color:rgba(255,255,255,0.1);}
-.btn-price{display:block;text-align:center;padding:14px;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none;font-family:'Syne',sans-serif;transition:0.2s;background:var(--green);color:var(--navy);}
-.price-card.featured .btn-price{background:#fff;color:var(--navy);}
-.btn-price:hover{transform:translateY(-2px);}
+/* ══ PRICING ════════════════════════════════════════════════════ */
+.pricing-section{background:var(--navy);padding:100px 6%;}
+.pricing-grid{
+  display:grid;grid-template-columns:1fr 1fr 1fr;
+  gap:24px;margin-top:60px;
+}
+.pricing-card {
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:18px;padding:36px;
+  transition:transform .25s,border-color .25s;
+  position:relative;
+}
+.pricing-card:hover{transform:translateY(-4px);border-color:rgba(0,200,150,0.3);}
+.pricing-card.featured {
+  border-color:var(--green);
+  background:rgba(0,200,150,0.06);
+}
+.pricing-card.featured::before {
+  content:attr(data-badge);
+  position:absolute;top:-14px;left:50%;transform:translateX(-50%);
+  background:var(--green);color:var(--navy);
+  font-family:'Syne',sans-serif;font-size:11px;font-weight:700;
+  padding:4px 16px;border-radius:20px;letter-spacing:1px;
+  text-transform:uppercase;white-space:nowrap;
+}
+.pricing-tier {
+  font-size:11px;font-weight:700;color:var(--green);
+  letter-spacing:2px;text-transform:uppercase;margin-bottom:16px;
+}
+.pricing-name {
+  font-family:'Syne',sans-serif;font-size:24px;
+  font-weight:800;color:white;margin-bottom:8px;
+}
+.pricing-price {
+  font-family:'Syne',sans-serif;font-size:42px;
+  font-weight:800;color:white;line-height:1;margin-bottom:4px;
+}
+.pricing-price span{font-size:18px;font-weight:400;color:rgba(255,255,255,0.5);}
+.pricing-price .currency{font-size:24px;vertical-align:top;margin-top:6px;display:inline-block;}
+.pricing-period{font-size:13px;color:rgba(255,255,255,0.4);margin-bottom:28px;}
+.pricing-divider{height:1px;background:rgba(255,255,255,0.1);margin:24px 0;}
+.pricing-features{list-style:none;margin-bottom:32px;}
+.pricing-features li{
+  font-size:14px;color:rgba(255,255,255,0.7);
+  padding:8px 0;display:flex;align-items:flex-start;gap:10px;
+  line-height:1.5;
+}
+.pricing-features li .pf-dot{
+  width:16px;height:16px;border-radius:50%;
+  background:rgba(0,200,150,0.15);border:1px solid var(--green);
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;margin-top:1px;
+}
+.pricing-features li .pf-dot::after{
+  content:'';width:6px;height:6px;border-radius:50%;background:var(--green);
+}
+.btn-pricing {
+  display:block;text-align:center;
+  font-family:'Syne',sans-serif;font-weight:700;
+  font-size:13px;padding:13px 20px;border-radius:10px;
+  text-decoration:none;transition:all .25s;letter-spacing:0.3px;
+}
+.btn-pricing-green{background:var(--green);color:var(--navy);}
+.btn-pricing-green:hover{background:var(--green2);}
+.btn-pricing-outline{
+  background:transparent;color:white;
+  border:1px solid rgba(255,255,255,0.2);
+}
+.btn-pricing-outline:hover{border-color:var(--green);color:var(--green);}
+.pricing-note{
+  text-align:center;margin-top:36px;
+  font-size:13px;color:rgba(255,255,255,0.35);
+  font-style:italic;
+}
 
-/* TESTIMONIAL */
-.testimonial{padding:96px 5%;background:var(--navy);text-align:center;}
-.testimonial blockquote{font-size:clamp(20px,3vw,32px);font-family:'Syne',sans-serif;font-weight:600;color:#fff;max-width:800px;margin:0 auto 24px;line-height:1.4;letter-spacing:-0.5px;}
-.testimonial blockquote span{color:var(--green);}
-.testimonial cite{font-size:14px;color:rgba(255,255,255,0.5);}
+/* ══ STEPS ══════════════════════════════════════════════════════ */
+.steps-section{background:var(--light);}
+.steps{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:40px;margin-top:60px;position:relative;
+}
+.steps::before{
+  content:'';position:absolute;
+  top:36px;left:calc(16.6% + 20px);right:calc(16.6% + 20px);
+  height:1px;
+  background:linear-gradient(90deg,var(--green),rgba(0,200,150,0.2),var(--green));
+}
+.step{text-align:center;position:relative;}
+.step-num{
+  width:72px;height:72px;border-radius:50%;
+  background:var(--navy);border:2px solid var(--green);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Syne',sans-serif;font-size:24px;
+  font-weight:800;color:var(--green);
+  margin:0 auto 20px;position:relative;z-index:1;
+}
+.step-title{
+  font-family:'Syne',sans-serif;font-size:16px;
+  font-weight:700;color:var(--navy);margin-bottom:10px;
+}
+.step-desc{font-size:14px;color:var(--slate);line-height:1.65;font-weight:300;}
 
-/* CTA BOTTOM */
-.cta-bottom{padding:96px 5%;background:var(--light);text-align:center;}
-.cta-bottom h2{font-family:'Syne',sans-serif;font-size:clamp(28px,4vw,48px);font-weight:800;color:var(--navy);margin-bottom:16px;letter-spacing:-1px;}
-.cta-bottom p{font-size:17px;color:var(--slate);margin-bottom:40px;}
-.cta-btns{display:flex;justify-content:center;gap:16px;flex-wrap:wrap;}
+/* ══ PROMISES ═══════════════════════════════════════════════════ */
+.promises-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:22px;margin-top:60px;
+}
+.promise-card{
+  background:var(--light);border-radius:14px;
+  padding:32px 28px;border-left:3px solid var(--green);
+  transition:transform .2s;
+}
+.promise-card:hover{transform:translateY(-3px);}
+.promise-icon{font-size:26px;margin-bottom:14px;}
+.promise-title{
+  font-family:'Syne',sans-serif;font-size:16px;
+  font-weight:700;color:var(--navy);margin-bottom:8px;
+}
+.promise-desc{font-size:14px;color:var(--slate);line-height:1.65;font-weight:300;}
 
-/* FOOTER */
-footer{background:var(--navy);padding:48px 5%;color:rgba(255,255,255,0.5);}
-.footer-inner{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:24px;}
-.footer-logo{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#fff;}
+/* ══ CTA FINAL ══════════════════════════════════════════════════ */
+.cta-section{
+  background:linear-gradient(145deg,#060f1c 0%,var(--navy) 60%);
+  padding:100px 6%;text-align:center;position:relative;overflow:hidden;
+}
+.cta-section::before{
+  content:'';position:absolute;inset:0;
+  background-image:radial-gradient(rgba(0,200,150,0.08) 1px,transparent 1px);
+  background-size:28px 28px;
+}
+.cta-inner{position:relative;z-index:1;max-width:700px;margin:0 auto;}
+.cta-section .section-title{color:white;}
+.cta-section .section-sub{color:rgba(255,255,255,0.55);margin:0 auto 48px;font-weight:300;}
+.cta-section .section-label{color:var(--green);}
+.cta-btns{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;}
+
+/* ══ FOOTER ═════════════════════════════════════════════════════ */
+footer{
+  background:#040c17;padding:48px 6% 32px;
+  display:flex;justify-content:space-between;
+  align-items:center;flex-wrap:wrap;gap:24px;
+}
+.footer-logo{
+  font-family:'Syne',sans-serif;font-size:18px;
+  font-weight:800;color:white;
+}
 .footer-logo span{color:var(--green);}
-.footer-links{display:flex;gap:24px;flex-wrap:wrap;}
-.footer-links a{color:rgba(255,255,255,0.4);text-decoration:none;font-size:13px;transition:0.2s;}
+.footer-links{display:flex;gap:28px;}
+.footer-links a{
+  font-size:13px;color:rgba(255,255,255,0.35);
+  text-decoration:none;transition:color .2s;
+}
 .footer-links a:hover{color:var(--green);}
+.footer-copy{
+  font-size:12px;color:rgba(255,255,255,0.2);
+  width:100%;margin-top:8px;
+}
 
-@media(max-width:768px){
-  .hero-visual{display:none;}
+/* ══ RESPONSIVE ═════════════════════════════════════════════════ */
+@media(max-width:900px){
+  .hero-inner{grid-template-columns:1fr;gap:48px;}
+  .hero-right{display:none;}
+  .modules-grid,.pricing-grid,.promises-grid{grid-template-columns:1fr;}
+  .steps{grid-template-columns:1fr;gap:32px;}
   .steps::before{display:none;}
-  .price-card.featured{transform:none;}
-  nav .nav-right .nav-cta{display:none;}
+  .footer{flex-direction:column;align-items:flex-start;}
 }
 </style>
 </head>
 <body>
 
+<!-- NAV -->
 <nav>
-  <div class="nav-inner">
-    <a class="logo" href="#">LOGI<span>FLO</span>.IO 📦📦📦</a>
-    <div class="nav-right">
-      <button class="lang-btn active" id="btn-fr" onclick="setLang('fr')">🇫🇷 FR</button>
-      <button class="lang-btn" id="btn-en" onclick="setLang('en')">🇬🇧 EN</button>
-      <a class="nav-cta" href="https://logiflo-io.streamlit.app" target="_blank" id="nav-cta-text">Accès Plateforme</a>
+  <a href="#" class="nav-logo">LOGI<span>FLO</span>.IO</a>
+  <div class="nav-right">
+    <div class="lang-toggle">
+      <button class="lang-btn active" onclick="setLang('fr')" id="btn-fr">FR</button>
+      <button class="lang-btn" onclick="setLang('en')" id="btn-en">EN</button>
     </div>
+    <a href="https://logiflo-io.streamlit.app" class="nav-cta" target="_blank"
+       data-fr="Accéder à la plateforme" data-en="Access platform">Accéder à la plateforme</a>
   </div>
 </nav>
 
 <!-- HERO -->
 <section class="hero">
-  <div class="hero-content">
-    <div class="hero-badge">
-      <span>🤖</span>
-      <span data-fr="IA Logistique B2B" data-en="B2B Logistics AI">IA Logistique B2B</span>
-    </div>
-    <h1 data-fr="Vos données révèlent <span>où part votre marge.</span>" 
-        data-en="Your data reveals <span>where your margin goes.</span>">
-      Vos données révèlent <span>où part votre marge.</span>
-    </h1>
-    <p data-fr="Uploadez votre fichier. En 5 minutes, Logiflo identifie vos trajets déficitaires, vos stocks dormants et les fuites cachées — sans installation, sans formation."
-       data-en="Upload your file. In 5 minutes, Logiflo identifies your loss-making routes, dormant stock and hidden leaks — no installation, no training.">
-      Uploadez votre fichier. En 5 minutes, Logiflo identifie vos trajets déficitaires, vos stocks dormants et les fuites cachées — sans installation, sans formation.
-    </p>
-    <div class="hero-btns">
-      <a href="https://logiflo-io.streamlit.app" target="_blank" class="btn-primary" data-fr="Lancer un audit gratuit →" data-en="Start a free audit →">Lancer un audit gratuit →</a>
-      <a href="mailto:contact@logiflo.io" class="btn-secondary" data-fr="Demander une démo" data-en="Request a demo">Demander une démo</a>
-    </div>
-  </div>
-  <div class="hero-visual">
-    <div class="stat-card large">
-      <div class="num" data-fr="-23 000 €" data-en="-€23,000">-23 000 €</div>
-      <div class="lbl" data-fr="Fuite détectée en 5 min" data-en="Leak detected in 5 min">Fuite détectée en 5 min</div>
-    </div>
-    <div class="stat-card">
-      <div class="num">95%</div>
-      <div class="lbl" data-fr="Colonnes détectées auto." data-en="Columns auto-detected">Colonnes détectées auto.</div>
-    </div>
-    <div class="stat-card">
-      <div class="num">0</div>
-      <div class="lbl" data-fr="Installation requise" data-en="Installation required">Installation requise</div>
-    </div>
-  </div>
-</section>
-
-<!-- LOGOS -->
-<section class="logos">
-  <p data-fr="Compatible avec tous vos formats de données" data-en="Compatible with all your data formats">Compatible avec tous vos formats de données</p>
-  <div class="logos-row">
-    <span class="logo-item">Excel</span>
-    <span class="logo-item">CSV</span>
-    <span class="logo-item">TMS Export</span>
-    <span class="logo-item">SAP / Sage</span>
-    <span class="logo-item">Cegid</span>
-  </div>
-</section>
-
-<!-- FEATURES -->
-<section class="features">
-  <p class="section-label" data-fr="Modules" data-en="Modules">Modules</p>
-  <h2 class="section-title" data-fr="Deux audits. Une vérité." data-en="Two audits. One truth.">Deux audits. Une vérité.</h2>
-  <p class="section-sub" data-fr="Logiflo a été conçu par un logisticien terrain — pas par un consultant. Parce que les vraies fuites de marge ne se voient pas dans les tableaux de bord globaux."
-     data-en="Logiflo was built by a field logistics professional — not a consultant. Because real margin leaks don't show up in global dashboards.">
-    Logiflo a été conçu par un logisticien terrain — pas par un consultant. Parce que les vraies fuites de marge ne se voient pas dans les tableaux de bord globaux.
-  </p>
-  <div class="features-grid">
-    <div class="feature-card">
-      <span class="feature-icon">📦</span>
-      <h3 data-fr="Audit Financier des Stocks" data-en="Stock Financial Audit">Audit Financier des Stocks</h3>
-      <p data-fr="Détectez en quelques secondes vos stocks dormants, les risques de rupture et le capital immobilisé invisible. L'IA calcule votre taux de service réel et vous donne un plan d'action prioritaire."
-         data-en="Detect dormant stock, hidden stock-out risks and invisible tied-up capital in seconds. AI calculates your real service level and gives you a prioritised action plan.">
-        Détectez en quelques secondes vos stocks dormants, les risques de rupture et le capital immobilisé invisible. L'IA calcule votre taux de service réel et vous donne un plan d'action prioritaire.
+  <div class="hero-inner">
+    <div class="hero-left">
+      <div class="hero-badges">
+        <span class="badge" data-fr="Fichiers non stockés" data-en="Raw files never stored">Fichiers non stockés</span>
+        <span class="badge" data-fr="5 minutes" data-en="5 minutes">5 minutes</span>
+        <span class="badge">Smart Ingester™ V5</span>
+        <span class="badge" data-fr="IA GPT-4o" data-en="GPT-4o AI">IA GPT-4o</span>
+      </div>
+      <div class="hero-logo">LOGI<span>FLO</span>.IO</div>
+      <p class="hero-tagline"
+         data-fr="Je vous montre, <strong>sur vos propres données</strong>, quels clients et quels trajets vous font <strong>perdre de l'argent</strong> — en 5 minutes, sans rien installer."
+         data-en="I show you, <strong>on your own data</strong>, which clients and routes are <strong>costing you money</strong> — in 5 minutes, nothing to install.">
+        Je vous montre, <strong>sur vos propres données</strong>, quels clients et quels trajets vous font <strong>perdre de l'argent</strong> — en 5 minutes, sans rien installer.
       </p>
-      <span class="feature-tag" data-fr="Sans prix obligatoire" data-en="Price not required">Sans prix obligatoire</span>
+      <div class="hero-ctas">
+        <a href="https://logiflo-io.streamlit.app" class="btn-primary" target="_blank"
+           data-fr="Lancer mon audit gratuit →" data-en="Launch my free audit →">Lancer mon audit gratuit →</a>
+        <a href="/cdn-cgi/l/email-protection#81e2eeeff5e0e2f5c1edeee6e8e7edeeafe8ee" class="btn-outline" data-fr="Demander une démo" data-en="Request a demo">Demander une démo</a>
+      </div>
+      <div class="hero-stats">
+        <div class="stat">
+          <div class="stat-num">5 min</div>
+          <div class="stat-label" data-fr="Premier audit complet" data-en="First complete audit">Premier audit complet</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num">0</div>
+          <div class="stat-label" data-fr="Installation requise" data-en="Installation required">Installation requise</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num">10+</div>
+          <div class="stat-label" data-fr="Secteurs couverts" data-en="Sectors covered">Secteurs couverts</div>
+        </div>
+      </div>
     </div>
-    <div class="feature-card">
-      <span class="feature-icon">🚚</span>
-      <h3 data-fr="Audit de Rentabilité Transport" data-en="Transport Profitability Audit">Audit de Rentabilité Transport</h3>
-      <p data-fr="Identifiez trajet par trajet et client par client les fuites de marge. Détection automatique du mode (maritime, aérien, routier, ferroviaire) avec benchmarks CNR intégrés."
-         data-en="Identify margin leaks route by route and client by client. Automatic detection of transport mode (maritime, air, road, rail) with integrated CNR benchmarks.">
-        Identifiez trajet par trajet et client par client les fuites de marge. Détection automatique du mode (maritime, aérien, routier, ferroviaire) avec benchmarks CNR intégrés.
-      </p>
-      <span class="feature-tag" data-fr="CNR 2025-2026" data-en="CNR 2025-2026">CNR 2025-2026</span>
-    </div>
-    <div class="feature-card">
-      <span class="feature-icon">🧠</span>
-      <h3 data-fr="Smart Ingester™ V5" data-en="Smart Ingester™ V5">Smart Ingester™ V5</h3>
-      <p data-fr="Notre moteur d'ingestion détecte automatiquement vos colonnes — même avec des noms codifiés, des fautes de frappe ou des formats non standard. Zéro configuration. Zéro formation."
-         data-en="Our ingestion engine automatically detects your columns — even with coded names, typos or non-standard formats. Zero configuration. Zero training.">
-        Notre moteur d'ingestion détecte automatiquement vos colonnes — même avec des noms codifiés, des fautes de frappe ou des formats non standard. Zéro configuration. Zéro formation.
-      </p>
-      <span class="feature-tag" data-fr="95%+ de précision" data-en="95%+ accuracy">95%+ de précision</span>
-    </div>
-    <div class="feature-card">
-      <span class="feature-icon">🔒</span>
-      <h3 data-fr="Zero Data Retention" data-en="Zero Data Retention">Zero Data Retention</h3>
-      <p data-fr="Vos fichiers sont traités en mémoire vive uniquement et purgés automatiquement à la déconnexion. Vos données ne sont jamais stockées, jamais revendues, jamais utilisées pour entraîner des IA."
-         data-en="Your files are processed in RAM only and automatically purged on logout. Your data is never stored, never sold, never used to train AI models.">
-        Vos fichiers sont traités en mémoire vive uniquement et purgés automatiquement à la déconnexion. Vos données ne sont jamais stockées, jamais revendues, jamais utilisées pour entraîner des IA.
-      </p>
-      <span class="feature-tag">RGPD / GDPR</span>
-    </div>
-    <div class="feature-card">
-      <span class="feature-icon">📄</span>
-      <h3 data-fr="Rapport PDF Prêt à Partager" data-en="Ready-to-Share PDF Report">Rapport PDF Prêt à Partager</h3>
-      <p data-fr="Chaque audit génère un rapport PDF professionnel téléchargeable — présentable à votre expert-comptable, votre direction, votre banquier ou vos investisseurs."
-         data-en="Every audit generates a downloadable professional PDF report — ready to present to your accountant, management, bank or investors.">
-        Chaque audit génère un rapport PDF professionnel téléchargeable — présentable à votre expert-comptable, votre direction, votre banquier ou vos investisseurs.
-      </p>
-      <span class="feature-tag" data-fr="Prêt pour votre CODIR" data-en="Board-ready">Prêt pour votre CODIR</span>
-    </div>
-    <div class="feature-card">
-      <span class="feature-icon">🌍</span>
-      <h3 data-fr="Interface Bilingue FR / EN" data-en="Bilingual Interface FR / EN">Interface Bilingue FR / EN</h3>
-      <p data-fr="L'interface, les rapports et les analyses IA sont disponibles en français et en anglais. Idéal pour les équipes internationales et les filiales."
-         data-en="The interface, reports and AI analyses are available in French and English. Ideal for international teams and subsidiaries.">
-        L'interface, les rapports et les analyses IA sont disponibles en français et en anglais. Idéal pour les équipes internationales et les filiales.
-      </p>
-      <span class="feature-tag">FR · EN · ES soon</span>
+    <div class="hero-right">
+      <div class="pitch-card">
+        <div class="pitch-card-label" data-fr="Terrain — 8 ans d'expérience" data-en="Field — 8 years experience">Terrain — 8 ans d'expérience</div>
+        <p class="pitch-quote"
+           data-fr="La plupart des transporteurs pilotent à la <strong>marge globale</strong>. Ils ignorent que 20% de leurs trajets <strong>détruisent la rentabilité</strong> des 80% restants."
+           data-en="Most carriers manage on <strong>overall margin</strong>. They ignore that 20% of their routes <strong>destroy the profitability</strong> of the remaining 80%.">
+          La plupart des transporteurs pilotent à la <strong>marge globale</strong>. Ils ignorent que 20% de leurs trajets <strong>détruisent la rentabilité</strong> des 80% restants.
+        </p>
+        <p class="pitch-author" data-fr="— Eric, fondateur Logiflo" data-en="— Eric, Logiflo founder">— Eric, fondateur Logiflo</p>
+        <div class="pitch-divider"></div>
+        <div class="pitch-feature">
+          <div class="pitch-dot"></div>
+          <span data-fr="Votre fichier Excel habituel — aucun reformatage" data-en="Your usual Excel file — no reformatting">Votre fichier Excel habituel — aucun reformatage</span>
+        </div>
+        <div class="pitch-feature">
+          <div class="pitch-dot"></div>
+          <span data-fr="Benchmarks CNR 2026 intégrés" data-en="CNR 2026 benchmarks built-in">Benchmarks CNR 2026 intégrés</span>
+        </div>
+        <div class="pitch-feature">
+          <div class="pitch-dot"></div>
+          <span data-fr="Verdict + A FAIRE — pas une liste de suggestions" data-en="Verdict + TO DO — not a list of suggestions">Verdict + A FAIRE — pas une liste de suggestions</span>
+        </div>
+        <div class="pitch-feature">
+          <div class="pitch-dot"></div>
+          <span data-fr="Historique inter-audits automatique" data-en="Automatic cross-audit history">Historique inter-audits automatique</span>
+        </div>
+      </div>
     </div>
   </div>
 </section>
 
-<!-- HOW -->
-<section class="how">
-  <div style="text-align:center;">
-    <p class="section-label" data-fr="Comment ça marche" data-en="How it works">Comment ça marche</p>
-    <h2 class="section-title" data-fr="De votre fichier Excel à l'action en 5 minutes" data-en="From your Excel file to action in 5 minutes">De votre fichier Excel à l'action en 5 minutes</h2>
+<!-- MODULES -->
+<section>
+  <div class="section-inner">
+    <div class="section-center">
+      <p class="section-label" data-fr="NOS MODULES" data-en="OUR MODULES">NOS MODULES</p>
+      <h2 class="section-title" data-fr="Deux modules. Un seul upload." data-en="Two modules. One upload.">Deux modules. Un seul upload.</h2>
+      <p class="section-sub" data-fr="Déposez votre fichier CSV ou Excel. Le Smart Ingester™ V5 détecte automatiquement vos colonnes, même avec des noms cryptiques ou des fautes de frappe." data-en="Drop your CSV or Excel file. Smart Ingester™ V5 automatically detects your columns, even with cryptic names or typos.">
+        Déposez votre fichier CSV ou Excel. Le Smart Ingester™ V5 détecte automatiquement vos colonnes, même avec des noms cryptiques ou des fautes de frappe.
+      </p>
+    </div>
+    <div class="modules-grid">
+      <div class="module-card">
+        <span class="module-icon">📦</span>
+        <h3 class="module-title" data-fr="Audit Financier des Stocks" data-en="Stock Financial Audit">Audit Financier des Stocks</h3>
+        <p class="module-desc" data-fr="Détectez les stocks dormants, ruptures cachées et capital immobilisé. Deux profils : Manager (vision financière) et Terrain (action immédiate)." data-en="Detect dormant stock, hidden stock-outs and tied-up capital. Two profiles: Manager (financial view) and Operations (immediate action).">
+          Détectez les stocks dormants, ruptures cachées et capital immobilisé. Deux profils : Manager (vision financière) et Terrain (action immédiate).
+        </p>
+        <ul class="module-features">
+          <li data-fr="Taux de service vs benchmark sectoriel" data-en="Service level vs sector benchmark">Taux de service vs benchmark sectoriel</li>
+          <li data-fr="Dormants, surstocks et cash trap identifiés" data-en="Dormant stock, overstock and cash trap identified">Dormants, surstocks et cash trap identifiés</li>
+          <li data-fr="Historique consommation 3 ans" data-en="3-year consumption history">Historique consommation 3 ans</li>
+          <li data-fr="Prix optionnel — fonctionne sans" data-en="Price optional — works without">Prix optionnel — fonctionne sans</li>
+          <li data-fr="A FAIRE en priorité absolue" data-en="TOP PRIORITY action item">A FAIRE en priorité absolue</li>
+        </ul>
+      </div>
+      <div class="module-card">
+        <span class="module-icon">🚚</span>
+        <h3 class="module-title" data-fr="Audit Rentabilité Transport" data-en="Transport Profitability Audit">Audit Rentabilité Transport</h3>
+        <p class="module-desc" data-fr="Marge trajet par trajet. Routier, maritime, aérien, ferroviaire — détection automatique du mode et benchmarks sectoriels adaptés." data-en="Margin route by route. Road, maritime, air, rail — automatic mode detection with adapted sector benchmarks.">
+          Marge trajet par trajet. Routier, maritime, aérien, ferroviaire — détection automatique du mode et benchmarks sectoriels adaptés.
+        </p>
+        <ul class="module-features">
+          <li data-fr="Top 15 pires trajets visuels" data-en="Visual top 15 worst routes">Top 15 pires trajets visuels</li>
+          <li data-fr="Benchmarks CNR 2026 — écart exact cité" data-en="CNR 2026 benchmarks — exact gap cited">Benchmarks CNR 2026 — écart exact cité</li>
+          <li data-fr="Distances ORS temps réel" data-en="Real-time ORS distances">Distances ORS temps réel</li>
+          <li data-fr="Détection mode : routier, maritime, aérien, ferroviaire" data-en="Mode detection: road, maritime, air, rail">Détection mode automatique multimodal</li>
+          <li data-fr="Projection tendance sur 3 mois" data-en="3-month trend projection">Projection tendance sur 3 mois</li>
+        </ul>
+      </div>
+    </div>
   </div>
-  <div class="steps">
-    <div class="step">
-      <div class="step-num">1</div>
-      <h4 data-fr="Uploadez votre fichier" data-en="Upload your file">Uploadez votre fichier</h4>
-      <p data-fr="CSV ou Excel, tel quel. Pas de modèle à respecter." data-en="CSV or Excel, as-is. No template required.">CSV ou Excel, tel quel. Pas de modèle à respecter.</p>
+</section>
+
+<!-- STEPS -->
+<section class="steps-section">
+  <div class="section-inner">
+    <div class="section-center">
+      <p class="section-label" data-fr="COMMENT ÇA MARCHE" data-en="HOW IT WORKS">COMMENT ÇA MARCHE</p>
+      <h2 class="section-title" data-fr="3 étapes. 5 minutes." data-en="3 steps. 5 minutes.">3 étapes. 5 minutes.</h2>
     </div>
-    <div class="step">
-      <div class="step-num">2</div>
-      <h4 data-fr="Le Smart Ingester™ lit tout" data-en="Smart Ingester™ reads everything">Le Smart Ingester™ lit tout</h4>
-      <p data-fr="Détection automatique des colonnes, même codifiées." data-en="Automatic column detection, even with coded names.">Détection automatique des colonnes, même codifiées.</p>
-    </div>
-    <div class="step">
-      <div class="step-num">3</div>
-      <h4 data-fr="L'IA analyse et diagnostique" data-en="AI analyses and diagnoses">L'IA analyse et diagnostique</h4>
-      <p data-fr="GPT-4o-mini identifie les anomalies et propose un plan d'action." data-en="GPT-4o-mini identifies anomalies and proposes an action plan.">GPT-4o-mini identifie les anomalies et propose un plan d'action.</p>
-    </div>
-    <div class="step">
-      <div class="step-num">4</div>
-      <h4 data-fr="Téléchargez le rapport" data-en="Download the report">Téléchargez le rapport</h4>
-      <p data-fr="PDF professionnel prêt à présenter." data-en="Professional PDF ready to present.">PDF professionnel prêt à présenter.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-title" data-fr="Déposez votre fichier" data-en="Drop your file">Déposez votre fichier</div>
+        <p class="step-desc" data-fr="CSV ou Excel, votre fichier habituel tel quel. Aucun reformatage, aucun template imposé." data-en="CSV or Excel, your usual file as-is. No reformatting, no imposed template.">
+          CSV ou Excel, votre fichier habituel tel quel. Aucun reformatage, aucun template imposé.
+        </p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-title" data-fr="Le moteur analyse" data-en="The engine analyses">Le moteur analyse</div>
+        <p class="step-desc" data-fr="Smart Ingester™ détecte vos colonnes. L'IA compare vos données aux benchmarks sectoriels et à votre historique." data-en="Smart Ingester™ detects your columns. AI compares your data to sector benchmarks and your own history.">
+          Smart Ingester™ détecte vos colonnes. L'IA compare vos données aux benchmarks sectoriels et à votre historique.
+        </p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-title" data-fr="Vous recevez le verdict" data-en="You receive the verdict">Vous recevez le verdict</div>
+        <p class="step-desc" data-fr="Un diagnostic tranché, un A FAIRE prioritaire, un plan stratégique. PDF professionnel téléchargeable." data-en="A clear verdict, a top-priority action, a strategic plan. Downloadable professional PDF.">
+          Un diagnostic tranché, un A FAIRE prioritaire, un plan stratégique. PDF professionnel téléchargeable.
+        </p>
+      </div>
     </div>
   </div>
 </section>
 
 <!-- PRICING -->
-<section class="pricing">
-  <div style="text-align:center;margin-bottom:48px;">
-    <p class="section-label" data-fr="Tarifs" data-en="Pricing">Tarifs</p>
-    <h2 class="section-title" data-fr="Transparent, sans engagement" data-en="Transparent, no commitment">Transparent, sans engagement</h2>
+<section class="pricing-section">
+  <div class="section-inner">
+    <div class="section-center">
+      <p class="section-label" style="color:var(--green)" data-fr="TARIFS" data-en="PRICING">TARIFS</p>
+      <h2 class="section-title" style="color:white" data-fr="Simple. Transparent. Sans surprise." data-en="Simple. Transparent. No surprises.">Simple. Transparent. Sans surprise.</h2>
+      <p class="section-sub" style="color:rgba(255,255,255,0.5);margin:0 auto;"
+         data-fr="Résiliable à tout moment. Aucun frais d'installation. Fichiers bruts jamais stockés — seuls vos indicateurs KPIs sont conservés pour votre historique."
+         data-en="Cancel anytime. No setup fees. Raw files never stored — only your KPI indicators are kept for your audit history.">
+        Résiliable à tout moment. Aucun frais d'installation. Fichiers bruts jamais stockés — seuls vos indicateurs KPIs sont conservés pour votre historique.
+      </p>
+    </div>
+    <div class="pricing-grid">
+
+      <!-- ESSENTIEL -->
+      <div class="pricing-card">
+        <div class="pricing-tier">Essentiel</div>
+        <div class="pricing-name" data-fr="1 Module" data-en="1 Module">1 Module</div>
+        <div class="pricing-price">
+          <span class="currency">€</span>290<span data-fr="/mois" data-en="/month">/mois</span>
+        </div>
+        <div class="pricing-period" data-fr="Stock ou Transport — au choix" data-en="Stock or Transport — your choice">Stock ou Transport — au choix</div>
+        <div class="pricing-divider"></div>
+        <ul class="pricing-features">
+          <li><div class="pf-dot"></div><span data-fr="Audits illimités" data-en="Unlimited audits">Audits illimités</span></li>
+          <li><div class="pf-dot"></div><span data-fr="Historique 6 mois" data-en="6-month history">Historique 6 mois</span></li>
+          <li><div class="pf-dot"></div><span data-fr="Rapport PDF professionnel" data-en="Professional PDF report">Rapport PDF professionnel</span></li>
+          <li><div class="pf-dot"></div><span data-fr="Analyse IA + benchmarks sectoriels" data-en="AI analysis + sector benchmarks">Analyse IA + benchmarks sectoriels</span></li>
+          <li><div class="pf-dot"></div><span data-fr="Support email" data-en="Email support">Support email</span></li>
+        </ul>
+        <a href="/cdn-cgi/l/email-protection#c5a6aaabb1a4a6b185a9aaa2aca3a9aaebacaa" class="btn-pricing btn-pricing-outline" data-fr="Démarrer" data-en="Get started">Démarrer</a>
+      </div>
+
+      <!-- PROFESSIONNEL -->
+      <div class="pricing-card featured" data-badge="RECOMMANDÉ">
+        <div class="pricing-tier">Professionnel</div>
+        <div class="pricing-name" data-fr="2 Modules" data-en="2 Modules">2 Modules</div>
+        <div class="pricing-price">
+          <span class="currency">€</span>490<span data-fr="/mois" data-en="/month">/mois</span>
+        </div>
+        <div class="pricing-period" data-fr="Stock + Transport — économie de 90€/mois" data-en="Stock + Transport — save 90€/month">Stock + Transport — économie de 90€/mois</div>
+        <div class="pricing-divider"></div>
+        <ul class="pricing-features">
+          <li><div class="pf-dot"></div><span data-fr="Tout le plan Essentiel" data-en="Everything in Essentiel">Tout le plan Essentiel</span></li>
+          <li><div class="pf-dot"></div><span data-fr="Historique complet illimité" data-en="Unlimited full history">Historique complet illimité</span></li>
+          <li><div class="pf-dot"></div><span data-fr="Accès multi-utilisateurs" data-en="Multi-user access">Accès multi-utilisateurs</span></li>
+          <li><div class="pf-dot"></div><span data-fr="Support prioritaire" data-en="Priority support">Support prioritaire</span></li>
+        </ul>
+        <a href="https://logiflo-io.streamlit.app" class="btn-pricing btn-pricing-green" target="_blank"
+           data-fr="Démarrer maintenant" data-en="Start now">Démarrer maintenant</a>
+      </div>
+
+      <!-- EXPERT -->
+      <div class="pricing-card">
+        <div class="pricing-tier">Expert</div>
+        <div class="pricing-name" data-fr="Sur mesure" data-en="Custom">Sur mesure</div>
+        <div class="pricing-price" style="font-size:28px;padding-top:7px;">
+          <span data-fr="À partir de" data-en="From">À partir de</span>
+        </div>
+        <div class="pricing-period" style="font-size:22px;font-family:'Syne',sans-serif;font-weight:800;color:white;margin-top:-4px;">
+          890€<span style="font-size:14px;font-weight:400;color:rgba(255,255,255,0.4);" data-fr="/mois" data-en="/month">/mois</span>
+        </div>
+        <div class="pricing-divider"></div>
+        <ul class="pricing-features">
+          <li><div class="pf-dot"></div><span data-fr="Tout le plan Professionnel" data-en="Everything in Professionnel">Tout le plan Professionnel</span></li>
+          <li><div class="pf-dot"></div><span data-fr="Multi-sites et multi-entités" data-en="Multi-site and multi-entity">Multi-sites et multi-entités</span></li>
+          <li><div class="pf-dot"></div><span data-fr="Accès API" data-en="API access">Accès API</span></li>
+          <li><div class="pf-dot"></div><span data-fr="Intégration ERP / TMS" data-en="ERP / TMS integration">Intégration ERP / TMS</span></li>
+          <li><div class="pf-dot"></div><span data-fr="Accompagnement dédié" data-en="Dedicated support">Accompagnement dédié</span></li>
+        </ul>
+        <a href="/cdn-cgi/l/email-protection#5c3f3332283d3f281c30333b353a3033723533" class="btn-pricing btn-pricing-outline" data-fr="Nous contacter" data-en="Contact us">Nous contacter</a>
+      </div>
+
+    </div>
+    <p class="pricing-note" data-fr="Tous les plans incluent : zéro installation · fichiers bruts non stockés · RGPD · résiliable à tout moment" data-en="All plans include: zero installation · raw files never stored · GDPR · cancel anytime">
+      Tous les plans incluent : zéro installation · fichiers bruts non stockés · RGPD · résiliable à tout moment
+    </p>
   </div>
-  <div class="pricing-grid">
-    <div class="price-card">
-      <p class="price-label" data-fr="Audit ponctuel Stock" data-en="One-off Stock Audit">Audit ponctuel Stock</p>
-      <div class="price-amount">490 <span>€ HT</span></div>
-      <p class="price-desc" data-fr="Par audit, à la demande" data-en="Per audit, on demand">Par audit, à la demande</p>
-      <ul class="price-features">
-        <li data-fr="Analyse BFR et stocks dormants" data-en="Working capital & dormant stock analysis">Analyse BFR et stocks dormants</li>
-        <li data-fr="Rapport PDF complet" data-en="Full PDF report">Rapport PDF complet</li>
-        <li data-fr="Scoring Logiflo /100" data-en="Logiflo score /100">Scoring Logiflo /100</li>
-        <li data-fr="Archivage 30 jours" data-en="30-day archiving">Archivage 30 jours</li>
-      </ul>
-      <a href="mailto:contact@logiflo.io" class="btn-price" data-fr="Démarrer" data-en="Get started">Démarrer</a>
+</section>
+
+<!-- ENGAGEMENTS -->
+<section>
+  <div class="section-inner">
+    <div class="section-center">
+      <p class="section-label" data-fr="NOS ENGAGEMENTS" data-en="OUR COMMITMENTS">NOS ENGAGEMENTS</p>
+      <h2 class="section-title" data-fr="Conçu pour le terrain" data-en="Built for the field">Conçu pour le terrain</h2>
     </div>
-    <div class="price-card featured">
-      <span class="price-badge" data-fr="Le plus populaire" data-en="Most popular">Le plus populaire</span>
-      <p class="price-label" data-fr="Pack Stock + Transport" data-en="Stock + Transport Pack">Pack Stock + Transport</p>
-      <div class="price-amount">990 <span>€ HT</span></div>
-      <p class="price-desc" data-fr="Les deux modules, une fois" data-en="Both modules, once">Les deux modules, une fois</p>
-      <ul class="price-features">
-        <li data-fr="Audit Stock complet" data-en="Full Stock audit">Audit Stock complet</li>
-        <li data-fr="Audit Transport + distances ORS" data-en="Transport audit + ORS distances">Audit Transport + distances ORS</li>
-        <li data-fr="Détection automatique du mode" data-en="Automatic mode detection">Détection automatique du mode</li>
-        <li data-fr="Benchmarks CNR intégrés" data-en="Integrated CNR benchmarks">Benchmarks CNR intégrés</li>
-        <li data-fr="2 rapports PDF" data-en="2 PDF reports">2 rapports PDF</li>
-      </ul>
-      <a href="mailto:contact@logiflo.io" class="btn-price" data-fr="Démarrer" data-en="Get started">Démarrer</a>
-    </div>
-    <div class="price-card">
-      <p class="price-label" data-fr="Audit ponctuel Transport" data-en="One-off Transport Audit">Audit ponctuel Transport</p>
-      <div class="price-amount">690 <span>€ HT</span></div>
-      <p class="price-desc" data-fr="Par audit, à la demande" data-en="Per audit, on demand">Par audit, à la demande</p>
-      <ul class="price-features">
-        <li data-fr="Analyse marge trajet par trajet" data-en="Route-by-route margin analysis">Analyse marge trajet par trajet</li>
-        <li data-fr="Détection des trajets toxiques" data-en="Toxic route detection">Détection des trajets toxiques</li>
-        <li data-fr="Distances ORS réelles" data-en="Real ORS distances">Distances ORS réelles</li>
-        <li data-fr="Rapport PDF complet" data-en="Full PDF report">Rapport PDF complet</li>
-      </ul>
-      <a href="mailto:contact@logiflo.io" class="btn-price" data-fr="Démarrer" data-en="Get started">Démarrer</a>
+    <div class="promises-grid">
+      <div class="promise-card">
+        <div class="promise-icon">🔒</div>
+        <h3 class="promise-title" data-fr="Fichiers non stockés" data-en="Raw Files Never Stored">Fichiers non stockés</h3>
+        <p class="promise-desc" data-fr="Vos fichiers bruts sont traités en mémoire vive et jamais stockés. Seuls vos indicateurs KPIs sont conservés pour votre historique d'audit. Suppression sur demande." data-en="Your raw files are processed in RAM and never stored. Only your KPI indicators are kept for your audit history. Deletion on request.">
+          Vos fichiers bruts sont traités en mémoire vive et jamais stockés. Seuls vos indicateurs KPIs sont conservés pour votre historique d'audit.
+        </p>
+      </div>
+      <div class="promise-card">
+        <div class="promise-icon">⚡</div>
+        <h3 class="promise-title" data-fr="Aucune installation" data-en="Zero installation">Aucune installation</h3>
+        <p class="promise-desc" data-fr="Interface web, n'importe quel navigateur. Aucune DSI requise, aucun déploiement, aucun paramétrage." data-en="Web interface, any browser. No IT department, no deployment, no configuration.">
+          Interface web, n'importe quel navigateur. Aucune DSI requise, aucun déploiement.
+        </p>
+      </div>
+      <div class="promise-card">
+        <div class="promise-icon">🎯</div>
+        <h3 class="promise-title" data-fr="Votre fichier, tel quel" data-en="Your file, as-is">Votre fichier, tel quel</h3>
+        <p class="promise-desc" data-fr="Le Smart Ingester™ s'adapte à vos colonnes — pas l'inverse. Pas de template imposé, pas de reformatage." data-en="Smart Ingester™ adapts to your columns — not the other way. No imposed template.">
+          Le Smart Ingester™ s'adapte à vos colonnes. Pas de template imposé.
+        </p>
+      </div>
+      <div class="promise-card">
+        <div class="promise-icon">📊</div>
+        <h3 class="promise-title" data-fr="Benchmarks sectoriels" data-en="Sector benchmarks">Benchmarks sectoriels</h3>
+        <p class="promise-desc" data-fr="CNR 2026, normes pharma, agroalimentaire, BTP, retail... 10 secteurs couverts. L'IA compare, cite l'écart exact." data-en="CNR 2026, pharma, food, construction, retail... 10 sectors covered. AI compares and cites the exact gap.">
+          CNR 2026 et 10 secteurs couverts. L'IA compare et cite l'écart exact.
+        </p>
+      </div>
+      <div class="promise-card">
+        <div class="promise-icon">🌍</div>
+        <h3 class="promise-title" data-fr="Bilingue FR / EN" data-en="Bilingual FR / EN">Bilingue FR / EN</h3>
+        <p class="promise-desc" data-fr="Interface, analyses IA et rapports PDF disponibles en français et en anglais." data-en="Interface, AI analyses and PDF reports available in French and English.">
+          Interface, analyses IA et rapports PDF disponibles en français et en anglais.
+        </p>
+      </div>
+      <div class="promise-card">
+        <div class="promise-icon">🔄</div>
+        <h3 class="promise-title" data-fr="Historique inter-audits" data-en="Cross-audit history">Historique inter-audits</h3>
+        <p class="promise-desc" data-fr="L'IA compare votre audit actuel à votre historique et projette la tendance sur 3 mois. Premier vrai outil de pilotage." data-en="AI compares current audit to your history and projects the 3-month trend. First real management tool.">
+          L'IA compare votre audit actuel à votre historique et projette la tendance sur 3 mois.
+        </p>
+      </div>
     </div>
   </div>
 </section>
 
-<!-- TESTIMONIAL -->
-<section class="testimonial">
-  <blockquote data-fr="&ldquo;J'ai passé 8 ans sur le terrain à voir les mêmes problèmes partout — des marges qui <span>disparaissent sans qu'on sache où.</span> J'ai construit l'outil que j'aurais voulu avoir.&rdquo;"
-              data-en="&ldquo;I spent 8 years in the field seeing the same problems everywhere — margins <span>disappearing without anyone knowing where.</span> I built the tool I wish I'd had.&rdquo;">
-    &ldquo;J'ai passé 8 ans sur le terrain à voir les mêmes problèmes partout — des marges qui <span>disparaissent sans qu'on sache où.</span> J'ai construit l'outil que j'aurais voulu avoir.&rdquo;
-  </blockquote>
-  <cite data-fr="Eric, Fondateur de Logiflo — Logisticien terrain, 8 ans d'expérience" data-en="Eric, Founder of Logiflo — Field logistics professional, 8 years experience">Eric, Fondateur de Logiflo — Logisticien terrain, 8 ans d'expérience</cite>
-</section>
-
-<!-- CTA BOTTOM -->
-<section class="cta-bottom">
-  <h2 data-fr="Prêt à voir où part votre marge ?" data-en="Ready to see where your margin goes?">Prêt à voir où part votre marge ?</h2>
-  <p data-fr="Premier audit en 5 minutes. Votre fichier Excel suffit. Aucune installation." data-en="First audit in 5 minutes. Your Excel file is enough. No installation.">Premier audit en 5 minutes. Votre fichier Excel suffit. Aucune installation.</p>
-  <div class="cta-btns">
-    <a href="https://logiflo-io.streamlit.app" target="_blank" class="btn-primary" data-fr="Lancer mon audit gratuit →" data-en="Start my free audit →">Lancer mon audit gratuit →</a>
-    <a href="mailto:contact@logiflo.io" class="btn-secondary" style="color:var(--navy);border-color:var(--navy);" data-fr="Nous contacter" data-en="Contact us">Nous contacter</a>
+<!-- CTA FINAL -->
+<section class="cta-section">
+  <div class="cta-inner">
+    <p class="section-label" data-fr="PRÊT À COMMENCER" data-en="READY TO START">PRÊT À COMMENCER</p>
+    <h2 class="section-title" data-fr="Votre premier audit en 5 minutes" data-en="Your first audit in 5 minutes">Votre premier audit en 5 minutes</h2>
+    <p class="section-sub" data-fr="Gratuit sur votre premier audit. Aucune carte bancaire, aucune installation, aucune obligation." data-en="Free on your first audit. No credit card, no installation, no commitment.">
+      Gratuit sur votre premier audit. Aucune carte bancaire, aucune installation, aucune obligation.
+    </p>
+    <div class="cta-btns">
+      <a href="https://logiflo-io.streamlit.app" class="btn-primary" target="_blank"
+         data-fr="Lancer mon audit gratuit →" data-en="Launch my free audit →">Lancer mon audit gratuit →</a>
+      <a href="/cdn-cgi/l/email-protection#fb9894958f9a988fbb97949c929d9794d59294" class="btn-outline" data-fr="Demander une démo" data-en="Request a demo">Demander une démo</a>
+    </div>
   </div>
 </section>
 
 <!-- FOOTER -->
 <footer>
-  <div class="footer-inner">
-    <div class="footer-logo">LOGI<span>FLO</span>.IO</div>
-    <div class="footer-links">
-      <a href="https://logiflo-io.streamlit.app" target="_blank" data-fr="Plateforme" data-en="Platform">Plateforme</a>
-      <a href="mailto:contact@logiflo.io">contact@logiflo.io</a>
-      <a href="https://logiflo-io.streamlit.app" target="_blank" data-fr="Mentions légales" data-en="Legal notice">Mentions légales</a>
-      <a href="https://logiflo-io.streamlit.app" target="_blank" data-fr="Confidentialité" data-en="Privacy">Confidentialité</a>
-    </div>
-    <div style="font-size:13px;" data-fr="© 2026 Logiflo B2B Enterprise — Marseille, France" data-en="© 2026 Logiflo B2B Enterprise — Marseille, France">© 2026 Logiflo B2B Enterprise — Marseille, France</div>
+  <div class="footer-logo">LOGI<span>FLO</span>.IO</div>
+  <div class="footer-links">
+    <a href="https://logiflo-io.streamlit.app" target="_blank" data-fr="Plateforme" data-en="Platform">Plateforme</a>
+    <a href="/cdn-cgi/l/email-protection#7615191802171502361a19111f101a19581f19">Contact</a>
+    <a href="https://logiflo-io.streamlit.app" target="_blank" data-fr="Confidentialité" data-en="Privacy">Confidentialité</a>
+    <a href="https://logiflo-io.streamlit.app" target="_blank" data-fr="Mentions légales" data-en="Legal">Mentions légales</a>
   </div>
+  <p class="footer-copy"
+     data-fr="© 2026 Logiflo B2B Enterprise — Marseille, France — contact@logiflo.io — Conçu par un logisticien terrain, pas par un consultant."
+     data-en="© 2026 Logiflo B2B Enterprise — Marseille, France — contact@logiflo.io — Built by a field logistics professional, not a consultant.">
+    © 2026 Logiflo B2B Enterprise — Marseille, France — <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="02616d6c76636176426e6d656b646e6d2c6b6d">[email&#160;protected]</a> — Conçu par un logisticien terrain, pas par un consultant.
+  </p>
 </footer>
 
-<script>
-var currentLang = 'fr';
-
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 function setLang(lang) {
-  currentLang = lang;
-  document.documentElement.lang = lang;
   document.getElementById('btn-fr').classList.toggle('active', lang === 'fr');
   document.getElementById('btn-en').classList.toggle('active', lang === 'en');
-
-  // Tous les éléments avec data-fr / data-en
-  document.querySelectorAll('[data-fr]').forEach(function(el) {
-    var txt = el.getAttribute('data-' + lang);
-    if (!txt) return;
-    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-      el.placeholder = txt;
-    } else {
-      el.innerHTML = txt;
-    }
-  });
-
-  // CTA nav
-  document.getElementById('nav-cta-text').textContent = lang === 'fr' ? 'Accès Plateforme' : 'Access Platform';
-}
-
-// Init
-setLang('fr');
-</script>
-</body>
-</html>
+  document.documentElement.lang = lang;
+  document.querySelectorAll('[data-fr]').forEach(el => {
