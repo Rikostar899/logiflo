@@ -1794,13 +1794,15 @@ Using ALL data above, write a complete structured audit with the following secti
 Each section must be fully developed — not bullet points only, real analytical sentences.
 
 ### PROFITABILITY AUDIT
-Start with a precise overall verdict (one sentence).
-IMPORTANT ON COMPARISON: if the margin is ABOVE the sector benchmark (e.g. 13.8% > 10%),
-that is POSITIVE — say so clearly. Do not invert the direction of the comparison.
-Cite the exact gap: "your margin of X% is above/below the healthy threshold of Y%".
+Start with a precise overall verdict in one sentence.
+ABSOLUTE RULE ON BENCHMARK: healthy SME transport margin is 6-10%.
+- If margin > 10%: ABOVE the norm → positive. Say "your margin of X% exceeds the high threshold of 10%".
+- If margin between 6-10%: WITHIN the norm → correct.
+- If margin < 6%: BELOW the norm → alert.
+- If margin < 0%: LOSS → critical.
+DO NOT say both "above" AND "below" the same benchmark — pick exactly one of the cases above.
 Identify the 3 worst routes/clients with their exact figures as they appear in the data.
-If client/route names are "nan" or empty in the data: flag this as a strategic blind spot
-(missing data) without inventing names. Provide a root cause hypothesis.
+If names are "nan" or empty: flag as "missing client/route data" — do not invent names.
 
 ### NETWORK TREND AND EVOLUTION
 If historical data is available: analyze the trend in detail, cite the evolution of each KPI,
@@ -1896,13 +1898,15 @@ En utilisant TOUTES les donnees ci-dessus, redige un audit structure et complet.
 Developpe chaque section avec de vraies phrases analytiques — pas seulement des puces.
 
 ### AUDIT DE RENTABILITE
-Commence par ton verdict global (une phrase directe et precise).
-IMPORTANT SUR LA COMPARAISON : si la marge est SUPERIEURE au benchmark sectoriel (ex: 13,8% > 10%),
-c'est POSITIF — dis-le clairement. Ne pas inverser le sens de la comparaison.
-Cite l'ecart exact en points : "votre marge de X% depasse/est en dessous du seuil sain de Y%".
+Commence par ton verdict global en une phrase.
+REGLE ABSOLUE SUR LE BENCHMARK : la marge saine PME transport est 6-10%.
+- Si ta marge est > 10% : c'est AU-DESSUS de la norme → positif. Dis "votre marge de X% depasse le seuil haut de 10%".
+- Si ta marge est entre 6 et 10% : c'est DANS la norme → correct.
+- Si ta marge est < 6% : c'est EN DESSOUS de la norme → alerte.
+- Si ta marge est < 0% : c'est une PERTE → critique.
+NE PAS dire simultanement "superieur" ET "inferieur" au meme benchmark — choisis l'un des cas ci-dessus.
 Identifie les 3 pires trajets/clients avec leurs chiffres exacts tels qu'ils apparaissent dans les donnees.
-Si les noms de clients/trajets sont "nan" ou vides dans les donnees : signale cet angle mort
-(donnee manquante) sans inventer de noms. Propose une hypothese sur la cause racine.
+Si les noms sont "nan" ou vides : signale "donnee client/trajet manquante" — ne pas inventer de noms.
 
 ### TENDANCE ET EVOLUTION DU RESEAU
 Si historique disponible : analyse la tendance en detail, cite l'evolution de chaque KPI,
@@ -3423,17 +3427,7 @@ elif st.session_state.auth and st.session_state.page=="app":
                                         key=f"dl_d_{_mod_c}_{_ai}",use_container_width=True)
                                 except Exception: pass
 
-            # CTA nouveaux audits
-            st.markdown("<br>",unsafe_allow_html=True)
-            _nc1,_nc2,_nc3=st.columns([1,1,1])
-            with _nc1:
-                if st.button("📦 Nouveau audit Stock" if lang_d=="fr" else "📦 New Stock Audit",
-                             use_container_width=True,key="dash_s"):
-                    st.session_state.module="stock";st.session_state.page="choix_profil_stock";st.rerun()
-            with _nc2:
-                if st.button("🚚 Nouveau audit Transport" if lang_d=="fr" else "🚚 New Transport Audit",
-                             use_container_width=True,key="dash_t"):
-                    st.session_state.module="transport";st.session_state.page="login";st.rerun()
+            # Pas de boutons CTA — le dashboard est une vue de lecture pure
 
     elif nav==_("nav_legal"):
         st.title(_("nav_legal"))
@@ -3710,7 +3704,11 @@ elif st.session_state.auth and st.session_state.page=="app":
                         dorm_s="No history" if not has_conso else f"{len(df[df['_conso_moy']==0])} items no movement"
                         pg3.step(_("step_ia"))
                         # Chargement historique terrain
-                        _hist_t = get_historique_audits(st.session_state.current_user,"stock")
+                        # Terrain : passer aussi les KPIs courants pour l'historique
+                        _kpis_curr_t=[float(len(df)),float(len(ruptures)),(1-len(ruptures)/max(len(df),1))*100]
+                        _labels_curr_t=["Articles","Ruptures","Service %"]
+                        _hist_t = get_historique_audits(st.session_state.current_user,"stock",
+                                                        current_kpis=_kpis_curr_t,current_labels=_labels_curr_t)
                         _hist_txt_t = format_historique_pour_prompt(_hist_t,"terrain",st.session_state.get("language","fr"))
                         _sector_t = detect_sector(df=df, module="stock")
                         st.session_state.analysis_stock=generate_ai_analysis(
@@ -3930,36 +3928,33 @@ elif st.session_state.auth and st.session_state.page=="app":
                 fig_trans=fig_top  # pour le PDF
 
                 if run_ia_t:
-                    _bar_ia = st.progress(0, text="Analyse IA en cours..." if st.session_state.get("language","fr")=="fr" else "AI Analysis in progress...")
-                    # Filtrer les NaN dans les données transport avant l'analyse
-                    top3=df_t[df_t["Marge_Nette"].notna() & df_t[tour_c].notna()].nsmallest(3,"Marge_Nette")
-                    pires_s=", ".join([
-                        f"{str(r[tour_c]).strip()} ({r['Marge_Nette']:.0f} EUR)"
-                        for _ii,r in top3.iterrows()
-                        if str(r[tour_c]).strip() not in ("","nan","None","NaN")
-                    ]) if not top3.empty else "None"
-                    mode_info=f" Dominant transport mode: {st.session_state.trans_mode_detected[0] if st.session_state.trans_mode_detected else 'road'}."
-                    _kpis_tr=[marge_tot,taux,nb_tox]
-                    _labels_tr=[_("trans_kpi_marge"),_("trans_kpi_taux"),"Toxic"]
-                    _bar_ia.progress(30, text="Analyse IA en cours..." if st.session_state.get("language","fr")=="fr" else "AI Analysis in progress...")
-                    _hist_tr=get_historique_audits(st.session_state.current_user,"transport",
-                                                   current_kpis=_kpis_tr,current_labels=_labels_tr)
-                    _hist_txt_tr=format_historique_pour_prompt(_hist_tr,"transport",st.session_state.get("language","fr"))
-                    _mode_k = st.session_state.trans_mode_detected[0] if st.session_state.get("trans_mode_detected") else "routier"
-                    _sector_tr = detect_sector(df=df_t, module="transport", mode_detected=_mode_k)
-                    _bar_ia.progress(60, text="Analyse IA en cours..." if st.session_state.get("language","fr")=="fr" else "AI Analysis in progress...")
-                    st.session_state.analysis_trans=generate_ai_analysis(
-                        f"Routes: {len(df_t)}. Total margin: {marge_tot:.0f} EUR. Rate: {taux:.1f}%. "
-                        f"Loss routes: {traj_def}. Top 3 worst: {pires_s}. Avg cost/km: {cout_km:.2f} EUR.{poids_info}{mode_info}",
-                        historique_txt=_hist_txt_tr,
-                        df_raw=df_t,
-                        sector_key=_sector_tr,
-                        mode_detected=_mode_k)
-                    st.session_state.last_kpis=_kpis_tr
-                    st.session_state.last_labels=_labels_tr
-                    st.session_state.last_pdf=generate_expert_pdf(_("pdf_title_trans"),st.session_state.analysis_trans,[fig_trans],kpis=_kpis_tr,labels=_labels_tr,module="transport")
-                    _bar_ia.progress(100, text="Analyse IA en cours..." if st.session_state.get("language","fr")=="fr" else "AI Analysis in progress...")
-                    _bar_ia.empty()
+                    _spin_lbl = "Analyse IA en cours..." if st.session_state.get("language","fr")=="fr" else "AI Analysis in progress..."
+                    with st.spinner(_spin_lbl):
+                        # Filtrer les NaN dans les données transport avant l'analyse
+                        top3=df_t[df_t["Marge_Nette"].notna() & df_t[tour_c].notna()].nsmallest(3,"Marge_Nette")
+                        pires_s=", ".join([
+                            f"{str(r[tour_c]).strip()} ({r['Marge_Nette']:.0f} EUR)"
+                            for _ii,r in top3.iterrows()
+                            if str(r[tour_c]).strip() not in ("","nan","None","NaN")
+                        ]) if not top3.empty else "None"
+                        mode_info=f" Dominant transport mode: {st.session_state.trans_mode_detected[0] if st.session_state.trans_mode_detected else 'road'}."
+                        _kpis_tr=[marge_tot,taux,nb_tox]
+                        _labels_tr=[_("trans_kpi_marge"),_("trans_kpi_taux"),"Toxic"]
+                        _hist_tr=get_historique_audits(st.session_state.current_user,"transport",
+                                                       current_kpis=_kpis_tr,current_labels=_labels_tr)
+                        _hist_txt_tr=format_historique_pour_prompt(_hist_tr,"transport",st.session_state.get("language","fr"))
+                        _mode_k = st.session_state.trans_mode_detected[0] if st.session_state.get("trans_mode_detected") else "routier"
+                        _sector_tr = detect_sector(df=df_t, module="transport", mode_detected=_mode_k)
+                        st.session_state.analysis_trans=generate_ai_analysis(
+                            f"Routes: {len(df_t)}. Total margin: {marge_tot:.0f} EUR. Rate: {taux:.1f}%. "
+                            f"Loss routes: {traj_def}. Top 3 worst: {pires_s}. Avg cost/km: {cout_km:.2f} EUR.{poids_info}{mode_info}",
+                            historique_txt=_hist_txt_tr,
+                            df_raw=df_t,
+                            sector_key=_sector_tr,
+                            mode_detected=_mode_k)
+                        st.session_state.last_kpis=_kpis_tr
+                        st.session_state.last_labels=_labels_tr
+                        st.session_state.last_pdf=generate_expert_pdf(_("pdf_title_trans"),st.session_state.analysis_trans,[fig_trans],kpis=_kpis_tr,labels=_labels_tr,module="transport")
 
                 if st.session_state.analysis_trans:
                     st.markdown(render_report(st.session_state.analysis_trans,"manager"),unsafe_allow_html=True)
