@@ -1049,17 +1049,25 @@ Adapt vocabulary to detected mode:
 - Rail: wagon, slot, corridor, tonne-km
 
 CNR benchmarks 2025-2026 (cite them in your analysis):
-- Long-haul road articulated diesel: 1.85-2.10 EUR/km
-- Regional road rigid truck: 1.40-1.65 EUR/km
+- Long-haul road articulated diesel: 1.85-2.10 EUR/km reference cost
+- Regional road rigid truck: 1.40-1.65 EUR/km reference cost
 - Fuel share: ~26.5% of total cost
-- Thresholds: alert < 8% margin | toxic < 5% | loss < 0%
+
+NET MARGIN BENCHMARK — READ THIS BEFORE WRITING ANYTHING:
+- Margin > 10%  → EXCELLENT. Above the healthy range. Say: "your X% margin is excellent."
+- Margin 6-10%  → HEALTHY. Within the norm. Say: "your X% margin is within the healthy range."
+- Margin < 6%   → ALERT. Below minimum. Say: "your X% margin is below the 6% minimum."
+- Margin < 0%   → LOSS. Critical. Say: "your negative X% margin signals a critical situation."
+NEVER say a margin above 10% is "concerning" or "below the norm". That is factually wrong.
+NEVER say a margin of 15% is "below 6%". Read the number first.
 
 Mandatory structure:
 
 ### PROFITABILITY AUDIT
-Global margin and Yield. Name the 3 routes/clients destroying profitability.
-Expert hypothesis on root cause - not just description.
-If historical data: state whether overall margin improving or worsening, cite trend in numbers.
+State the verdict in ONE sentence using the benchmark rule above.
+Then: identify the 3 worst routes/clients with their exact figures from the data.
+Root cause hypothesis — not just a description of the numbers.
+If historical data available: state improving or worsening with exact numbers.
 
 ### NETWORK DIAGNOSIS
 Spatial coherence and operational efficiency.
@@ -1096,17 +1104,25 @@ Adapte ton vocabulaire au mode detecte :
 - Ferroviaire : wagon, sillon, corridor, tonne-km
 
 Referentiels CNR 2025-2026 (cite-les dans ton analyse) :
-- Longue distance articulé gazole : 1,85-2,10 EUR/km de reference
+- Longue distance articule gazole : 1,85-2,10 EUR/km de reference
 - Regional porteur : 1,40-1,65 EUR/km
 - Part carburant : ~26,5% du cout total
-- Seuils : alerte < 8% marge | toxique < 5% | perte < 0%
+
+BENCHMARK MARGE NETTE — LIS CECI AVANT D'ECRIRE QUOI QUE CE SOIT :
+- Marge > 10%  → EXCELLENTE. Au-dessus de la norme. Ecris : "votre marge de X% est excellente."
+- Marge 6-10%  → SAINE. Dans la norme. Ecris : "votre marge de X% est dans la norme sectorielle."
+- Marge < 6%   → ALERTE. En dessous du minimum. Ecris : "votre marge de X% est en dessous du seuil de 6%."
+- Marge < 0%   → PERTE. Critique. Ecris : "votre marge negative de X% signale une situation critique."
+NE DIS JAMAIS qu'une marge superieure a 10% est "preoccupante" ou "en dessous de la norme". C'est factuellement faux.
+NE DIS JAMAIS qu'une marge de 15% est "en dessous de 6%". Lis le chiffre d'abord.
 
 Structure obligatoire :
 
 ### AUDIT DE RENTABILITE
-Marge globale et Yield. Nomme les 3 trajets/clients qui detruisent la rentabilite.
-Hypothese experte sur la cause racine - pas juste une description des chiffres.
-Si historique : indique si la marge globale s'ameliore ou se degrade, cite la tendance en chiffres.
+Commence par une phrase de verdict en utilisant la regle benchmark ci-dessus.
+Ensuite : nomme les 3 pires trajets/clients avec leurs chiffres exacts issus des donnees.
+Hypothese experte sur la cause racine — pas juste une description des chiffres.
+Si historique disponible : indique si la marge s'ameliore ou se degrade avec des chiffres exacts.
 
 ### DIAGNOSTIC RESEAU
 Coherence spatiale et efficacite operationnelle.
@@ -1803,16 +1819,9 @@ Using ALL data above, write a complete structured audit with the following secti
 Each section must be fully developed — not bullet points only, real analytical sentences.
 
 ### PROFITABILITY AUDIT
-Start with a verdict using a consultant's tone: congratulate good results clearly,
-signal concerns directly, propose concrete improvements for problems.
-MARGIN BENCHMARK: healthy = 6-10%. Read the provided rate carefully BEFORE comparing:
-- Margin > 10% → ABOVE benchmark. E.g.: "your margin of 22% is excellent, 12 points above
-  the 10% upper threshold — congratulations on this performance."
-- Margin 6-10% → WITHIN norm. E.g.: "your 8% margin is healthy and within the sector norm."
-- Margin < 6% → BELOW norm. E.g.: "your 4% margin is below the 6% minimum threshold."
-- Margin < 0% → LOSS. E.g.: "your negative margin of -2% signals a critical situation."
-NEVER both directions in the same sentence. NEVER invent amounts or percentages.
-Identify the 3 worst routes with their EXACT figures from the file.
+APPLY STRICTLY THE BENCHMARK DEFINED IN THE SYSTEM PROMPT.
+Consultant tone: congratulate if margin > 6%, signal alert if < 6%, critical if < 0%.
+Name the 3 worst routes with their EXACT figures from the file.
 If names are "nan" or empty: write "missing client data in source file".
 
 ### NETWORK DIAGNOSIS
@@ -1901,16 +1910,9 @@ En utilisant TOUTES les donnees ci-dessus, redige un audit structure et complet.
 Developpe chaque section avec de vraies phrases analytiques — pas seulement des puces.
 
 ### AUDIT DE RENTABILITE
-Commence par ton verdict en adoptant le ton d'un conseiller expert : felicite si c'est bon,
-signale clairement si c'est preoccupant, propose des axes concrets si c'est mauvais.
-BENCHMARK MARGE : saine = 6-10%. Lis attentivement le taux fourni AVANT de comparer :
-- Marge > 10% → AU-DESSUS du benchmark. Exemple : "votre marge de 22% est excellente, 12 points
-  au-dessus du seuil haut de 10% — felicitations pour cette performance."
-- Marge 6-10% → DANS la norme. Exemple : "votre marge de 8% est saine et dans la norme sectorielle."
-- Marge < 6% → EN DESSOUS. Exemple : "votre marge de 4% est en dessous du seuil minimal de 6%."
-- Marge < 0% → PERTE. Exemple : "votre marge negative de -2% signale une situation critique."
-JAMAIS les deux directions en meme phrase. JAMAIS inventer de montants ou de pourcentages.
-Identifie les 3 pires trajets avec leurs chiffres EXACTS du fichier.
+APPLIQUE STRICTEMENT LE BENCHMARK DEFINI DANS LE SYSTEM PROMPT.
+Ton de conseiller : felicite si marge > 6%, signale si marge < 6%, critique si marge < 0%.
+Nomme les 3 pires trajets avec leurs chiffres EXACTS du fichier.
 Si noms "nan" ou vides : ecris "donnee client manquante dans le fichier source".
 
 ### DIAGNOSTIC RESEAU
