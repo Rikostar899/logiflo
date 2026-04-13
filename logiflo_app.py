@@ -208,27 +208,194 @@ SECTORAL_DB = {
 - Dormant stock: alert if >10% no movement
 - Healthy transport operating margin: >6%
 - Target WCR: <60 days revenue"""
+    },
+
+    # ── TRANSPORT MARITIME INTERNATIONAL ──────────────────────────
+    "transport_maritime_intl": {
+        "keywords": ["container","conteneur","teu","fcl","lcl","bl","vessel","navire",
+                     "freight","fret","port","shipping","maritime","ocean","sea","mer"],
+        "fr": """BENCHMARKS TRANSPORT MARITIME INTERNATIONAL 2026 (IRU/UNCTAD/Drewry):
+- Taux fret conteneur 20' Europe-Asie: 800-2500 USD/TEU (hors pic)
+- Taux fret 40' Europe-Amerique du Nord: 1500-4000 USD/FEU
+- Corridors Mediterranee-Afrique de l'Ouest: 1200-2800 USD/TEU
+- Marge transitaire maritime: 15-25% sur achat
+- Demurrage moyen Marseille/Le Havre: 120-180 EUR/jour/conteneur
+- Taux de ponctualite livraison armateurs 2026: 55-70%
+- Transit Europe-Asie via Suez: 28-35 jours | Via Cap Bonne Esperance: 38-45j
+- Transit Europe-Amerique du Nord: 12-18 jours
+- Transit Europe-Afrique de l'Ouest: 14-21 jours
+- ALERTE DWELL TIME: >5 jours au port = risque surcouts""",
+        "en": """INTERNATIONAL MARITIME TRANSPORT BENCHMARKS 2026 (IRU/UNCTAD/Drewry):
+- 20' container freight rate Europe-Asia: 800-2500 USD/TEU (off-peak)
+- 40' Europe-North America: 1500-4000 USD/FEU
+- Mediterranean-West Africa corridors: 1200-2800 USD/TEU
+- Freight forwarder margin maritime: 15-25% on buying rate
+- Demurrage avg Marseille/Le Havre: 120-180 EUR/day/container
+- Carrier on-time performance 2026: 55-70%
+- Transit Europe-Asia via Suez: 28-35d | Via Cape: 38-45d
+- Transit Europe-North America: 12-18d
+- Transit Europe-West Africa: 14-21d
+- DWELL TIME ALERT: >5 days at port = risk of extra costs"""
+    },
+
+    # ── TRANSPORT AERIEN INTERNATIONAL ────────────────────────────
+    "transport_aerien_intl": {
+        "keywords": ["airfreight","air cargo","cargo","awb","iata","airline","avion",
+                     "aerien","aero","fret aerien","air freight","express","dhl","fedex","ups"],
+        "fr": """BENCHMARKS FRET AERIEN INTERNATIONAL 2026 (IATA/Boeing):
+- Taux fret aerien Europe-Asie: 2,20-3,80 EUR/kg
+- Taux Europe-Amerique du Nord: 2,80-4,50 EUR/kg
+- Taux Europe-Afrique: 2,50-4,20 EUR/kg
+- Surcharge carburant (FSC) 2026: 25-40% du tarif de base
+- Surcharge securite (SSC): 0,15-0,25 EUR/kg
+- Transit express J+1 Europe interne: premium 40-80% vs economique
+- Poids taxable vs poids reel: ratio >1,2 = expedition volumineuse a surveiller
+- Marge transitaire aerien: 20-35% sur achat
+- Taux de remplissage cargo mondial 2026: 58-65%
+- Delai transit Marseille-Abidjan: 1-2 jours | -Casablanca: 1 jour""",
+        "en": """INTERNATIONAL AIR FREIGHT BENCHMARKS 2026 (IATA/Boeing):
+- Air freight rate Europe-Asia: 2.20-3.80 EUR/kg
+- Europe-North America: 2.80-4.50 EUR/kg
+- Europe-Africa: 2.50-4.20 EUR/kg
+- Fuel surcharge (FSC) 2026: 25-40% of base rate
+- Security surcharge (SSC): 0.15-0.25 EUR/kg
+- Same-day/next-day Europe express: 40-80% premium vs economy
+- Chargeable/actual weight ratio >1.2 = bulky shipment to monitor
+- Freight forwarder margin air: 20-35% on buying rate
+- Global cargo load factor 2026: 58-65%
+- Transit Marseille-Abidjan: 1-2 days | -Casablanca: 1 day"""
+    },
+
+    # ── TRANSPORT ROUTIER INTERNATIONAL / EUROPE ──────────────────
+    "transport_routier_eu": {
+        "keywords": ["international","europe","cross-border","transfrontalier","ro-ro",
+                     "douane","customs","export","import","incoterm","fca","dap","ddp"],
+        "fr": """BENCHMARKS TRANSPORT ROUTIER EUROPEEN 2026 (IRU/Eurostat):
+- Taux routier France-Espagne (FTL 33T): 1 800-2 400 EUR/trajet
+- Taux France-Allemagne: 1 600-2 200 EUR/trajet
+- Taux France-Italie nord: 1 400-1 900 EUR/trajet
+- Taux France-Maroc (via ferry): 3 200-4 500 EUR/trajet
+- Cout km FTL Europe : 1,85-2,30 EUR/km (plus eleve qu'interieur France)
+- Temps de transit France-Espagne: 1-2j | France-Allemagne: 1-2j
+- Temps de transit France-Maroc: 4-6j via Algeciras
+- Surcoûts EuroVignette/peages pays: +8-12% sur cout total
+- Indice IRU cout main-d'oeuvre conducteur UE: +4,2% en 2025
+- ALERTE: cabotage limite a 3 operations en 7 jours en UE""",
+        "en": """EUROPEAN ROAD TRANSPORT BENCHMARKS 2026 (IRU/Eurostat):
+- France-Spain FTL rate (33T): 1,800-2,400 EUR/trip
+- France-Germany: 1,600-2,200 EUR/trip
+- France-Italy north: 1,400-1,900 EUR/trip
+- France-Morocco (via ferry): 3,200-4,500 EUR/trip
+- FTL cost/km Europe: 1.85-2.30 EUR/km (higher than domestic France)
+- Transit time France-Spain: 1-2d | France-Germany: 1-2d
+- France-Morocco transit: 4-6d via Algeciras
+- EuroVignette/tolls surcharge: +8-12% on total cost
+- IRU driver labour cost index EU: +4.2% in 2025
+- ALERT: cabotage limited to 3 operations in 7 days in EU"""
+    },
+
+    # ── SUPPLY CHAIN MAGHREB ──────────────────────────────────────
+    "supply_chain_maghreb": {
+        "keywords": ["maroc","morocco","algerie","algeria","tunisie","tunisia",
+                     "casablanca","rabat","alger","tunis","maghreb","afrique du nord"],
+        "fr": """BENCHMARKS SUPPLY CHAIN MAGHREB 2026 (AMTRI/Banque Mondiale):
+- Indice performance logistique Maroc 2026: 3,2/5 (LPI Banque Mondiale)
+- Cout transport routier Casablanca-Agadir (340km): 1 800-2 500 MAD/trajet
+- Cout transport Casablanca-Tanger (340km): 1 600-2 200 MAD/trajet
+- Taux de service PME distribution Maroc: 85-92% (sous la norme EU)
+- Delai dedouanement moyen Maroc: 3-7 jours (ameliore depuis 2023)
+- Stock couverture distribution Maroc: 45-75 jours (vs 30-45j EU)
+- BFR distribution PME marocaine: 60-90 jours de CA
+- Cout possession stock Maroc: 22-28% (financement plus cher qu'EU)
+- Principale inefficacite: pas de WMS dans 70% des PME marocaines
+- Opportunity: digitalisation logistique en acceleration post-COVID""",
+        "en": """MAGHREB SUPPLY CHAIN BENCHMARKS 2026 (AMTRI/World Bank):
+- Morocco Logistics Performance Index 2026: 3.2/5 (World Bank LPI)
+- Road transport cost Casablanca-Agadir (340km): 1,800-2,500 MAD/trip
+- Casablanca-Tangier (340km): 1,600-2,200 MAD/trip
+- SME service level distribution Morocco: 85-92% (below EU standard)
+- Average customs clearance Morocco: 3-7 days (improved since 2023)
+- Distribution stock coverage Morocco: 45-75 days (vs 30-45d EU)
+- WCR distribution SME Morocco: 60-90 days revenue
+- Stock holding cost Morocco: 22-28% (financing more expensive than EU)
+- Main inefficiency: no WMS in 70% of Moroccan SMEs
+- Opportunity: logistics digitalization accelerating post-COVID"""
+    },
+
+    # ── SUPPLY CHAIN AFRIQUE SUBSAHARIENNE ────────────────────────
+    "supply_chain_afrique": {
+        "keywords": ["afrique","africa","cote d'ivoire","ivory coast","senegal",
+                     "abidjan","dakar","accra","ghana","nigeria","lagos","cameroun",
+                     "douala","kenya","nairobi","afrique subsaharienne"],
+        "fr": """BENCHMARKS SUPPLY CHAIN AFRIQUE SUBSAHARIENNE 2026 (Banque Mondiale/CEDEAO):
+- Indice LPI moyen Afrique subsaharienne: 2,6-2,9/5 (Banque Mondiale)
+- LPI Cote d'Ivoire 2026: 3,1/5 | Senegal: 2,9/5 | Ghana: 2,8/5
+- Cout transport routier Abidjan-Bouake (340km): 180 000-250 000 FCFA
+- Cout transport Dakar-Kaolack (200km): 120 000-180 000 FCFA
+- Taux de service distribution Afrique subsaharienne: 75-88%
+- Delai dedouanement moyen: 5-12 jours (variable selon pays)
+- Stock couverture cible: 60-90 jours (chaine d'approvisionnement longue)
+- Principaux risques: routes degradees, coupures electriques, fraudes douanieres
+- Taux de pertes et dommages transit: 2-5% (vs <1% EU)
+- Opportunite marche: 70% du commerce B2B encore non digitalise""",
+        "en": """SUB-SAHARAN AFRICA SUPPLY CHAIN BENCHMARKS 2026 (World Bank/ECOWAS):
+- Average Sub-Saharan LPI: 2.6-2.9/5 (World Bank)
+- Ivory Coast LPI 2026: 3.1/5 | Senegal: 2.9/5 | Ghana: 2.8/5
+- Road transport Abidjan-Bouake (340km): 180,000-250,000 FCFA
+- Dakar-Kaolack (200km): 120,000-180,000 FCFA
+- Service level distribution: 75-88%
+- Average customs clearance: 5-12 days (varies by country)
+- Target stock coverage: 60-90 days (long supply chains)
+- Key risks: poor roads, power cuts, customs fraud
+- Transit loss and damage rate: 2-5% (vs <1% EU)
+- Market opportunity: 70% of B2B commerce still non-digital"""
     }
 }
 
 def detect_sector(df=None, module="stock", mode_detected=None):
-    """Detecte le secteur pertinent selon le fichier et le module."""
+    """Detecte le secteur pertinent selon le fichier, le module et le contexte geo."""
     if module == "transport":
         if mode_detected:
             m = str(mode_detected).lower()
-            if "maritime" in m: return "transport_maritime"
-            if "aerien" in m or "air" in m: return "transport_aerien"
+            if "maritime" in m or "sea" in m or "ocean" in m:
+                # Vérifier si international
+                if df is not None:
+                    all_t = " ".join([str(v).lower() for v in df.values.flatten()[:100]])
+                    intl_kw = ["rotterdam","anvers","hambourg","barcelona","algeciras",
+                               "tanger","abidjan","dakar","casablanca","shanghai","container"]
+                    if any(k in all_t for k in intl_kw):
+                        return "transport_maritime_intl"
+                return "transport_maritime"
+            if "aerien" in m or "air" in m or "cargo" in m:
+                return "transport_aerien_intl"
+            # Vérifier si routier européen
+            if df is not None:
+                all_t = " ".join([str(v).lower() for v in df.values.flatten()[:100]])
+                eu_kw = ["espagne","spain","allemagne","germany","italie","italy",
+                         "belgique","netherlands","maroc","morocco","export","import"]
+                if any(k in all_t for k in eu_kw):
+                    return "transport_routier_eu"
         return "transport_routier"
     if df is not None:
         all_text = " ".join([str(c).lower() for c in df.columns])
         if len(df) > 0:
             all_text += " " + " ".join(df.iloc[:,0].astype(str).str.lower().head(30).tolist())
+            # Aussi analyser les valeurs pour la détection géo
+            all_vals = " ".join([str(v).lower() for v in df.values.flatten()[:200]])
+            all_text += " " + all_vals
         scores = {}
         for sk, sd in SECTORAL_DB.items():
-            if sk == "generique": continue
+            if sk in ("generique","transport_maritime_intl","transport_aerien_intl",
+                       "transport_routier_eu","supply_chain_maghreb","supply_chain_afrique"):
+                continue
             hits = sum(1 for kw in sd["keywords"] if kw in all_text)
             if hits >= 2: scores[sk] = hits
         if scores: return max(scores, key=scores.get)
+        # Détection géographique pour supply chain internationale
+        maghreb_kw = ["maroc","morocco","algerie","casablanca","rabat","tanger","tunis"]
+        afrique_kw = ["abidjan","dakar","cote d'ivoire","ivory coast","accra","ghana","nigeria"]
+        if any(k in all_text for k in afrique_kw): return "supply_chain_afrique"
+        if any(k in all_text for k in maghreb_kw): return "supply_chain_maghreb"
     return "generique"
 
 def get_sector_benchmarks(sector_key, lang="fr"):
@@ -238,17 +405,27 @@ def get_sector_benchmarks(sector_key, lang="fr"):
 
 
 
-USERS_DB = {
-    "eric":"logiflo2026","admin":"admin123","demo_client1":"audit2026",
-    "demo_client2":"test2026","jury":"pitch2026","partenaire":"partner2026","test":"test123",
-}
+# USERS_DB chargé depuis st.secrets pour ne pas exposer les credentials
+def _load_users():
+    try:
+        raw = st.secrets.get("USERS_DB", {})
+        if isinstance(raw, dict) and raw:
+            return dict(raw)
+    except Exception:
+        pass
+    # Fallback local uniquement pour dev — retirer en prod
+    return {
+        "eric":"logiflo2026","admin":"admin123","demo_client1":"audit2026",
+        "demo_client2":"test2026","jury":"pitch2026","partenaire":"partner2026","test":"test123",
+    }
+USERS_DB = _load_users()
 
 # =========================================
 # 0.1 TRADUCTIONS
 # =========================================
 T = {
     "fr": {
-        "nav_workspace":"Espace de Travail","nav_archives":"Archives",
+        "nav_dashboard":"Tableau de bord","nav_workspace":"Espace de Travail","nav_archives":"Archives",
         "nav_params":"Paramètres","nav_legal":"Informations Légales","nav_logout":"Déconnexion",
         "home_title":"LOGIFLO.IO",
         "home_sub":"Plateforme d'Intelligence Logistique et d'Optimisation Financière",
@@ -317,7 +494,7 @@ T = {
         "iss1":"Optimisation BFR (Stocks)","iss2":"Réduction coûts Transport","iss3":"Global Supply Chain",
     },
     "en": {
-        "nav_workspace":"Workspace","nav_archives":"Archives",
+        "nav_dashboard":"Dashboard","nav_workspace":"Workspace","nav_archives":"Archives",
         "nav_params":"Settings","nav_legal":"Legal Information","nav_logout":"Log out",
         "home_title":"LOGIFLO.IO",
         "home_sub":"Logistics Intelligence & Financial Optimization Platform",
@@ -1075,7 +1252,195 @@ SYNONYMES={
     "conso_an4":["conso2025","conso25","consommation2025","sorties2025","ventes2025",
                  "c2025","n0","nactuel","annee2025","a2025","quantite2025","qte2025",
                  "cso25","cso2025","sortie2025","consoactuelle","consoencoursannee"],
+    # Transport
+    "ca":         ["ca","chiffreaffaires","revenue","revenu","facture","facturation",
+                   "recette","vente","ventes","montantfacture","montantca","totalca",
+                   "prixvente","prixdevente","tariflbp","tariflocation","tarifclient",
+                   "turnover","sales","salesamount","invoiceamount","totalrevenue"],
+    "co":         ["cout","couts","cost","costs","charge","charges","depense","depenses",
+                   "coutrevient","coutderevient","coutachat","coutexploitation",
+                   "coutprestation","coutservice","couttransport","frais","fraistransport",
+                   "fraisexploitation","montantachat","totalcout","totalcouts",
+                   "benefice","marge","margebrute","margenet","margennette","profit",
+                   "resultat","solde","bilan","gain","perte"],
+    "fournisseur":["fournisseur","supplier","vendor","fournisseurs","suppliers",
+                   "prestataire","prestataires","acheteur","source","origine",
+                   "partnername","vendorname","suppliername","sourcing"],
+    "date_col":   ["date","dates","dateop","datetransaction","datemouvement",
+                   "datecommande","datelivraison","datesortie","datentree","dateachat",
+                   "datestock","period","periode","mois","month","annee","year",
+                   "semaine","week","exercice","timestamp","datetime","jour","day"],
+    "delai":      ["delai","delailivraison","leadtime","lt","lead","delaifournisseur",
+                   "delaiapprovisionnement","delaireapprovisionnement","delaicommande",
+                   "supplierleadtime","leadtimedays","leadtimeweeks"],
+    "categorie":  ["categorie","categories","category","famille","familles","family",
+                   "sousfamille","type","types","classe","classes","segment","gamme",
+                   "rayon","departement","division","group","groupe"],
 }
+
+# Alias géographiques pour ports, aéroports, villes logistiques
+GEO_ALIASES = {
+    # Ports maritimes France
+    "marseille":["marseille","fos","fos-sur-mer","fos sur mer","gpmm","port de marseille"],
+    "le havre":  ["le havre","havre","lehavre","gpmh","port du havre"],
+    "dunkerque": ["dunkerque","dunkerque","dunkirk","gpmd"],
+    "nantes":    ["nantes","saint nazaire","nantes saint-nazaire","nantes-saint-nazaire"],
+    "bordeaux":  ["bordeaux","le verdon","bassens","bordeaux atlantique"],
+    "rouen":     ["rouen","grand port rouen"],
+    # Aéroports France
+    "cdg":       ["cdg","roissy","charles de gaulle","paris-cdg","paris cdg",
+                  "roissy charles de gaulle","roissy-cdg","lfpg"],
+    "orly":      ["orly","paris-orly","paris orly","lfpo"],
+    "lyon":      ["lyon","saint-exupery","saint exupery","lyon saint-exupery","lfly"],
+    "nice":      ["nice","nice cote d'azur","nice cote dazur","lfmn"],
+    "marseille_aero":["marseille provence","mp","lfml","marseille-provence"],
+    # Ports maritimes Europe
+    "rotterdam": ["rotterdam","eurtm","port of rotterdam"],
+    "anvers":    ["anvers","antwerp","antwerpen","port of antwerp"],
+    "hambourg":  ["hambourg","hamburg","port of hamburg"],
+    "genes":     ["genes","genova","genoa","port de genes","porto di genova"],
+    "barcelone": ["barcelone","barcelona","port de barcelone"],
+    "valence":   ["valence es","valencia","port of valencia"],
+    "algeciras": ["algeciras","gibraltar","port of algeciras"],
+    "tanger":    ["tanger","tanger med","tangier","tanger-med"],
+    # Villes logistiques France
+    "paris":     ["paris","ile-de-france","idf","region parisienne","rungis"],
+    "lyon_v":    ["lyon","rhone-alpes","auvergne-rhone-alpes"],
+    "toulouse":  ["toulouse","midi-pyrenees","occitanie"],
+    "lille":     ["lille","nord","hauts-de-france"],
+    "strasbourg":["strasbourg","alsace","grand est","bas-rhin"],
+    # Pays (transport international)
+    "france":    ["france","fr","fra"],
+    "maroc":     ["maroc","morocco","ma","mar","casablanca","rabat","agadir","tanger"],
+    "algerie":   ["algerie","algeria","dz","alger","oran","annaba"],
+    "tunisie":   ["tunisie","tunisia","tn","tunis","sfax","sousse"],
+    "cote d'ivoire":["cote d'ivoire","ivory coast","ci","civ","abidjan","bouake"],
+    "senegal":   ["senegal","sn","sen","dakar"],
+    "espagne":   ["espagne","spain","es","esp","madrid","barcelone","valence"],
+    "italie":    ["italie","italy","it","ita","rome","milan","genes"],
+    "allemagne": ["allemagne","germany","de","deu","hambourg","francfort","munich"],
+    "belgique":  ["belgique","belgium","be","bel","anvers","bruxelles"],
+    "pays-bas":  ["pays-bas","netherlands","nl","nld","rotterdam","amsterdam"],
+    "royaume-uni":["royaume-uni","uk","gbr","gb","london","londres","manchester"],
+    "chine":     ["chine","china","cn","chn","shanghai","shenzhen","guangzhou"],
+    "usa":       ["usa","etats-unis","us","united states","new york","los angeles"],
+}
+
+def _normalize_geo(text):
+    """Normalise un nom géographique vers sa forme standard."""
+    if not text:
+        return text
+    t = str(text).lower().strip()
+    for canonical, aliases in GEO_ALIASES.items():
+        if t in aliases:
+            return canonical
+    return t
+
+def detect_periode(df):
+    """
+    Détecte automatiquement la période depuis les colonnes de dates.
+    Ne pose jamais de question à l'utilisateur.
+    Retourne un dict avec trimestre, label, contexte saisonnier.
+    """
+    import datetime as _dt_p
+    from dateutil import parser as _dparser
+
+    mois_min, mois_max, annee = None, None, _dt_p.date.today().year
+
+    # Chercher colonnes de dates
+    date_cols = [c for c in df.columns
+                 if any(k in str(c).lower() for k in
+                        ["date","mois","month","periode","semaine","week",
+                         "exercice","timestamp","datetime","jour","day"])]
+
+    for col in date_cols:
+        try:
+            sample = df[col].dropna().head(50).astype(str)
+            parsed = []
+            for v in sample:
+                try:
+                    d = _dparser.parse(v, dayfirst=True)
+                    parsed.append(d)
+                except Exception:
+                    pass
+            if len(parsed) >= 3:
+                mois_vals = [d.month for d in parsed]
+                annee = max(d.year for d in parsed)
+                mois_min = min(mois_vals)
+                mois_max = max(mois_vals)
+                break
+        except Exception:
+            continue
+
+    # Si pas de dates trouvées → utiliser date du jour
+    if mois_min is None:
+        today = _dt_p.date.today()
+        mois_min = mois_max = today.month
+        annee = today.year
+
+    # Déterminer le trimestre dominant
+    if mois_max <= 3:
+        trim = "T1"
+    elif mois_max <= 6:
+        trim = "T2"
+    elif mois_max <= 9:
+        trim = "T3"
+    else:
+        trim = "T4"
+
+    labels_trim = {"T1":"Janv-Mars","T2":"Avr-Juin","T3":"Juil-Sept","T4":"Oct-Déc"}
+
+    # Contexte saisonnier injecté dans le prompt IA
+    saison = "standard"
+    if mois_min >= 10 or (mois_max >= 10 and mois_min >= 9):
+        saison = "pre_fetes"
+    elif mois_min >= 6 and mois_max <= 9:
+        saison = "ete"
+    elif mois_max <= 2:
+        saison = "post_fetes"
+    elif mois_min >= 3 and mois_max <= 5:
+        saison = "printemps"
+
+    contextes_fr = {
+        "pre_fetes":  "Periode pre-fetes (oct-dec). Un surstock est normal "
+                      "en anticipation de Noel. Ne pas conclure a un probleme "
+                      "sans verifier si c'est du stock de precaution delibere.",
+        "ete":        "Periode estivale (jun-sept). Attention aux variations de "
+                      "consommation liees aux conges. Certaines ruptures peuvent "
+                      "etre temporaires et non structurelles.",
+        "post_fetes": "Periode post-fetes (jan-fev). Les surstocks residuels de "
+                      "Noel sont normaux. Distinguer stock dormant et stock de "
+                      "fin de saison en cours de liquidation.",
+        "printemps":  "Periode printemps (mar-mai). Debut de saison pour certains "
+                      "secteurs (BTP, jardin, mode ete). Anticiper la montee en charge.",
+        "standard":   ""
+    }
+    contextes_en = {
+        "pre_fetes":  "Pre-holiday period (Oct-Dec). Overstock is normal in "
+                      "anticipation of Christmas. Do not flag as a problem without "
+                      "checking if it is deliberate precautionary stock.",
+        "ete":        "Summer period (Jun-Sep). Watch for consumption variations "
+                      "due to holidays. Some stockouts may be temporary.",
+        "post_fetes": "Post-holiday period (Jan-Feb). Residual Christmas overstock "
+                      "is normal. Distinguish dormant stock from end-of-season "
+                      "liquidation stock.",
+        "printemps":  "Spring period (Mar-May). Start of season for some sectors "
+                      "(construction, garden, summer fashion). Anticipate ramp-up.",
+        "standard":   ""
+    }
+
+    return {
+        "trimestre": trim,
+        "mois_min":  mois_min,
+        "mois_max":  mois_max,
+        "annee":     annee,
+        "label":     f"{labels_trim[trim]} {annee}",
+        "saison":    saison,
+        "contexte_fr": contextes_fr[saison],
+        "contexte_en": contextes_en[saison],
+    }
+
+
 
 def _levenshtein(s1,s2):
     if len(s1)<len(s2): return _levenshtein(s2,s1)
@@ -1090,16 +1455,28 @@ def _levenshtein(s1,s2):
 
 def _score_nom(propre,std):
     syns=SYNONYMES.get(std,[]);best=0
-    for syn in syns:
-        if propre==syn: return 100
-        if len(syn)>=4 and propre.startswith(syn): best=max(best,95)
-        if len(syn)>=3 and syn in propre: best=max(best,88)
-        if len(propre)>=3 and propre in syn: best=max(best,82)
-        r=difflib.SequenceMatcher(None,propre,syn).ratio()
-        best=max(best,int(r*85))
-        if len(propre)>=3 and len(syn)>=3:
-            dist=_levenshtein(propre,syn); ml=max(len(propre),len(syn))
-            if ml>0: best=max(best,int((1-dist/ml)*78))
+    try:
+        from rapidfuzz import fuzz as _rfuzz
+        for syn in syns:
+            if propre==syn: return 100
+            if len(syn)>=4 and propre.startswith(syn): best=max(best,95)
+            if len(syn)>=3 and syn in propre: best=max(best,88)
+            if len(propre)>=3 and propre in syn: best=max(best,82)
+            # rapidfuzz — plus précis que difflib
+            best=max(best,int(_rfuzz.ratio(propre,syn)))
+            best=max(best,int(_rfuzz.partial_ratio(propre,syn)*0.9))
+            best=max(best,int(_rfuzz.token_sort_ratio(propre,syn)*0.85))
+    except ImportError:
+        for syn in syns:
+            if propre==syn: return 100
+            if len(syn)>=4 and propre.startswith(syn): best=max(best,95)
+            if len(syn)>=3 and syn in propre: best=max(best,88)
+            if len(propre)>=3 and propre in syn: best=max(best,82)
+            r=difflib.SequenceMatcher(None,propre,syn).ratio()
+            best=max(best,int(r*85))
+            if len(propre)>=3 and len(syn)>=3:
+                dist=_levenshtein(propre,syn); ml=max(len(propre),len(syn))
+                if ml>0: best=max(best,int((1-dist/ml)*78))
     year_bonus={"conso_an1":["2022","22"],"conso_an2":["2023","23"],
                 "conso_an3":["2024","24"],"conso_an4":["2025","25"]}
     if std in year_bonus and any(y in propre for y in year_bonus[std]): best=max(best,85)
@@ -1332,6 +1709,68 @@ def generate_ai_analysis(data_summary, historique_txt="", df_raw=None,
         except Exception:
             pass
 
+    # 4b. Saisonnalité détectée automatiquement
+    try:
+        _periode = detect_periode(df_raw) if df_raw is not None else None
+        if _periode and _periode.get("contexte_fr" if lang=="fr" else "contexte_en"):
+            _ctx = _periode.get("contexte_fr") if lang=="fr" else _periode.get("contexte_en")
+            _lbl = _periode.get("label","")
+            if lang == "en":
+                parts.append(f"=== SEASONAL CONTEXT (auto-detected) ===\n"
+                             f"Period: {_lbl}\n{_ctx}")
+            else:
+                parts.append(f"=== CONTEXTE SAISONNIER (detecte automatiquement) ===\n"
+                             f"Periode : {_lbl}\n{_ctx}")
+    except Exception:
+        pass
+
+    # 4c. Prédictions rupture (module stock uniquement)
+    if module == "stock" and df_raw is not None:
+        try:
+            _alertes = predict_ruptures(df_raw, lang=lang)
+            _pred_txt = format_predictions_pour_prompt(_alertes, lang)
+            if _pred_txt:
+                parts.append(_pred_txt)
+        except Exception:
+            pass
+
+    # 4d. Alerte BFR (module stock uniquement)
+    if module == "stock" and df_raw is not None:
+        try:
+            _bfr = compute_alerte_bfr(df_raw, lang=lang)
+            if _bfr.get("available") and _bfr.get("texte"):
+                if lang == "en":
+                    parts.append(f"=== WORKING CAPITAL (BFR) ALERT ===\n{_bfr['texte']}")
+                else:
+                    parts.append(f"=== ALERTE BESOIN EN FONDS DE ROULEMENT (BFR) ===\n{_bfr['texte']}")
+        except Exception:
+            pass
+
+    # 4e. Scoring pré-calculé (contexte pour l'IA)
+    try:
+        _kpis_ctx = st.session_state.get("last_kpis",[])
+        _labels_ctx = st.session_state.get("last_labels",[])
+        _score_ctx = compute_logiflo_score(
+            module=module, df=df_raw,
+            kpis=_kpis_ctx, labels=_labels_ctx,
+            sector_key=sector_key or "generique", lang=lang
+        )
+        if _score_ctx.get("global",0) > 0:
+            if lang == "en":
+                parts.append(f"=== PRE-COMPUTED LOGIFLO SCORE ===\n"
+                             f"Global score: {_score_ctx['global']}/100\n"
+                             f"{_score_ctx.get('format_pdf','')}\n"
+                             f"Comment this score in your ### LOGIFLO SCORE section. "
+                             f"Explain what drives each dimension up or down.")
+            else:
+                parts.append(f"=== SCORING LOGIFLO PRE-CALCULE ===\n"
+                             f"Score global : {_score_ctx['global']}/100\n"
+                             f"{_score_ctx.get('format_pdf','')}\n"
+                             f"Commente ce score dans ta section ### SCORING LOGIFLO. "
+                             f"Explique ce qui tire chaque dimension vers le haut ou vers le bas.")
+    except Exception:
+        pass
+
     # 5. Instruction prescriptive — structure complète + 2 options décisionnaires
     if lang == "en":
         if module == "transport":
@@ -1521,6 +1960,7 @@ completent l'urgence ci-dessus et guident l'optimisation des stocks au-dela de c
 
     user_msg = "\n\n".join(parts)
 
+    # ── Tentative 1 : OpenAI ────────────────────────────────────
     try:
         r = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -1529,13 +1969,35 @@ completent l'urgence ci-dessus et guident l'optimisation des stocks au-dela de c
                 {"role": "user",   "content": user_msg}
             ],
             temperature=0.35,
-            max_tokens=2400
+            max_tokens=2400,
+            timeout=30
         )
         texte = r.choices[0].message.content
         try: return texte.encode('latin-1').decode('utf-8')
         except: return texte
-    except Exception as e:
-        return f"AI Error: {str(e)}"
+    except Exception as _e_oai:
+        pass  # Fallback silencieux
+
+    # ── Tentative 2 : Gemini Flash (fallback gratuit) ────────────
+    try:
+        import google.generativeai as _genai
+        _genai.configure(api_key=st.secrets.get("GEMINI_API_KEY",""))
+        _gem = _genai.GenerativeModel("gemini-1.5-flash")
+        _resp = _gem.generate_content(
+            f"{sys_prompt}\n\n{user_msg}",
+            generation_config=_genai.types.GenerationConfig(
+                temperature=0.35,
+                max_output_tokens=2400
+            )
+        )
+        texte = _resp.text
+        try: return texte.encode('latin-1').decode('utf-8')
+        except: return texte
+    except Exception as _e_gem:
+        pass  # Mode dégradé
+
+    # ── Mode dégradé : rapport structuré sans IA ─────────────────
+    return _rapport_sans_ia(data_summary, sector_key or "generique", lang)
 
 
 def _extract_key_rows(df, module, lang="fr"):
@@ -1629,6 +2091,379 @@ def _asc(text): return _s(text)
 def _clean_pdf(text):
     """Nettoie le texte pour fpdf — utilise _s() pour garantie latin-1."""
     return _s(str(text).replace("**",""))
+
+
+
+def compute_logiflo_score(module, df=None, kpis=None, labels=None,
+                           sector_key="generique", lang="fr"):
+    """
+    Scoring Logiflo calculé en Python sur critères transparents.
+    L'IA commente le score — elle ne le génère plus.
+    Retourne dict avec scores par dimension et score global.
+    """
+    scores = {}
+    details = {}
+
+    if module == "stock":
+        # Extraire les KPIs
+        try:
+            tx_service = float(kpis[1]) if kpis and len(kpis) > 1 else 0
+            nb_ruptures = float(kpis[2]) if kpis and len(kpis) > 2 else 0
+            nb_total = len(df) if df is not None and len(df) > 0 else 1
+            taux_rupture = (nb_ruptures / nb_total) * 100 if nb_total > 0 else 0
+        except Exception:
+            tx_service = 0; taux_rupture = 0
+
+        # Benchmarks cibles selon secteur
+        target_service = {
+            "stock_pharma":97, "stock_industrie":97, "stock_retail":96,
+            "stock_distribution":95, "stock_agroalim":96, "stock_btp":95,
+            "generique":93
+        }.get(sector_key, 93)
+
+        # DIMENSION 1 : Taux de service (40%)
+        if tx_service >= target_service:
+            s1 = 100
+        elif tx_service >= target_service - 5:
+            s1 = 80
+        elif tx_service >= target_service - 10:
+            s1 = 60
+        elif tx_service >= 80:
+            s1 = 40
+        else:
+            s1 = 20
+        scores["service"] = s1
+        d1_lbl = "Performance & Rotation stock" if lang == "en" else "Performance et Rotation stock"
+        details[d1_lbl] = s1
+
+        # DIMENSION 2 : Risque rupture (35%)
+        if taux_rupture <= 1:
+            s2 = 100
+        elif taux_rupture <= 3:
+            s2 = 80
+        elif taux_rupture <= 5:
+            s2 = 60
+        elif taux_rupture <= 10:
+            s2 = 40
+        else:
+            s2 = 20
+        scores["rupture"] = s2
+        d2_lbl = "Stock-out Risk" if lang == "en" else "Risque de rupture"
+        details[d2_lbl] = s2
+
+        # DIMENSION 3 : Résilience (25%) — dormants + surstocks
+        if df is not None:
+            try:
+                nb_dorm = len(df[df["Statut"].str.contains("Dormant", na=False)]) if "Statut" in df.columns else 0
+                nb_surs = len(df[df["Statut"].str.contains("Surstock", na=False)]) if "Statut" in df.columns else 0
+                taux_anomalies = ((nb_dorm + nb_surs) / max(nb_total, 1)) * 100
+                if taux_anomalies <= 5:
+                    s3 = 100
+                elif taux_anomalies <= 10:
+                    s3 = 75
+                elif taux_anomalies <= 20:
+                    s3 = 50
+                else:
+                    s3 = 25
+            except Exception:
+                s3 = 70
+        else:
+            s3 = 70
+        scores["resilience"] = s3
+        d3_lbl = "Supply Chain Resilience" if lang == "en" else "Resilience supply chain"
+        details[d3_lbl] = s3
+
+        # Score global pondéré
+        global_score = round(s1 * 0.40 + s2 * 0.35 + s3 * 0.25)
+
+    elif module == "transport":
+        try:
+            marge_pct = float(kpis[1]) if kpis and len(kpis) > 1 else 0
+            nb_tox = float(kpis[2]) if kpis and len(kpis) > 2 else 0
+            nb_total = len(df) if df is not None and len(df) > 0 else 1
+            taux_tox = (nb_tox / nb_total) * 100 if nb_total > 0 else 0
+        except Exception:
+            marge_pct = 0; taux_tox = 0
+
+        # Coût/km si disponible
+        cout_km = 0
+        if df is not None and "_DS" in df.columns and "_CO" in df.columns:
+            try:
+                total_dist = df["_DS"].replace(0, 1).sum()
+                total_cout = df["_CO"].sum()
+                cout_km = total_cout / total_dist if total_dist > 0 else 0
+            except Exception:
+                pass
+
+        # DIMENSION 1 : Rentabilité et Yield (40%)
+        if marge_pct >= 10:
+            s1 = 100
+        elif marge_pct >= 8:
+            s1 = 80
+        elif marge_pct >= 6:
+            s1 = 60
+        elif marge_pct >= 4:
+            s1 = 40
+        elif marge_pct >= 0:
+            s1 = 20
+        else:
+            s1 = 5
+        scores["rentabilite"] = s1
+        d1_lbl = "Profitability and Transport Yield" if lang == "en" else "Rentabilite et Yield Transport"
+        details[d1_lbl] = s1
+
+        # DIMENSION 2 : Efficacité opérationnelle (35%)
+        if taux_tox <= 5:
+            s2 = 100
+        elif taux_tox <= 10:
+            s2 = 75
+        elif taux_tox <= 20:
+            s2 = 50
+        elif taux_tox <= 35:
+            s2 = 30
+        else:
+            s2 = 10
+        scores["efficacite"] = s2
+        d2_lbl = "Operational Efficiency" if lang == "en" else "Efficacite Operationnelle"
+        details[d2_lbl] = s2
+
+        # DIMENSION 3 : Maîtrise OPEX / coût/km (25%)
+        cnr_ref = 1.95  # CNR 2026 longue distance médiane
+        if cout_km <= 0:
+            s3 = 70  # pas de données km → score neutre
+        elif cout_km <= cnr_ref:
+            s3 = 100
+        elif cout_km <= cnr_ref * 1.10:
+            s3 = 80
+        elif cout_km <= cnr_ref * 1.25:
+            s3 = 60
+        elif cout_km <= cnr_ref * 1.50:
+            s3 = 35
+        else:
+            s3 = 15
+        scores["opex"] = s3
+        d3_lbl = "OPEX Control" if lang == "en" else "Maitrise des OPEX"
+        details[d3_lbl] = s3
+
+        global_score = round(s1 * 0.40 + s2 * 0.35 + s3 * 0.25)
+
+    else:
+        # Module générique
+        scores = {"performance": 70}
+        details = {"Performance": 70}
+        global_score = 70
+
+    return {
+        "global":  global_score,
+        "details": details,
+        "scores":  scores,
+        "format_pdf": "\n".join([f"- {k} : {v}/100" for k, v in details.items()])
+    }
+
+
+
+def predict_ruptures(df, seuil_rupture=0, lang="fr"):
+    """
+    Prédit les ruptures à 4 semaines par extrapolation linéaire.
+    Nécessite au moins une colonne de consommation historique.
+    Retourne une liste de dict avec les références à risque.
+    """
+    if df is None or len(df) == 0:
+        return []
+
+    alertes = []
+    cols_conso = [c for c in ["conso_an4","conso_an3","conso_an2","conso_an1"]
+                  if c in df.columns]
+
+    if not cols_conso:
+        return []
+
+    try:
+        for _ri, row in df.iterrows():
+            ref = str(row.get("reference","?"))
+            stock = float(row.get("quantite", 0))
+            if stock <= seuil_rupture:
+                continue  # déjà en rupture, pas besoin de prédire
+
+            # Consommation hebdomadaire moyenne
+            consos = []
+            for c in cols_conso:
+                v = row.get(c, 0)
+                try:
+                    v = float(v)
+                    if v > 0:
+                        consos.append(v / 52)  # annuel → hebdo
+                except Exception:
+                    pass
+
+            if not consos:
+                continue
+
+            conso_hebdo = sum(consos) / len(consos)
+            if conso_hebdo <= 0:
+                continue
+
+            # Semaines avant rupture
+            semaines = stock / conso_hebdo
+
+            if semaines <= 4:
+                urgence = "critique" if semaines <= 1 else (
+                          "urgent" if semaines <= 2 else "alerte")
+                alertes.append({
+                    "reference":   ref,
+                    "stock":       stock,
+                    "conso_hebdo": round(conso_hebdo, 1),
+                    "semaines":    round(semaines, 1),
+                    "urgence":     urgence,
+                })
+
+        # Trier par urgence (les plus proches de la rupture en premier)
+        alertes.sort(key=lambda x: x["semaines"])
+        return alertes[:10]  # top 10 max
+
+    except Exception:
+        return []
+
+
+def format_predictions_pour_prompt(alertes, lang="fr"):
+    """Formate les prédictions pour injection dans le prompt IA."""
+    if not alertes:
+        return ""
+    lines = []
+    if lang == "en":
+        lines.append("=== STOCKOUT PREDICTIONS (next 4 weeks) ===")
+        for a in alertes:
+            lines.append(
+                f"  {a['urgence'].upper()} — {a['reference']}: "
+                f"{a['stock']:.0f} units left, "
+                f"consumption {a['conso_hebdo']:.1f}/week, "
+                f"stockout in ~{a['semaines']:.1f} weeks"
+            )
+    else:
+        lines.append("=== PREDICTIONS RUPTURE (4 prochaines semaines) ===")
+        for a in alertes:
+            lines.append(
+                f"  {a['urgence'].upper()} — {a['reference']}: "
+                f"{a['stock']:.0f} unites restantes, "
+                f"conso {a['conso_hebdo']:.1f}/semaine, "
+                f"rupture dans ~{a['semaines']:.1f} semaines"
+            )
+    return "\n".join(lines)
+
+
+
+def compute_alerte_bfr(df, ca_annuel_estime=None, lang="fr"):
+    """
+    Calcule le BFR stock et identifie le capital libérable.
+    Retourne un dict avec les métriques BFR et le texte d'alerte.
+    """
+    result = {"available": False, "texte": "", "capital_liberatable": 0}
+
+    if df is None or len(df) == 0:
+        return result
+
+    try:
+        # Capital immobilisé total
+        if "valeur_totale" in df.columns:
+            capital_total = df["valeur_totale"].sum()
+        elif "quantite" in df.columns and "prix_unitaire" in df.columns:
+            capital_total = (df["quantite"] * df["prix_unitaire"]).sum()
+        else:
+            return result
+
+        if capital_total <= 0:
+            return result
+
+        # Capital dormant (stock sans mouvement)
+        capital_dormant = 0
+        if "Statut" in df.columns and "valeur_totale" in df.columns:
+            mask_dorm = df["Statut"].str.contains("Dormant", na=False)
+            capital_dormant = df.loc[mask_dorm, "valeur_totale"].sum()
+        elif "Statut" in df.columns and "quantite" in df.columns and "prix_unitaire" in df.columns:
+            mask_dorm = df["Statut"].str.contains("Dormant", na=False)
+            capital_dormant = (df.loc[mask_dorm,"quantite"] * df.loc[mask_dorm,"prix_unitaire"]).sum()
+
+        # Capital surstock
+        capital_surstock = 0
+        if "Statut" in df.columns and "valeur_totale" in df.columns:
+            mask_surs = df["Statut"].str.contains("Surstock", na=False)
+            capital_surstock = df.loc[mask_surs, "valeur_totale"].sum()
+
+        # Capital libérable (dormants + 50% surstock)
+        capital_lib = capital_dormant + capital_surstock * 0.5
+
+        # BFR en jours de CA (si CA disponible ou estimé)
+        bfr_jours = None
+        if ca_annuel_estime and ca_annuel_estime > 0:
+            bfr_jours = round((capital_total / ca_annuel_estime) * 365)
+
+        # Coût de possession (20% par an)
+        cout_possession = round(capital_dormant * 0.20)
+
+        result["available"] = True
+        result["capital_liberatable"] = round(capital_lib)
+        result["capital_dormant"] = round(capital_dormant)
+        result["capital_surstock"] = round(capital_surstock)
+        result["cout_possession"] = cout_possession
+        result["bfr_jours"] = bfr_jours
+
+        if lang == "en":
+            result["texte"] = (
+                f"BFR ALERT: {capital_lib:,.0f} EUR of capital can be freed "
+                f"(dormant stock: {capital_dormant:,.0f} EUR + overstock: {capital_surstock:,.0f} EUR). "
+                f"Annual holding cost of dormant stock: ~{cout_possession:,.0f} EUR/year (20% rate). "
+                + (f"WCR: ~{bfr_jours} days of revenue." if bfr_jours else "")
+            )
+        else:
+            result["texte"] = (
+                f"ALERTE BFR : {capital_lib:,.0f} EUR de capital liberables "
+                f"(stock dormant : {capital_dormant:,.0f} EUR + surstock : {capital_surstock:,.0f} EUR). "
+                f"Cout de possession du stock dormant : ~{cout_possession:,.0f} EUR/an (taux 20%). "
+                + (f"BFR : ~{bfr_jours} jours de CA." if bfr_jours else "")
+            )
+
+    except Exception:
+        pass
+
+    return result
+
+
+
+def _rapport_sans_ia(data_summary, sector_key, lang="fr"):
+    """Rapport de secours quand toutes les IA sont indisponibles."""
+    benchmarks = get_sector_benchmarks(sector_key or "generique", lang)
+    if lang == "en":
+        return f"""### AUTOMATIC DIAGNOSIS
+
+AI analysis is temporarily unavailable. Here are the raw computed metrics.
+
+**Computed data:**
+{data_summary}
+
+**Sector benchmarks for reference:**
+{benchmarks}
+
+### WHAT TO DO - TOP PRIORITY
+Compare your indicators to the benchmarks above.
+Any negative gap above 5 points requires action this week.
+
+*Full AI analysis available in a few minutes — relaunch the audit if needed.*"""
+    else:
+        return f"""### DIAGNOSTIC AUTOMATIQUE
+
+L'analyse IA est temporairement indisponible. Voici les metriques calculees.
+
+**Donnees calculees :**
+{data_summary}
+
+**Benchmarks sectoriels de reference :**
+{benchmarks}
+
+### A FAIRE - PRIORITE ABSOLUE
+Comparez vos indicateurs aux benchmarks ci-dessus.
+Tout ecart negatif de plus de 5 points merite une action cette semaine.
+
+*Analyse IA complete disponible dans quelques minutes — relancez si necessaire.*"""
 
 
 def generate_free_pdf(module, summary_text, kpis, labels):
@@ -1802,28 +2637,50 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
         if in_sc:
             if ls.startswith('###') or ls.startswith('---'): break
             if ls and ('/' in ls or ':' in ls): scoring_lines.append(ls)
-    if scoring_lines:
+    # Scoring calculé côté Python — plus fiable que la regex
+    try:
+        _score_pdf = compute_logiflo_score(
+            module=module,
+            df=None,
+            kpis=kpis,
+            labels=labels,
+            sector_key="generique",
+            lang=lang
+        )
+        _details_pdf = _score_pdf.get("details", {})
+        if not _details_pdf and scoring_lines:
+            # Fallback regex si compute n'a pas de données
+            import re as _re2
+            for sl in scoring_lines[:3]:
+                sv=0
+                nums=_re2.findall(r'(\d+)\s*/\s*100',sl)
+                if nums: sv=int(nums[0])
+                label_sc=_re2.sub(r'\s*[:\-]\s*\d+/100.*$','',sl).strip().lstrip('-').strip()
+                _details_pdf[label_sc] = sv
+    except Exception:
+        _details_pdf = {}
         import re as _re2
         for sl in scoring_lines[:3]:
             sv=0
             nums=_re2.findall(r'(\d+)\s*/\s*100',sl)
             if nums: sv=int(nums[0])
-            rc,gc,bc=(0,168,122) if sv>=70 else (243,156,18) if sv>=40 else (232,48,74)
-            # Layout : label(60) | barre(108) | score(22) — total 200mm
-            _lx=10; _bx=72; _sx=183; _row_y=pdf.get_y()
-            # Label à gauche
-            pdf.set_font("Arial","",8); pdf.set_text_color(74,96,128)
             label_sc=_re2.sub(r'\s*[:\-]\s*\d+/100.*$','',sl).strip().lstrip('-').strip()
-            pdf.set_xy(_lx,_row_y); pdf.cell(60,7,_s(label_sc)[:32],align='L')
-            # Barre au centre
+            _details_pdf[label_sc] = sv
+
+    if _details_pdf:
+        for _dim_label, _sv in list(_details_pdf.items())[:3]:
+            _sv = int(_sv) if _sv else 0
+            rc,gc,bc=(0,168,122) if _sv>=70 else (243,156,18) if _sv>=40 else (232,48,74)
+            _lx=10; _bx=72; _sx=183; _row_y=pdf.get_y()
+            pdf.set_font("Arial","",8); pdf.set_text_color(74,96,128)
+            pdf.set_xy(_lx,_row_y); pdf.cell(60,7,_s(str(_dim_label))[:32],align='L')
             _bar_y=_row_y+1
             pdf.set_fill_color(225,232,240); pdf.rect(_bx,_bar_y,108,5,'F')
             pdf.set_fill_color(rc,gc,bc)
-            _fill=int((sv/100)*108) if sv>0 else 0
+            _fill=int((_sv/100)*108) if _sv>0 else 0
             if _fill>0: pdf.rect(_bx,_bar_y,_fill,5,'F')
-            # Score à droite — largeur fixe 22mm
             pdf.set_font("Arial","B",8); pdf.set_text_color(rc,gc,bc)
-            pdf.set_xy(_sx,_row_y); pdf.cell(22,7,f"{sv}/100",align='R')
+            pdf.set_xy(_sx,_row_y); pdf.cell(22,7,f"{_sv}/100",align='R')
             pdf.ln(8)
     else:
         pdf.set_font("Arial","I",10); pdf.set_text_color(74,96,128)
@@ -2362,14 +3219,181 @@ elif st.session_state.auth and st.session_state.page=="app":
             key="lang_sidebar",label_visibility="collapsed")
         st.session_state.language="en" if "English" in lang_sb else "fr"
         st.markdown("---")
-        nav=st.radio("",[_("nav_workspace"),_("nav_archives"),_("nav_params"),_("nav_legal")],
+        nav=st.radio("",[_("nav_dashboard"),_("nav_workspace"),_("nav_archives"),_("nav_params"),_("nav_legal")],
                      label_visibility="collapsed")
         st.markdown("---")
         if st.button(_("nav_logout"),use_container_width=True): st.session_state.clear();st.rerun()
         st.markdown("<div style='margin-top:40px;border-top:1px solid #1e3a5f;padding-top:14px;font-size:11px;color:#4A6080;'>© 2026 Logiflo B2B Enterprise</div>",unsafe_allow_html=True)
 
     # ── LEGAL ──
-    if nav==_("nav_legal"):
+    # ── DASHBOARD ──────────────────────────────────────────────────
+    if nav==_("nav_dashboard"):
+        lang_d = st.session_state.get("language","fr")
+        username_d = st.session_state.current_user
+        _df_arch = load_archives_from_sheets(username_d)
+        import datetime as _dt_mod
+        _hour = _dt_mod.datetime.now().hour
+        if lang_d == "en":
+            _greet = "Good morning" if _hour < 12 else ("Good afternoon" if _hour < 18 else "Good evening")
+        else:
+            _greet = "Bonjour" if _hour < 18 else "Bonsoir"
+        st.markdown(f"""
+        <div style="background:linear-gradient(135deg,#0B2545 0%,#0f2f5a 100%);
+                    border-radius:16px;padding:28px 32px;margin-bottom:24px;
+                    border-left:4px solid #00C896;">
+            <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:white;margin-bottom:4px;">
+                {_greet}, <span style="color:#00C896;">{username_d}</span>
+            </div>
+            <div style="font-size:13px;color:rgba(255,255,255,0.5);">
+                {"Your supply chain at a glance" if lang_d=="en" else "Votre supply chain en un coup d\'oeil"}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        if _df_arch is None or _df_arch.empty:
+            st.info("Aucun audit encore. Lancez votre premier audit pour voir votre tableau de bord." if lang_d=="fr"
+                    else "No audit yet. Launch your first audit to see your dashboard.")
+        else:
+            for _col in ["kpi_1","kpi_2","kpi_3"]:
+                _df_arch[_col] = pd.to_numeric(_df_arch[_col], errors="coerce").fillna(0)
+            try:
+                _df_arch["_dt"] = pd.to_datetime(_df_arch["date"]+" "+_df_arch["heure"],format="%d/%m/%Y %H:%M",errors="coerce")
+                _df_arch = _df_arch.sort_values("_dt",ascending=True)
+            except Exception: pass
+
+            # Alertes régression
+            for _mod_al in _df_arch["module"].unique():
+                _df_al = _df_arch[_df_arch["module"]==_mod_al].tail(2)
+                if len(_df_al) >= 2:
+                    try:
+                        _dv = float(_df_al.iloc[1]["kpi_2"]) - float(_df_al.iloc[0]["kpi_2"])
+                        _lbl2 = str(_df_al.iloc[1].get("kpi_label_2",""))
+                        _icon_al = "📦" if _mod_al=="stock" else "🚚"
+                        if _dv < -3:
+                            st.warning(f"⚠️ {_icon_al} {_lbl2} : {'baisse de' if lang_d=='fr' else 'dropped by'} **{abs(_dv):.1f} pts** {'depuis le dernier audit' if lang_d=='fr' else 'since last audit'} ({str(_df_al.iloc[1].get('date',''))})")
+                    except Exception: pass
+
+            # Cards derniers audits
+            _last = _df_arch.groupby("module").last().reset_index()
+            _dcols = st.columns(max(1,len(_last)))
+            for _ci,(_idx,_row) in enumerate(_last.iterrows()):
+                _mn = str(_row.get("module",""))
+                _k2 = float(_row.get("kpi_2",0))
+                _k1 = float(_row.get("kpi_1",0))
+                _l1 = str(_row.get("kpi_label_1",""))
+                _l2 = str(_row.get("kpi_label_2",""))
+                _date_n = str(_row.get("date",""))
+                _clr = "#00C896" if _k2>=90 else ("#F39C12" if _k2>=75 else "#E8304A")
+                _ico = "📦" if _mn=="stock" else "🚚"
+                with _dcols[_ci]:
+                    st.markdown(f"""
+                    <div style="background:white;border:1px solid #E2E8F0;border-radius:14px;
+                                padding:24px 20px;border-top:3px solid {_clr};margin-bottom:16px;">
+                        <div style="font-size:11px;font-weight:700;color:#4A6080;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;">
+                            {_ico} {_mn.upper()} — {_date_n}
+                        </div>
+                        <div style="font-family:Syne,sans-serif;font-size:30px;font-weight:800;color:#0B2545;line-height:1;">
+                            {_k2:.1f}<span style="font-size:14px;font-weight:400;color:#4A6080;">%</span>
+                        </div>
+                        <div style="font-size:12px;color:#4A6080;margin-top:4px;">{_l2}</div>
+                        <div style="margin-top:12px;padding-top:12px;border-top:1px solid #F0F4F8;font-size:12px;color:#4A6080;">
+                            {_l1}: <strong style="color:#0B2545;">{f"{_k1:,.0f}" if _k1>1000 else f"{_k1:.1f}"}</strong>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            # Courbes par module
+            import plotly.graph_objects as _go_d
+            for _mod_c in _df_arch["module"].unique():
+                _dfc = _df_arch[_df_arch["module"]==_mod_c].copy()
+                if len(_dfc) < 2: continue
+                _ico_c = "📦" if _mod_c=="stock" else "🚚"
+                _l2_c = str(_dfc["kpi_label_2"].iloc[-1])
+                _l1_c = str(_dfc["kpi_label_1"].iloc[-1])
+                _idx_c = list(range(len(_dfc)))
+                _fig_d = _go_d.Figure()
+                _fig_d.add_trace(_go_d.Scatter(
+                    x=_idx_c, y=_dfc["kpi_2"].tolist(),
+                    mode="lines+markers", name=_l2_c,
+                    line=dict(color="#00C896",width=3),
+                    marker=dict(size=10,color="#00C896",line=dict(color="white",width=2)),
+                    fill="tozeroy", fillcolor="rgba(0,200,150,0.08)",
+                    customdata=list(zip(
+                        _dfc["date"].tolist(),_dfc["heure"].tolist(),
+                        _dfc["kpi_1"].tolist(),[_l1_c]*len(_dfc),
+                        _dfc["resume_ia"].fillna("").str[:180].tolist()
+                    )),
+                    hovertemplate=(f"<b>%{{customdata[0]}} %{{customdata[1]}}</b><br>"
+                                   f"{_l2_c}: <b>%{{y:.1f}}%</b><br>"
+                                   f"{_l1_c}: <b>%{{customdata[2]:,.0f}}</b><br>"
+                                   f"<i>%{{customdata[4]}}...</i><extra></extra>")
+                ))
+                _ref_v = 97 if _mod_c=="stock" else 8
+                _ref_l = ("Target >97%" if lang_d=="en" else "Cible >97%") if _mod_c=="stock" else ("Target >8%" if lang_d=="en" else "Cible >8%")
+                _fig_d.add_hline(y=_ref_v,line_dash="dot",line_color="rgba(232,48,74,0.4)",
+                                  line_width=1.5,annotation_text=_ref_l,
+                                  annotation_position="right",annotation_font_size=10,
+                                  annotation_font_color="rgba(232,48,74,0.7)")
+                _fig_d.update_layout(
+                    title=dict(text=f"{_ico_c} {_mod_c.upper()} — {_l2_c}",
+                               font=dict(family="Syne",size=14,color="#0B2545"),x=0),
+                    xaxis=dict(tickmode="array",tickvals=_idx_c,
+                               ticktext=[str(d) for d in _dfc["date"].tolist()],
+                               tickfont=dict(size=10,color="#4A6080"),showgrid=False,zeroline=False),
+                    yaxis=dict(tickfont=dict(size=10,color="#4A6080"),
+                               gridcolor="rgba(0,0,0,0.04)",zeroline=False),
+                    plot_bgcolor="white",paper_bgcolor="white",
+                    margin=dict(t=44,b=32,l=40,r=40),height=260,
+                    showlegend=False,hovermode="x unified"
+                )
+                st.plotly_chart(_fig_d,use_container_width=True,config={"displayModeBar":False})
+
+                # Accès rapide PDF historique
+                _dfc_rev = _dfc.iloc[::-1].head(5)
+                _exp_lbl = "Recent audits" if lang_d=="en" else "Audits récents"
+                with st.expander(f"📂 {_exp_lbl} — {_mod_c.upper()}",expanded=False):
+                    for _ai,(_aidx,_arow) in enumerate(_dfc_rev.iterrows()):
+                        _a_date=str(_arow.get("date",""))
+                        _a_h=str(_arow.get("heure",""))
+                        _a_k2=float(_arow.get("kpi_2",0))
+                        _a_l2=str(_arow.get("kpi_label_2",""))
+                        _a_res=str(_arow.get("resume_ia",""))[:120]
+                        _has_pdf=bool(str(_arow.get("pdf_base64","")).strip())
+                        _ac1,_ac2=st.columns([3,1])
+                        with _ac1:
+                            st.markdown(f"""
+                            <div style="padding:10px 14px;background:#F8FAFC;border-radius:8px;
+                                        border-left:3px solid #00C896;margin-bottom:8px;">
+                                <div style="font-size:12px;font-weight:700;color:#0B2545;">
+                                    {_a_date} {_a_h} — {_a_l2}: {_a_k2:.1f}%
+                                </div>
+                                <div style="font-size:11px;color:#4A6080;margin-top:3px;font-style:italic;">
+                                    {_a_res}{"..." if len(str(_arow.get("resume_ia","")))>120 else ""}
+                                </div>
+                            </div>
+                            """,unsafe_allow_html=True)
+                        with _ac2:
+                            if _has_pdf:
+                                try:
+                                    import base64 as _b64d
+                                    _pdf_b=_b64d.b64decode(str(_arow["pdf_base64"]))
+                                    st.download_button("📥 PDF",_pdf_b,
+                                        f"Logiflo_{_mod_c}_{_a_date.replace('/','')}.pdf",
+                                        key=f"dl_d_{_mod_c}_{_ai}",use_container_width=True)
+                                except Exception: pass
+
+            # CTA nouveaux audits
+            st.markdown("<br>",unsafe_allow_html=True)
+            _nc1,_nc2,_nc3=st.columns([1,1,1])
+            with _nc1:
+                if st.button("📦 Nouveau audit Stock" if lang_d=="fr" else "📦 New Stock Audit",
+                             use_container_width=True,key="dash_s"):
+                    st.session_state.module="stock";st.session_state.page="choix_profil_stock";st.rerun()
+            with _nc2:
+                if st.button("🚚 Nouveau audit Transport" if lang_d=="fr" else "🚚 New Transport Audit",
+                             use_container_width=True,key="dash_t"):
+                    st.session_state.module="transport";st.session_state.page="login";st.rerun()
+
+    elif nav==_("nav_legal"):
         st.title(_("nav_legal"))
         tab1,tab2,tab3=st.tabs(["📋 Mentions Légales / Legal","🔒 Confidentialité / Privacy","📄 CGUV / Terms"])
         with tab1:
