@@ -619,7 +619,7 @@ def load_archives_from_sheets(username):
         return pd.DataFrame(records) if records else pd.DataFrame()
     except: return None
 
-def get_historique_audits(username, module, n=4, current_kpis=None, current_labels=None):
+def get_historique_audits(username, module, n=6, current_kpis=None, current_labels=None):
     """
     Charge les n derniers audits du même module depuis Google Sheets.
     Retourne un dict avec les tendances calculées ou None si pas d'historique.
@@ -674,6 +674,21 @@ def get_historique_audits(username, module, n=4, current_kpis=None, current_labe
                 "label_1": current_labels_safe[0] if len(current_labels_safe) > 0 else "KPI1",
                 "label_2": current_labels_safe[1] if len(current_labels_safe) > 1 else "KPI2",
                 "label_3": current_labels_safe[2] if len(current_labels_safe) > 2 else "KPI3",
+                "resume":  "",
+            })
+
+        # Si un audit courant est fourni, l'ajouter même si historique vide
+        if current_kpis and len(current_kpis) >= 2:
+            import datetime as _dt2
+            _current_labels_safe = current_labels or ["KPI1","KPI2","KPI3"]
+            history.append({
+                "date":    _dt2.date.today().strftime("%d/%m/%Y"),
+                "kpi_1":  float(current_kpis[0]) if len(current_kpis) > 0 else 0,
+                "kpi_2":  float(current_kpis[1]) if len(current_kpis) > 1 else 0,
+                "kpi_3":  float(current_kpis[2]) if len(current_kpis) > 2 else 0,
+                "label_1": _current_labels_safe[0] if len(_current_labels_safe) > 0 else "KPI1",
+                "label_2": _current_labels_safe[1] if len(_current_labels_safe) > 1 else "KPI2",
+                "label_3": _current_labels_safe[2] if len(_current_labels_safe) > 2 else "KPI3",
                 "resume":  "",
             })
 
@@ -1779,9 +1794,13 @@ Using ALL data above, write a complete structured audit with the following secti
 Each section must be fully developed — not bullet points only, real analytical sentences.
 
 ### PROFITABILITY AUDIT
-Start with your overall verdict (one sentence). Then develop: global margin vs sector benchmark
-(cite the exact gap in percentage points), identify the 3 worst routes/clients with their exact
-figures, and provide your expert hypothesis on the root cause of each loss.
+Start with a precise overall verdict (one sentence).
+IMPORTANT ON COMPARISON: if the margin is ABOVE the sector benchmark (e.g. 13.8% > 10%),
+that is POSITIVE — say so clearly. Do not invert the direction of the comparison.
+Cite the exact gap: "your margin of X% is above/below the healthy threshold of Y%".
+Identify the 3 worst routes/clients with their exact figures as they appear in the data.
+If client/route names are "nan" or empty in the data: flag this as a strategic blind spot
+(missing data) without inventing names. Provide a root cause hypothesis.
 
 ### NETWORK TREND AND EVOLUTION
 If historical data is available: analyze the trend in detail, cite the evolution of each KPI,
@@ -1811,24 +1830,30 @@ Write as a warehouse supervisor who knows this floor. Direct language, no financ
 Fully develop each section — real sentences, not just bullet points.
 
 ### WHAT IS URGENT
-Name the references that must be ordered TODAY. For each: exact reference, exact quantity,
-why it is critical right now. If any were already in shortage last audit, flag it explicitly.
+Name the references in stockout or near-stockout based on THE PROVIDED DATA.
+For each: exact reference as it appears in the data, exact current stock level,
+why it is critical. DO NOT invent order quantities — you do not have that information.
+Say "stock: X units" but NEVER "order X units" unless historical consumption data is available.
+If a reference was already in shortage at the last audit (if history provided), flag it explicitly.
 
 ### WHAT CHANGED SINCE LAST AUDIT
-Only if historical data available. What improved, what got worse, what is new. One paragraph.
-If no history: skip this section entirely.
+ONLY if historical data is explicitly provided in the context above.
+If the history section says "First audit" or "no history available": SKIP THIS SECTION ENTIRELY,
+do not even write the title.
 
 ### WHAT IS SLEEPING
-References with zero movement. For each: how long inactive, what to do with it.
+References with no movement detected in this file. IMPORTANT: if this is a first audit,
+do NOT say "for 6 months" or any duration — say "no movement detected in this file".
+The actual duration is unknown without history. For each: exact reference, exact stock, proposed action.
 
 ### WHAT TO DO NOW
-Start here: one sentence, the most urgent action, exact reference, exact quantity.
-If budget is tight: one cheaper alternative that still works.
+The most urgent action based on real data. Exact reference, exact stock level.
+Do not invent order quantities. If budget tight: one concrete alternative.
 The team decides — no ambiguity.
 
 ### YOUR 3 ACTIONS THIS WEEK
-Now develop 3 practical actions for the week. Ranked by urgency. One concrete sentence
-each with difficulty: Easy / Medium / Hard. These guide the team beyond today.
+3 practical actions ranked by urgency. One concrete sentence each.
+Difficulty: Easy / Medium / Hard. Based only on available data.
 
 ### SUMMARY
 2-3 sentences to brief the manager in 30 seconds. End with overall situation: improving / stable / worsening.""")
@@ -1871,9 +1896,13 @@ En utilisant TOUTES les donnees ci-dessus, redige un audit structure et complet.
 Developpe chaque section avec de vraies phrases analytiques — pas seulement des puces.
 
 ### AUDIT DE RENTABILITE
-Commence par ton verdict global (une phrase). Ensuite developpe : marge globale vs benchmark
-sectoriel (cite l'ecart exact en points de pourcentage), identifie les 3 pires trajets/clients
-avec leurs chiffres exacts, et donne ton hypothese experte sur la cause racine de chaque perte.
+Commence par ton verdict global (une phrase directe et precise).
+IMPORTANT SUR LA COMPARAISON : si la marge est SUPERIEURE au benchmark sectoriel (ex: 13,8% > 10%),
+c'est POSITIF — dis-le clairement. Ne pas inverser le sens de la comparaison.
+Cite l'ecart exact en points : "votre marge de X% depasse/est en dessous du seuil sain de Y%".
+Identifie les 3 pires trajets/clients avec leurs chiffres exacts tels qu'ils apparaissent dans les donnees.
+Si les noms de clients/trajets sont "nan" ou vides dans les donnees : signale cet angle mort
+(donnee manquante) sans inventer de noms. Propose une hypothese sur la cause racine.
 
 ### TENDANCE ET EVOLUTION DU RESEAU
 Si historique disponible : analyse la tendance en detail, cite l'evolution de chaque KPI,
@@ -1903,24 +1932,30 @@ Ecris comme un chef de quai qui connait cet entrepot. Langage direct, pas de jar
 Developpe chaque section avec de vraies phrases — pas seulement des puces.
 
 ### CE QUI EST URGENT
-Nomme les references a commander AUJOURD'HUI. Pour chacune : reference exacte, quantite exacte,
-pourquoi c'est critique maintenant. Si une reference etait deja en rupture au dernier audit, signale-le.
+Nomme les references en rupture ou proches de la rupture selon les DONNEES FOURNIES.
+Pour chacune : reference exacte telle qu'elle apparait dans les donnees, stock actuel exact,
+pourquoi c'est critique. NE PAS inventer de quantites a commander — tu n'as pas cette information.
+Dis "stock : X unites" mais JAMAIS "commander X unites" sauf si une consommation historique est disponible.
+Si une reference etait deja en rupture au dernier audit (historique disponible), signale-le explicitement.
 
 ### CE QUI A CHANGE DEPUIS LE DERNIER AUDIT
-Seulement si historique disponible. Ce qui s'est ameliore, ce qui s'est degrade, ce qui est nouveau.
-Un paragraphe complet. Si pas d'historique : saute cette section entierement.
+SEULEMENT si des donnees d'historique sont explicitement fournies dans le contexte ci-dessus.
+Si la section historique indique "Premier audit" ou "pas d'historique" : SAUTE COMPLETEMENT cette section,
+n'ecris meme pas le titre.
 
 ### CE QUI DORT
-References sans mouvement. Pour chacune : depuis combien de temps, que faire maintenant.
+References sans mouvement detectees dans ce fichier. IMPORTANT : si c'est un premier audit,
+ne dis PAS "depuis 6 mois" ou toute duree — dis "aucun mouvement detecte dans ce fichier".
+La duree reelle est inconnue sans historique. Pour chacune : reference exacte, stock exact, action proposee.
 
 ### A FAIRE MAINTENANT
-Commence ici : une phrase, l'action la plus urgente, reference exacte, quantite exacte.
-Si budget serre : une alternative moins couteuse qui change quand meme la situation.
+L'action la plus urgente basee sur les donnees reelles. Reference exacte, stock exact.
+Ne pas inventer de quantites de commande. Si budget serre : alternative concrète.
 C'est l'equipe qui decide — pas d'ambiguite.
 
 ### TES 3 ACTIONS POUR CETTE SEMAINE
-Developpe maintenant 3 actions pratiques pour la semaine. Classees par urgence, une phrase
-concrete chacune. Difficulte : Facile / Moyen / Complique. Ces actions guident au-dela d'aujourd'hui.
+3 actions pratiques classees par urgence. Une phrase concrete chacune.
+Difficulte : Facile / Moyen / Complique. Basees uniquement sur les donnees disponibles.
 
 ### EN RESUME
 2-3 phrases pour briefer le responsable en 30 secondes. Termine par : situation globale : en amelioration / stable / en degradation.""")
@@ -3253,12 +3288,19 @@ elif st.session_state.auth and st.session_state.page=="app":
             st.info("Aucun audit encore. Lancez votre premier audit pour voir votre tableau de bord." if lang_d=="fr"
                     else "No audit yet. Launch your first audit to see your dashboard.")
         else:
+            # Vérification défensive des colonnes
             for _col in ["kpi_1","kpi_2","kpi_3"]:
-                _df_arch[_col] = pd.to_numeric(_df_arch[_col], errors="coerce").fillna(0)
+                if _col in _df_arch.columns:
+                    _df_arch[_col] = pd.to_numeric(_df_arch[_col], errors="coerce").fillna(0)
+            for _col_req in ["module","date","heure","kpi_label_1","kpi_label_2","resume_ia"]:
+                if _col_req not in _df_arch.columns:
+                    _df_arch[_col_req] = ""
             try:
                 _df_arch["_dt"] = pd.to_datetime(_df_arch["date"]+" "+_df_arch["heure"],format="%d/%m/%Y %H:%M",errors="coerce")
                 _df_arch = _df_arch.sort_values("_dt",ascending=True)
             except Exception: pass
+            # Nettoyer les modules vides
+            _df_arch = _df_arch[_df_arch["module"].astype(str).str.strip().ne("")]
 
             # Alertes régression
             for _mod_al in _df_arch["module"].unique():
@@ -3888,22 +3930,24 @@ elif st.session_state.auth and st.session_state.page=="app":
                 fig_trans=fig_top  # pour le PDF
 
                 if run_ia_t:
-                    _ia_txt_tr2 = "Deep AI Analysis in progress..." if st.session_state.get("language","fr")=="en" else "Analyse approfondie IA en cours..."
-                    pg6=StepProgress([1,2,3],text=_ia_txt_tr2)
-                    pg6.step()
-                    top3=df_t.nsmallest(3,"Marge_Nette")
-                    pires_s=", ".join([f"{r[tour_c]} ({r['Marge_Nette']:.0f} EUR)" for _ii,r in top3.iterrows()]) if not top3.empty else "None"
+                    _bar_ia = st.progress(0, text="Analyse IA en cours..." if st.session_state.get("language","fr")=="fr" else "AI Analysis in progress...")
+                    # Filtrer les NaN dans les données transport avant l'analyse
+                    top3=df_t[df_t["Marge_Nette"].notna() & df_t[tour_c].notna()].nsmallest(3,"Marge_Nette")
+                    pires_s=", ".join([
+                        f"{str(r[tour_c]).strip()} ({r['Marge_Nette']:.0f} EUR)"
+                        for _ii,r in top3.iterrows()
+                        if str(r[tour_c]).strip() not in ("","nan","None","NaN")
+                    ]) if not top3.empty else "None"
                     mode_info=f" Dominant transport mode: {st.session_state.trans_mode_detected[0] if st.session_state.trans_mode_detected else 'road'}."
-                    # KPIs calculés AVANT generate_pdf
                     _kpis_tr=[marge_tot,taux,nb_tox]
                     _labels_tr=[_("trans_kpi_marge"),_("trans_kpi_taux"),"Toxic"]
-                    pg6.step()
-                    # Historique avec KPIs courants
+                    _bar_ia.progress(30, text="Analyse IA en cours..." if st.session_state.get("language","fr")=="fr" else "AI Analysis in progress...")
                     _hist_tr=get_historique_audits(st.session_state.current_user,"transport",
                                                    current_kpis=_kpis_tr,current_labels=_labels_tr)
                     _hist_txt_tr=format_historique_pour_prompt(_hist_tr,"transport",st.session_state.get("language","fr"))
                     _mode_k = st.session_state.trans_mode_detected[0] if st.session_state.get("trans_mode_detected") else "routier"
                     _sector_tr = detect_sector(df=df_t, module="transport", mode_detected=_mode_k)
+                    _bar_ia.progress(60, text="Analyse IA en cours..." if st.session_state.get("language","fr")=="fr" else "AI Analysis in progress...")
                     st.session_state.analysis_trans=generate_ai_analysis(
                         f"Routes: {len(df_t)}. Total margin: {marge_tot:.0f} EUR. Rate: {taux:.1f}%. "
                         f"Loss routes: {traj_def}. Top 3 worst: {pires_s}. Avg cost/km: {cout_km:.2f} EUR.{poids_info}{mode_info}",
@@ -3914,7 +3958,8 @@ elif st.session_state.auth and st.session_state.page=="app":
                     st.session_state.last_kpis=_kpis_tr
                     st.session_state.last_labels=_labels_tr
                     st.session_state.last_pdf=generate_expert_pdf(_("pdf_title_trans"),st.session_state.analysis_trans,[fig_trans],kpis=_kpis_tr,labels=_labels_tr,module="transport")
-                    pg6.done()
+                    _bar_ia.progress(100, text="Analyse IA en cours..." if st.session_state.get("language","fr")=="fr" else "AI Analysis in progress...")
+                    _bar_ia.empty()
 
                 if st.session_state.analysis_trans:
                     st.markdown(render_report(st.session_state.analysis_trans,"manager"),unsafe_allow_html=True)
