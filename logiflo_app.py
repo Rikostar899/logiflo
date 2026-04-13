@@ -917,7 +917,8 @@ Potential impact: High/Medium/Low | Execution difficulty: 1 to 5
 - Supply Chain Resilience: /100
 
 ABSOLUTE RULES:
-1. TONE: use a senior consultant's tone — explicitly congratulate what is good,
+1. LANGUAGE: use simple direct language only. FORBIDDEN: 'en deca', 'insofar as', 'notwithstanding'. Use: 'below', 'but', 'however' instead.
+2. TONE: use a senior consultant's tone — explicitly congratulate what is good,
    firmly signal what is concerning, propose concrete improvement axes.
    Positive example: "your 97% service level is excellent and exceeds the sector benchmark."
    Negative example: "your 75% service level is insufficient — here are the 3 priority actions."
@@ -955,7 +956,8 @@ Impact potentiel : Fort/Moyen/Faible | Difficulte : 1 a 5
 - Resilience supply chain : /100
 
 REGLES ABSOLUES :
-1. TON : adopte le ton d'un conseiller senior — felicite explicitement ce qui va bien,
+1. VOCABULAIRE : utilise uniquement un francais simple et direct. INTERDIT : 'en deca', 'neanmoins', 'cependant que', 'a cet egard'. Prefere : 'en dessous de', 'mais', 'pourtant'.
+2. TON : adopte le ton d'un conseiller senior — felicite explicitement ce qui va bien,
    signale fermement ce qui est preoccupant, propose des axes concrets pour ameliorer.
    Exemple positif : "votre taux de service de 97% est excellent et depasse le benchmark sectoriel."
    Exemple negatif : "votre taux de service de 75% est insuffisant — voici les 3 actions prioritaires."
@@ -1075,7 +1077,8 @@ Cash Impact: High/Medium/Low | Execution difficulty: 1 to 5
 - OPEX Control: /100
 
 ABSOLUTE RULES:
-1. TONE: use a senior consultant's tone — explicitly congratulate what is good,
+1. LANGUAGE: use simple direct language only. FORBIDDEN: 'en deca', 'insofar as', 'notwithstanding'. Use: 'below', 'but', 'however' instead.
+2. TONE: use a senior consultant's tone — explicitly congratulate what is good,
    firmly signal what is concerning, propose concrete improvement axes.
    Positive example: "your 97% service level is excellent and exceeds the sector benchmark."
    Negative example: "your 75% service level is insufficient — here are the 3 priority actions."
@@ -1121,7 +1124,8 @@ Impact Cash : Fort/Moyen/Faible | Difficulte : 1 a 5
 - Maitrise des OPEX : /100
 
 REGLES ABSOLUES :
-1. TON : adopte le ton d'un conseiller senior — felicite explicitement ce qui va bien,
+1. VOCABULAIRE : utilise uniquement un francais simple et direct. INTERDIT : 'en deca', 'neanmoins', 'cependant que', 'a cet egard'. Prefere : 'en dessous de', 'mais', 'pourtant'.
+2. TON : adopte le ton d'un conseiller senior — felicite explicitement ce qui va bien,
    signale fermement ce qui est preoccupant, propose des axes concrets pour ameliorer.
    Exemple positif : "votre taux de service de 97% est excellent et depasse le benchmark sectoriel."
    Exemple negatif : "votre taux de service de 75% est insuffisant — voici les 3 actions prioritaires."
@@ -3254,7 +3258,11 @@ elif st.session_state.auth and st.session_state.page=="app":
             key="lang_sidebar",label_visibility="collapsed")
         st.session_state.language="en" if "English" in lang_sb else "fr"
         st.markdown("---")
-        nav=st.radio("",[_("nav_dashboard"),_("nav_workspace"),_("nav_archives"),_("nav_params"),_("nav_legal")],
+        _is_terrain = (st.session_state.get("stock_view","") == "TERRAIN")
+        _nav_items = ([_("nav_workspace"),_("nav_archives"),_("nav_params"),_("nav_legal")]
+                      if _is_terrain else
+                      [_("nav_dashboard"),_("nav_workspace"),_("nav_archives"),_("nav_params"),_("nav_legal")])
+        nav=st.radio("",_nav_items,
                      label_visibility="collapsed")
         st.markdown("---")
         if st.button(_("nav_logout"),use_container_width=True): st.session_state.clear();st.rerun()
@@ -3732,29 +3740,24 @@ elif st.session_state.auth and st.session_state.page=="app":
             st.markdown("---")
 
             if up_t and st.session_state.trans_filename!=up_t.name:
-                # Barre unique — couvre tout le traitement initial y compris ORS
-                _bar_load = st.progress(0, text="Calcul en cours..." if st.session_state.get("language","fr")=="fr" else "Computing...")
-                try: df_t=pd.read_excel(up_t) if up_t.name.endswith("xlsx") else pd.read_csv(up_t,encoding="utf-8")
-                except UnicodeDecodeError:
-                    up_t.seek(0);df_t=pd.read_csv(up_t,encoding="latin-1")
-                _bar_load.progress(25, text="Calcul en cours..." if st.session_state.get("language","fr")=="fr" else "Computing...")
-                mapping=auto_map_columns_with_ai(df_t)
-                dep_c_tmp=mapping.get("dep") if mapping.get("dep") in df_t.columns else None
-                arr_c_tmp=mapping.get("arr") if mapping.get("arr") in df_t.columns else None
-                mode_c_tmp=mapping.get("mode") if mapping.get("mode") in df_t.columns else None
-                mode_det,mode_label,mode_emoji=detect_transport_mode(df_t,dep_c_tmp,arr_c_tmp,mode_c_tmp)
-                _bar_load.progress(60, text="Calcul en cours..." if st.session_state.get("language","fr")=="fr" else "Computing...")
-                st.session_state.trans_mapping=mapping
-                st.session_state.df_trans=df_t
-                st.session_state.trans_filename=up_t.name
-                st.session_state.trans_mode_detected=(mode_det,mode_label,mode_emoji)
-                # ORS inclus dans la même barre si colonnes dep/arr présentes
-                if dep_c_tmp and arr_c_tmp:
-                    df_t=smart_multimodal_router(df_t,dep_c_tmp,arr_c_tmp,mode_c_tmp)
+                _lbl_calc = "Calcul en cours..." if st.session_state.get("language","fr")=="fr" else "Computing..."
+                with st.spinner(_lbl_calc):
+                    try: df_t=pd.read_excel(up_t) if up_t.name.endswith("xlsx") else pd.read_csv(up_t,encoding="utf-8")
+                    except UnicodeDecodeError:
+                        up_t.seek(0);df_t=pd.read_csv(up_t,encoding="latin-1")
+                    mapping=auto_map_columns_with_ai(df_t)
+                    dep_c_tmp=mapping.get("dep") if mapping.get("dep") in df_t.columns else None
+                    arr_c_tmp=mapping.get("arr") if mapping.get("arr") in df_t.columns else None
+                    mode_c_tmp=mapping.get("mode") if mapping.get("mode") in df_t.columns else None
+                    mode_det,mode_label,mode_emoji=detect_transport_mode(df_t,dep_c_tmp,arr_c_tmp,mode_c_tmp)
+                    st.session_state.trans_mapping=mapping
                     st.session_state.df_trans=df_t
-                    st.session_state.df_trans["_DIST_CALCULEE_DONE"]=True
-                _bar_load.progress(100, text="Calcul en cours..." if st.session_state.get("language","fr")=="fr" else "Computing...")
-                _bar_load.empty()
+                    st.session_state.trans_filename=up_t.name
+                    st.session_state.trans_mode_detected=(mode_det,mode_label,mode_emoji)
+                    if dep_c_tmp and arr_c_tmp:
+                        df_t=smart_multimodal_router(df_t,dep_c_tmp,arr_c_tmp,mode_c_tmp)
+                        st.session_state.df_trans=df_t
+                        st.session_state.df_trans["_DIST_CALCULEE_DONE"]=True
 
             if st.session_state.df_trans is not None:
                 df_t=st.session_state.df_trans
@@ -3783,9 +3786,8 @@ elif st.session_state.auth and st.session_state.page=="app":
 
                 # ORS déjà fait pendant l'import si dep/arr présents
                 if dep_c and arr_c and "_DIST_CALCULEE" not in df_t.columns and "_DIST_CALCULEE_DONE" not in df_t.columns:
-                    with st.spinner("Calcul en cours..." if st.session_state.get("language","fr")=="fr" else "Computing..."):
-                        df_t=smart_multimodal_router(df_t,dep_c,arr_c,mode_c)
-                        st.session_state.df_trans=df_t
+                    df_t=smart_multimodal_router(df_t,dep_c,arr_c,mode_c)
+                    st.session_state.df_trans=df_t
 
                 df_t["_DIST_FINALE"]=(df_t["_DIST_CALCULEE"] if "_DIST_CALCULEE" in df_t.columns and df_t["_DIST_CALCULEE"].sum()>0
                                       else (df_t[dist_c].apply(super_clean) if dist_c else 0))
