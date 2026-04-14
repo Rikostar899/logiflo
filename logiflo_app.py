@@ -163,42 +163,50 @@ def get_sector_news(sector_key, lang="fr"):
     return articles
 
 def render_news_widget(sector_key, lang="fr"):
-    """Affiche les news sectorielles dans le dashboard."""
+    """Affiche les news sectorielles avec aperçu défilant et lien cliquable."""
     news = get_sector_news(sector_key, lang)
     if not news:
         return
 
     _lbl = "Actualités de votre secteur" if lang=="fr" else "Sector News"
     st.markdown(f"""
-    <div style="margin-top:20px;">
-        <div style="font-size:11px;font-weight:700;color:#4A6080;
-                    letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
-            📰 {_lbl}
-        </div>
+    <div style="font-size:11px;font-weight:700;color:#4A6080;
+                letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;
+                margin-top:8px;">
+        📰 {_lbl}
     </div>
     """, unsafe_allow_html=True)
 
+    # Construire le HTML avec aperçu cliquable pour chaque article
+    _cards_html = ""
     for _art in news[:5]:
-        _title = str(_art.get("title",""))[:90]
-        _link  = str(_art.get("link",""))
-        _date  = str(_art.get("date",""))[:10]
+        _title  = str(_art.get("title",""))[:80]
+        _link   = str(_art.get("link",""))
+        _date   = str(_art.get("date",""))[:10]
+        _source = _link.split("/")[2] if "/" in _link else ""
         if not _title or not _link:
             continue
-        st.markdown(f"""
-        <a href="{_link}" target="_blank" style="text-decoration:none;">
-        <div style="background:white;border:1px solid #E2E8F0;border-radius:8px;
-                    padding:10px 14px;margin-bottom:6px;cursor:pointer;
-                    transition:border-color 0.2s;"
-             onmouseover="this.style.borderColor='#00C896'"
-             onmouseout="this.style.borderColor='#E2E8F0'">
-            <div style="font-size:12px;font-weight:600;color:#0B2545;
-                        margin-bottom:3px;line-height:1.3;">
-                {_title}
-            </div>
-            <div style="font-size:10px;color:#8FA3BC;">{_date}</div>
-        </div>
-        </a>
-        """, unsafe_allow_html=True)
+        _cards_html += f"""
+        <a href="{_link}" target="_blank" style="text-decoration:none;display:block;">
+          <div style="background:white;border:1px solid #E2E8F0;border-radius:10px;
+                      padding:12px 16px;margin-bottom:8px;cursor:pointer;
+                      transition:all 0.2s ease;"
+               onmouseover="this.style.borderColor='#00C896';this.style.boxShadow='0 2px 12px rgba(0,200,150,0.15)'"
+               onmouseout="this.style.borderColor='#E2E8F0';this.style.boxShadow='none'">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+                  <div style="font-size:13px;font-weight:600;color:#0B2545;
+                              line-height:1.4;flex:1;">{_title}</div>
+                  <div style="font-size:16px;flex-shrink:0;color:#00C896;">→</div>
+              </div>
+              <div style="display:flex;gap:10px;margin-top:6px;">
+                  <div style="font-size:10px;color:#8FA3BC;">{_date}</div>
+                  <div style="font-size:10px;color:#8FA3BC;font-style:italic;">{_source}</div>
+              </div>
+          </div>
+        </a>"""
+
+    if _cards_html:
+        st.markdown(_cards_html, unsafe_allow_html=True)
 
 
 SECTORAL_DB = {
@@ -538,8 +546,8 @@ PLAN_LIMITS = {
     "starter": {
         "label":          "Starter",
         "price":          "290€/mois",
-        "color":          "#4F46E5",
-        "bg":             "#EEF2FF",
+        "color":          "#6D28D9",
+        "bg":             "#F3E8FF",
         "icon":           "●",
         "modules":        1,
         "audits_mois":    5,
@@ -556,8 +564,8 @@ PLAN_LIMITS = {
     "business": {
         "label":          "Business",
         "price":          "590€/mois",
-        "color":          "#059669",
-        "bg":             "#EEF9F5",
+        "color":          "#047857",
+        "bg":             "#D1FAE5",
         "icon":           "◆",
         "modules":        2,
         "audits_mois":    None,
@@ -574,8 +582,8 @@ PLAN_LIMITS = {
     "expert": {
         "label":          "Expert",
         "price":          "Sur devis",
-        "color":          "#D97706",
-        "bg":             "#FFF7ED",
+        "color":          "#B45309",
+        "bg":             "#FDE68A",
         "icon":           "★",
         "modules":        99,
         "audits_mois":    None,
@@ -3412,10 +3420,11 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
             pdf.cell(card_w-4,12,val_str,align='C')
         pdf.ln(46)
 
-    # Scoring extrait du contenu IA
-    pdf.set_font("Arial","B",13); pdf.set_text_color(11,37,69)
-    sc_title = "Logiflo Scoring" if lang=="en" else "Scoring Logiflo"
-    pdf.cell(0,8,_s(sc_title),ln=True); pdf.ln(2)
+    # Scoring extrait du contenu IA (titre uniquement si stock)
+    if module == "stock":
+        pdf.set_font("Arial","B",13); pdf.set_text_color(11,37,69)
+        sc_title = "Logiflo Scoring" if lang=="en" else "Scoring Logiflo"
+        pdf.cell(0,8,_s(sc_title),ln=True); pdf.ln(2)
     scoring_lines=[]
     in_sc=False
     for line in content.split('\n'):
@@ -3522,6 +3531,40 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
                     try: os.unlink(_tp)
                     except: pass
 
+    # ── LISTING PIRES TRAJETS (transport uniquement, dans page 3) ──
+    if module == "transport" and figs:
+        # Extraire les pires trajets depuis le contenu IA
+        _pires_lines = []
+        _in_pires = False
+        for _lp in content.split("\n"):
+            _lp_s = _lp.strip()
+            if any(k in _lp_s.upper() for k in ["PIRE","WORST","DEFICITAIRE","LOSS","TOXIC","RENTABILIT"]):
+                if _lp_s.startswith("###"):
+                    _in_pires = True
+                    continue
+            if _in_pires:
+                if _lp_s.startswith("###"):
+                    break
+                if _lp_s.startswith(("-","*","•")) and _lp_s:
+                    _pires_lines.append(_lp_s[1:].strip().replace("**",""))
+                elif _lp_s and not _lp_s.startswith("#") and len(_pires_lines) < 8:
+                    _pires_lines.append(_lp_s.replace("**",""))
+
+        if _pires_lines:
+            if pdf.get_y() > 240:
+                pdf.add_page(); pdf.ln(5)
+            pdf.set_font("Arial","B",10); pdf.set_text_color(11,37,69)
+            _pl_lbl = "Top routes to address" if lang=="en" else "Trajets prioritaires à traiter"
+            pdf.ln(4)
+            pdf.set_fill_color(240,244,248); pdf.rect(10,pdf.get_y(),190,10,"F")
+            pdf.set_fill_color(232,48,74); pdf.rect(10,pdf.get_y(),3,10,"F")
+            pdf.set_x(16); pdf.cell(184,10,_s(_pl_lbl.upper()),ln=True); pdf.ln(3)
+            for _pl in _pires_lines[:6]:
+                if pdf.get_y() > 272: break
+                pdf.set_font("Arial","",9); pdf.set_text_color(40,40,40)
+                pdf.set_x(14); pdf.cell(4,5,"-"); pdf.set_x(18)
+                pdf.multi_cell(182,5,_s(_pl[:120]))
+
     # ── PAGE 4 : ANALYSE IA ───────────────────────────────────────
     pdf.add_page()
     pdf.set_fill_color(11,37,69); pdf.rect(0,0,210,18,'F')
@@ -3534,13 +3577,16 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
                       .replace("\u20ac","EUR").replace("\u2022","-")
                       .replace("\u2013","-").replace("\u2014","-"))
     # Scoring toujours en p2 uniquement — on le saute en p4 pour tous les modules
-    skip_scoring=True  # commence False, passe True quand on rencontre ### SCORING
-    _in_scoring=False
+    # Pour transport : on saute le scoring pour tenir sur 5 pages
+    _force_skip_scoring = (module == "transport")
     skip_scoring=False
+    _in_scoring=False
     for line in content_r.split('\n'):
         line=line.strip()
         if 'SCORING' in line.upper() and line.startswith('###'):
             _in_scoring=True; skip_scoring=True
+        if _force_skip_scoring and _in_scoring:
+            continue
         if skip_scoring and _in_scoring and not line.startswith('###'):
             continue
         if _in_scoring and line.startswith('###') and 'SCORING' not in line.upper():
@@ -4101,7 +4147,111 @@ elif st.session_state.auth and st.session_state.page=="app":
                             st.warning(f"⚠️ {_icon_al} {_lbl2} : {'baisse de' if lang_d=='fr' else 'dropped by'} **{abs(_dv):.1f} pts** {'depuis le dernier audit' if lang_d=='fr' else 'since last audit'} ({str(_df_al.iloc[1].get('date',''))})")
                     except Exception: pass
 
-            # Cards derniers audits
+            # ── Camembert + Courbe côte à côte ────────────────
+            _col_pie, _col_curve = st.columns(2)
+
+            # Camembert : répartition des statuts du dernier audit stock
+            with _col_pie:
+                try:
+                    _last_stock = _df_arch[_df_arch["module"]=="stock"]
+                    if not _last_stock.empty:
+                        _last_s_row = _last_stock.iloc[-1]
+                        _k1_s = float(_last_s_row.get("kpi_1",0))
+                        _k2_s = float(_last_s_row.get("kpi_2",0))
+                        _k3_s = float(_last_s_row.get("kpi_3",0))
+                        _l1_s = str(_last_s_row.get("kpi_label_1","Articles"))
+                        _l2_s = str(_last_s_row.get("kpi_label_2","Taux service"))
+                        _l3_s = str(_last_s_row.get("kpi_label_3","Ruptures"))
+                        import plotly.graph_objects as _go_pie_d
+                        _fig_pie_d = _go_pie_d.Figure(_go_pie_d.Pie(
+                            labels=[_l2_s, _l3_s, "Autres"],
+                            values=[_k2_s, max(_k3_s,0.1), max(100-_k2_s-max(_k3_s,0),0)],
+                            hole=0.45,
+                            marker_colors=["#00C896","#E8304A","#E2E8F0"],
+                        ))
+                        _fig_pie_d.update_layout(
+                            title=dict(text="📦 Stock — Répartition",
+                                      font=dict(size=12,color="#0B2545"),x=0),
+                            showlegend=True,
+                            legend=dict(font=dict(size=10)),
+                            margin=dict(t=36,b=10,l=0,r=0),
+                            height=220,
+                            paper_bgcolor="white",
+                        )
+                        st.plotly_chart(_fig_pie_d, use_container_width=True,
+                                        config={"displayModeBar":False})
+                except Exception:
+                    st.markdown("<div style='height:220px'></div>", unsafe_allow_html=True)
+
+            # Courbe évolution KPI2 (taux de service / marge)
+            with _col_curve:
+                try:
+                    import plotly.graph_objects as _go_cv
+                    for _mc in ["stock","transport"]:
+                        _dfc_v = _df_arch[_df_arch["module"]==_mc].copy()
+                        if len(_dfc_v) < 2:
+                            continue
+                        _l2v = str(_dfc_v["kpi_label_2"].iloc[-1])
+                        _fig_cv = _go_cv.Figure()
+                        _fig_cv.add_trace(_go_cv.Scatter(
+                            x=list(range(len(_dfc_v))),
+                            y=_dfc_v["kpi_2"].tolist(),
+                            mode="lines+markers",
+                            name=_mc,
+                            line=dict(color="#00C896" if _mc=="stock" else "#F39C12",width=2),
+                            marker=dict(size=7),
+                            fill="tozeroy",
+                            fillcolor="rgba(0,200,150,0.08)" if _mc=="stock" else "rgba(243,156,18,0.08)",
+                        ))
+                        _fig_cv.update_layout(
+                            title=dict(text=f"📈 {_l2v}",
+                                      font=dict(size=12,color="#0B2545"),x=0),
+                            xaxis=dict(tickmode="array",
+                                      tickvals=list(range(len(_dfc_v))),
+                                      ticktext=[str(d) for d in _dfc_v["date"].tolist()],
+                                      tickfont=dict(size=8),showgrid=False),
+                            yaxis=dict(tickfont=dict(size=8),
+                                      gridcolor="rgba(0,0,0,0.04)"),
+                            plot_bgcolor="white",paper_bgcolor="white",
+                            margin=dict(t=36,b=20,l=30,r=10),
+                            height=220,showlegend=False,
+                        )
+                        st.plotly_chart(_fig_cv, use_container_width=True,
+                                        config={"displayModeBar":False})
+                        break  # un seul graphique
+                except Exception:
+                    pass
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            # ── Résumé du dernier audit ────────────────────────
+            try:
+                _last_any = _df_arch.sort_values(
+                    "created_at" if "created_at" in _df_arch.columns else "date",
+                    ascending=False
+                ).iloc[0]
+                _resume_d = str(_last_any.get("resume_ia",""))[:300]
+                _mod_d    = str(_last_any.get("module",""))
+                _date_d   = str(_last_any.get("date",""))
+                _ico_d    = "📦" if _mod_d=="stock" else "🚚"
+                if _resume_d.strip():
+                    st.markdown(f"""
+                    <div style="background:white;border:1px solid #E2E8F0;border-radius:12px;
+                                padding:14px 18px;margin-bottom:16px;
+                                border-left:4px solid #00C896;">
+                        <div style="font-size:10px;font-weight:700;color:#4A6080;
+                                    letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">
+                            {_ico_d} Dernière analyse — {_date_d}
+                        </div>
+                        <div style="font-size:12px;color:#0B2545;line-height:1.5;font-style:italic;">
+                            {_resume_d}{"..." if len(str(_last_any.get("resume_ia","")))>300 else ""}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            except Exception:
+                pass
+
+            # ── Cards derniers audits ──────────────────────────
             _last = _df_arch.groupby("module").last().reset_index()
             _dcols = st.columns(max(1,len(_last)))
             for _ci,(_idx,_row) in enumerate(_last.iterrows()):
@@ -4497,12 +4647,50 @@ elif st.session_state.auth and st.session_state.page=="app":
 
 
     elif nav==_("nav_params"):
-        st.title(_("params_title"))
-        if st.session_state.module=="stock":
-            st.session_state.seuil_bas=st.slider(_("params_alert"),0,100,st.session_state.seuil_bas)
-            st.session_state.seuil_rupture=st.slider(_("params_rupture"),0,10,st.session_state.seuil_rupture)
-        else:
-            st.session_state.seuil_km=st.slider(_("params_km"),0,1000,st.session_state.seuil_km)
+        _lang_p = st.session_state.get("language","fr")
+        _title_p = "Paramètres" if _lang_p=="fr" else "Settings"
+        st.markdown(f"<h2 style='font-family:Syne,sans-serif;color:#0B2545;'>{_title_p}</h2>",
+                    unsafe_allow_html=True)
+
+        # ── Langue
+        st.markdown("**🌐 Langue / Language**")
+        _lang_opts = ["🇫🇷 Français","🇬🇧 English"]
+        _lang_idx = 1 if _lang_p=="en" else 0
+        _lang_sel = st.radio("", _lang_opts, index=_lang_idx, horizontal=True,
+                              label_visibility="collapsed", key="params_lang_radio")
+        _new_lang = "en" if "English" in _lang_sel else "fr"
+        if _new_lang != _lang_p:
+            st.session_state["language"] = _new_lang
+            try:
+                save_user_prefs(st.session_state.current_user, {"language": _new_lang})
+            except Exception: pass
+            st.rerun()
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # ── Mode sombre
+        st.markdown("**🌙 Thème / Theme**")
+        _dark = st.session_state.get("dark_mode", False)
+        _dark_lbl = ("Mode sombre" if _lang_p=="fr" else "Dark mode")
+        _dark_new = st.toggle(_dark_lbl, value=_dark, key="params_dark_toggle")
+        if _dark_new != _dark:
+            st.session_state["dark_mode"] = _dark_new
+            if _dark_new:
+                st.markdown("""<style>
+                .stApp { background-color: #0d1117 !important; color: #e6edf3 !important; }
+                .stSidebar { background-color: #161b22 !important; }
+                </style>""", unsafe_allow_html=True)
+            st.info("Rechargez la page pour appliquer le thème." if _lang_p=="fr"
+                    else "Reload the page to apply the theme.")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # ── Lien vers Mon Compte pour les autres params
+        _compte_lbl = ("⚙️ Les autres paramètres (seuils, module par défaut, entreprise) "
+                        "sont dans **Mon Compte**." if _lang_p=="fr" else
+                        "⚙️ Other settings (thresholds, default module, company) "
+                        "are in **My Account**.")
+        st.info(_compte_lbl)
 
     elif nav==_("nav_workspace"):
         # ── Fichier exemple téléchargeable ─────────────────────
@@ -4656,8 +4844,42 @@ elif st.session_state.auth and st.session_state.page=="app":
                         _labels_final=[label1, _("stock_kpi_service"), _("stock_kpi_rupture")]
                         st.session_state.last_kpis=_kpis_final
                         st.session_state.last_labels=_labels_final
+                        # Courbe évolution historique pour le PDF
+                        _arc_pdf_s = load_archives_from_sheets(st.session_state.current_user)
+                        fig_hist_pdf = None
+                        try:
+                            if _arc_pdf_s is not None and not _arc_pdf_s.empty:
+                                _df_hs = _arc_pdf_s[_arc_pdf_s["module"]=="stock"].copy()
+                                if len(_df_hs) >= 2:
+                                    for _c in ["kpi_2"]:
+                                        _df_hs[_c] = pd.to_numeric(_df_hs[_c], errors="coerce").fillna(0)
+                                    import plotly.graph_objects as _go_pdfh
+                                    fig_hist_pdf = _go_pdfh.Figure()
+                                    fig_hist_pdf.add_trace(_go_pdfh.Scatter(
+                                        x=list(range(len(_df_hs))),
+                                        y=_df_hs["kpi_2"].tolist(),
+                                        mode="lines+markers",
+                                        line=dict(color="#00C896", width=2),
+                                        marker=dict(size=7, color="#00C896"),
+                                        fill="tozeroy",
+                                        fillcolor="rgba(0,200,150,0.1)",
+                                    ))
+                                    _lbl2_pdf = str(_df_hs["kpi_label_2"].iloc[-1])
+                                    fig_hist_pdf.update_layout(
+                                        title=dict(text=_lbl2_pdf, font=dict(size=11,color="#0B2545"), x=0),
+                                        xaxis=dict(tickmode="array",tickvals=list(range(len(_df_hs))),
+                                                   ticktext=[str(d) for d in _df_hs["date"].tolist()],
+                                                   tickfont=dict(size=8),showgrid=False),
+                                        yaxis=dict(tickfont=dict(size=8),gridcolor="rgba(0,0,0,0.05)"),
+                                        plot_bgcolor="white",paper_bgcolor="white",
+                                        margin=dict(t=30,b=20,l=30,r=10),
+                                        height=260,showlegend=False,
+                                    )
+                        except Exception:
+                            fig_hist_pdf = None
                         figs_pdf=[fig_pie]
                         if has_conso: figs_pdf.append(fig_conso)
+                        if fig_hist_pdf is not None: figs_pdf.append(fig_hist_pdf)
                         st.session_state.last_pdf=generate_expert_pdf(_("pdf_title_stock"),st.session_state.analysis_stock,figs_pdf,kpis=_kpis_final,labels=_labels_final,module="stock")
                         pg2.done()
 
