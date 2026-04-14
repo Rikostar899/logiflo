@@ -3861,21 +3861,7 @@ if st.session_state.page=="accueil":
         if st.button(_("home_stock"),use_container_width=True):
             st.session_state.module="stock";st.session_state.page="choix_profil_stock";st.rerun()
 
-        # Fichier exemple téléchargeable
-        _lang_acc = st.session_state.get("language","fr")
-        _ex_lbl = "📥 Télécharger le fichier exemple" if _lang_acc=="fr" else "📥 Download sample file"
-        try:
-            _ex_bytes = generate_exemple_excel()
-            if _ex_bytes:
-                st.download_button(
-                    _ex_lbl, _ex_bytes,
-                    "logiflo_modele.xlsx",
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True,
-                    key="dl_exemple_accueil"
-                )
-        except Exception:
-            pass
+
     with c2:
         st.markdown("<span class='big-emoji'>🌍</span>",unsafe_allow_html=True)
         if st.button(_("home_transport"),use_container_width=True):
@@ -4022,20 +4008,27 @@ elif st.session_state.page=="login":
 
 elif st.session_state.auth and st.session_state.page=="app":
     with st.sidebar:
+        _plan_sb  = get_user_plan(st.session_state.current_user)
+        _pinfo_sb = PLAN_LIMITS.get(_plan_sb, PLAN_LIMITS["starter"])
+        _can_audit_sb = audit_counter_sidebar(st.session_state.current_user, _plan_sb)
+        _plan_bg  = _pinfo_sb["bg"]
+        _plan_col = _pinfo_sb["color"]
+        _plan_ico = _pinfo_sb["icon"]
+        _plan_lbl = _pinfo_sb["label"]
+        _cur_user = st.session_state.current_user
         st.markdown(f"""
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
                 <div class="sidebar-logo">LOGI<span>FLO</span>.IO</div>
-                <div style="font-size:20px;line-height:1.2;">📦<br>📦📦</div>
             </div>
             <div style="font-size:12px;color:#4A6080;margin-bottom:6px;">
-                👤 {st.session_state.current_user}
+                👤 {_cur_user}
             </div>
             <div style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;
                         border-radius:20px;margin-bottom:10px;
-                        background:{_pinfo_sb['bg']};color:{_pinfo_sb['color']};
-                        border:1px solid {_pinfo_sb['color']}40;
+                        background:{_plan_bg};color:{_plan_col};
+                        border:1px solid {_plan_col}40;
                         font-size:10px;font-weight:700;">
-                {_pinfo_sb['icon']} {_pinfo_sb['label']}
+                {_plan_ico} {_plan_lbl}
             </div>
         """,unsafe_allow_html=True)
         # Sélecteur langue dans sidebar
@@ -4512,6 +4505,21 @@ elif st.session_state.auth and st.session_state.page=="app":
             st.session_state.seuil_km=st.slider(_("params_km"),0,1000,st.session_state.seuil_km)
 
     elif nav==_("nav_workspace"):
+        # ── Fichier exemple téléchargeable ─────────────────────
+        _lang_ws = st.session_state.get("language","fr")
+        try:
+            _ex_bytes = generate_exemple_excel()
+            if _ex_bytes:
+                _ex_lbl = "📥 Fichier exemple (Stock & Transport)" if _lang_ws=="fr" else "📥 Sample file (Stock & Transport)"
+                st.download_button(
+                    _ex_lbl, _ex_bytes,
+                    "logiflo_modele.xlsx",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=False,
+                    key="dl_exemple_workspace"
+                )
+        except Exception:
+            pass
 
         # ══ MODULE STOCK ══
         if st.session_state.module=="stock":
