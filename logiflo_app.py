@@ -23,8 +23,10 @@ from openai import OpenAI
 import gspread
 try:
     from supabase import create_client as _supa_create
-except ImportError:
+    from supabase import Client as _supa_Client
+except Exception:
     _supa_create = None
+    _supa_Client = None
 from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="LOGIFLO.IO | Control Tower", layout="wide", page_icon="🏢")
@@ -111,7 +113,6 @@ def fetch_news_newsapi(query, lang="fr", max_results=5):
     except Exception:
         return []
 
-@st.cache_data(ttl=14400)  # cache 4h
 def get_sector_news(sector_key, lang="fr"):
     """
     Retourne les 5 dernières news pour un secteur.
@@ -669,6 +670,8 @@ def audit_counter_sidebar(username, plan):
 
     lang = st.session_state.get("language","fr")
     max_a = PLAN_LIMITS[plan]["audits_mois"]
+    # Ne charger les archives que si Supabase est disponible
+    # pour éviter de bloquer le démarrage
     try:
         _arc = load_archives_from_sheets(username)
         if _arc is None or _arc.empty:
@@ -935,7 +938,6 @@ def _(key):
 # =========================================
 # 0.2 SUPABASE (remplace Google Sheets)
 # =========================================
-@st.cache_resource
 def get_supabase():
     """Client Supabase — fallback silencieux si non configuré."""
     try:
@@ -1069,7 +1071,6 @@ def _load_archives_sheets_fallback(username):
         return pd.DataFrame(records) if records else pd.DataFrame()
     except: return None
 
-@st.cache_resource
 def get_gsheet_client():
     try:
         creds=Credentials.from_service_account_info(
