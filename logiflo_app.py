@@ -21,6 +21,10 @@ import io
 from fpdf import FPDF
 from openai import OpenAI
 import gspread
+try:
+    from supabase import create_client as _supa_create
+except ImportError:
+    _supa_create = None
 from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="LOGIFLO.IO | Control Tower", layout="wide", page_icon="🏢")
@@ -35,6 +39,167 @@ SHEET_ID    = st.secrets.get("GOOGLE_SHEET_ID", "")
 # =========================================
 # SECTORAL BENCHMARKS DATABASE
 # =========================================
+
+# ══════════════════════════════════════════════════════════════════
+# NEWS SECTORIELLES — Google RSS + NewsAPI fallback + cache Supabase
+# ══════════════════════════════════════════════════════════════════
+import xml.etree.ElementTree as _ET_news
+
+NEWS_QUERIES = {
+    "transport_routier":       "transport routier PME carburant CNR France actualite",
+    "transport_maritime":      "fret maritime conteneur Marseille logistique actualite",
+    "transport_aerien_intl":   "fret aerien cargo IATA logistique international",
+    "transport_routier_eu":    "transport routier international Europe logistique",
+    "stock_pharma":            "rupture medicaments supply chain pharmaceutique France",
+    "stock_agroalim":          "logistique agroalimentaire froid chaine approvisionnement",
+    "stock_distribution":      "distribution logistique entrepot stock rupture",
+    "stock_industrie":         "logistique industrielle supply chain production",
+    "stock_retail":            "logistique retail e-commerce stock gestion",
+    "stock_btp":               "logistique chantier BTP materiau construction approvisionnement",
+    "supply_chain_maghreb":    "logistique Maroc transport Casablanca supply chain",
+    "supply_chain_afrique":    "logistique Afrique Abidjan Dakar transport",
+    "transport_maritime_intl": "maritime shipping container freight port international",
+    "generique":               "supply chain logistique France actualite innovation",
+}
+
+def fetch_news_google_rss(query, lang="fr", country="FR", max_results=5):
+    """Récupère les news via Google RSS — sans clé API."""
+    try:
+        import urllib.parse
+        url = (f"https://news.google.com/rss/search"
+               f"?q={urllib.parse.quote(query)}"
+               f"&hl={lang}-{country}&gl={country}&ceid={country}:{lang}")
+        r = requests.get(url, timeout=8,
+                         headers={"User-Agent": "Mozilla/5.0 Logiflo/1.0"})
+        root = _ET_news.fromstring(r.content)
+        items = root.findall(".//item")[:max_results]
+        articles = []
+        for item in items:
+            title = item.findtext("title","").split(" - ")[0].strip()
+            link  = item.findtext("link","")
+            date  = item.findtext("pubDate","")[:16]
+            if title and link:
+                articles.append({"title":title,"link":link,"date":date})
+        return articles
+    except Exception:
+        return []
+
+def fetch_news_newsapi(query, lang="fr", max_results=5):
+    """Récupère les news via NewsAPI.org — fallback si RSS vide."""
+    try:
+        key = st.secrets.get("NEWSAPI_KEY","")
+        if not key:
+            return []
+        url = "https://newsapi.org/v2/everything"
+        params = {
+            "q":        query,
+            "language": lang,
+            "sortBy":   "publishedAt",
+            "pageSize": max_results,
+            "apiKey":   key,
+        }
+        r = requests.get(url, params=params, timeout=8)
+        data = r.json()
+        articles = []
+        for a in data.get("articles",[])[:max_results]:
+            articles.append({
+                "title": a.get("title","").split(" - ")[0][:80],
+                "link":  a.get("url",""),
+                "date":  (a.get("publishedAt","") or "")[:10],
+            })
+        return articles
+    except Exception:
+        return []
+
+@st.cache_data(ttl=14400)  # cache 4h
+def get_sector_news(sector_key, lang="fr"):
+    """
+    Retourne les 5 dernières news pour un secteur.
+    Cache 4h pour limiter les appels API.
+    Essaie d'abord Supabase cache, puis Google RSS, puis NewsAPI.
+    """
+    # 1. Vérifier le cache Supabase
+    sb = get_supabase()
+    if sb:
+        try:
+            resp = (sb.table("news_cache")
+                      .select("articles,fetched_at")
+                      .eq("sector_key", sector_key)
+                      .order("fetched_at", desc=True)
+                      .limit(1)
+                      .execute())
+            if resp.data:
+                import datetime as _dt_n
+                fetched = _dt_n.datetime.fromisoformat(
+                    resp.data[0]["fetched_at"].replace("Z",""))
+                age_h = (datetime.datetime.utcnow() - fetched).total_seconds() / 3600
+                if age_h < 4:
+                    return resp.data[0]["articles"] or []
+        except Exception:
+            pass
+
+    # 2. Récupérer depuis Google RSS
+    query = NEWS_QUERIES.get(sector_key, NEWS_QUERIES["generique"])
+    country = "MA" if "maghreb" in sector_key else (
+              "CI" if "afrique" in sector_key else "FR")
+    articles = fetch_news_google_rss(query, lang=lang, country=country)
+
+    # 3. Fallback NewsAPI si RSS vide
+    if not articles:
+        articles = fetch_news_newsapi(query, lang=lang)
+
+    # 4. Sauvegarder dans le cache Supabase
+    if sb and articles:
+        try:
+            sb.table("news_cache").insert({
+                "sector_key": sector_key,
+                "articles":   articles,
+                "fetched_at": datetime.datetime.now().isoformat(),
+            }).execute()
+        except Exception:
+            pass
+
+    return articles
+
+def render_news_widget(sector_key, lang="fr"):
+    """Affiche les news sectorielles dans le dashboard."""
+    news = get_sector_news(sector_key, lang)
+    if not news:
+        return
+
+    _lbl = "Actualités de votre secteur" if lang=="fr" else "Sector News"
+    st.markdown(f"""
+    <div style="margin-top:20px;">
+        <div style="font-size:11px;font-weight:700;color:#4A6080;
+                    letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
+            📰 {_lbl}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    for _art in news[:5]:
+        _title = str(_art.get("title",""))[:90]
+        _link  = str(_art.get("link",""))
+        _date  = str(_art.get("date",""))[:10]
+        if not _title or not _link:
+            continue
+        st.markdown(f"""
+        <a href="{_link}" target="_blank" style="text-decoration:none;">
+        <div style="background:white;border:1px solid #E2E8F0;border-radius:8px;
+                    padding:10px 14px;margin-bottom:6px;cursor:pointer;
+                    transition:border-color 0.2s;"
+             onmouseover="this.style.borderColor='#00C896'"
+             onmouseout="this.style.borderColor='#E2E8F0'">
+            <div style="font-size:12px;font-weight:600;color:#0B2545;
+                        margin-bottom:3px;line-height:1.3;">
+                {_title}
+            </div>
+            <div style="font-size:10px;color:#8FA3BC;">{_date}</div>
+        </div>
+        </a>
+        """, unsafe_allow_html=True)
+
+
 SECTORAL_DB = {
     "transport_routier": {
         "keywords": ["routier","truck","ftl","ltl","camion","route","km","messagerie","groupage","road","distance"],
@@ -352,6 +517,205 @@ SECTORAL_DB = {
     }
 }
 
+
+# ══════════════════════════════════════════════════════════════════
+# GESTION DES PLANS D'ABONNEMENT
+# ══════════════════════════════════════════════════════════════════
+
+# Plans par utilisateur — à migrer dans Supabase user_prefs plus tard
+USERS_PLAN = {
+    "eric":         "expert",
+    "admin":        "expert",
+    "demo_client1": "starter",
+    "demo_client2": "business",
+    "jury":         "expert",
+    "partenaire":   "business",
+    "test":         "starter",
+}
+
+PLAN_LIMITS = {
+    "starter": {
+        "label":          "Starter",
+        "price":          "290€/mois",
+        "color":          "#4F46E5",
+        "bg":             "#EEF2FF",
+        "icon":           "●",
+        "modules":        1,
+        "audits_mois":    5,
+        "profils":        ["MANAGER"],
+        "historique_j":   30,
+        "benchmarks":     False,
+        "prediction":     False,
+        "bfr":            False,
+        "terrain":        False,
+        "scoring_detail": False,
+        "news":           False,
+        "pdf_pages":      2,
+    },
+    "business": {
+        "label":          "Business",
+        "price":          "590€/mois",
+        "color":          "#059669",
+        "bg":             "#EEF9F5",
+        "icon":           "◆",
+        "modules":        2,
+        "audits_mois":    None,
+        "profils":        ["MANAGER","TERRAIN"],
+        "historique_j":   180,
+        "benchmarks":     True,
+        "prediction":     True,
+        "bfr":            True,
+        "terrain":        True,
+        "scoring_detail": True,
+        "news":           True,
+        "pdf_pages":      5,
+    },
+    "expert": {
+        "label":          "Expert",
+        "price":          "Sur devis",
+        "color":          "#D97706",
+        "bg":             "#FFF7ED",
+        "icon":           "★",
+        "modules":        99,
+        "audits_mois":    None,
+        "profils":        ["MANAGER","TERRAIN"],
+        "historique_j":   730,
+        "benchmarks":     True,
+        "prediction":     True,
+        "bfr":            True,
+        "terrain":        True,
+        "scoring_detail": True,
+        "news":           True,
+        "pdf_pages":      5,
+        "api":            True,
+        "logo_pdf":       True,
+    }
+}
+
+def get_user_plan(username):
+    """Retourne le plan de l'utilisateur (depuis Supabase ou USERS_PLAN)."""
+    try:
+        _prefs = load_user_prefs(username)
+        if _prefs and _prefs.get("plan"):
+            return _prefs["plan"]
+    except Exception:
+        pass
+    return USERS_PLAN.get(username, "starter")
+
+def can_access(feature, username=None):
+    """Vérifie si l'utilisateur peut accéder à une feature selon son plan."""
+    if username is None:
+        username = st.session_state.get("current_user","")
+    plan = get_user_plan(username)
+    limits = PLAN_LIMITS.get(plan, PLAN_LIMITS["starter"])
+    return bool(limits.get(feature, False))
+
+def show_lock(feature, username=None):
+    """Affiche un cadenas avec CTA upgrade si feature non accessible."""
+    if username is None:
+        username = st.session_state.get("current_user","")
+    plan = get_user_plan(username)
+    lang = st.session_state.get("language","fr")
+
+    # Trouver le plan requis
+    required = "business"
+    for p, l in PLAN_LIMITS.items():
+        if l.get(feature):
+            required = p
+            break
+
+    rp = PLAN_LIMITS.get(required, PLAN_LIMITS["business"])
+    labels_fr = {
+        "terrain":        "Profil Terrain",
+        "prediction":     "Prédiction rupture 4 semaines",
+        "bfr":            "Alerte BFR",
+        "benchmarks":     "Benchmarks sectoriels",
+        "news":           "Actualités sectorielles",
+        "scoring_detail": "Scoring détaillé",
+        "api":            "Accès API",
+    }
+    labels_en = {
+        "terrain":        "Terrain Profile",
+        "prediction":     "4-week stockout prediction",
+        "bfr":            "BFR / WCR Alert",
+        "benchmarks":     "Sector benchmarks",
+        "news":           "Sector news",
+        "scoring_detail": "Detailed scoring",
+        "api":            "API access",
+    }
+    _labels = labels_en if lang == "en" else labels_fr
+    _feat_lbl = _labels.get(feature, feature)
+
+    if lang == "en":
+        _msg = f"🔒 **{_feat_lbl}** — available from the **{rp['label']}** plan."
+        _cta = "Upgrade → contact@logiflo.io"
+    else:
+        _msg = f"🔒 **{_feat_lbl}** — disponible à partir du plan **{rp['label']}**."
+        _cta = "Upgrader → contact@logiflo.io"
+
+    st.markdown(f"""
+    <div style="border:1px solid {rp['color']}40;border-left:3px solid {rp['color']};
+                border-radius:8px;padding:12px 16px;background:{rp['bg']};
+                margin:8px 0;">
+        <div style="font-size:13px;color:#0B2545;margin-bottom:4px;">{_msg}</div>
+        <div style="font-size:11px;color:#4A6080;">{_cta}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+def audit_counter_sidebar(username, plan):
+    """Affiche le compteur d'audits mensuel pour les plans Starter."""
+    if PLAN_LIMITS.get(plan,{}).get("audits_mois") is None:
+        return True  # illimité
+
+    lang = st.session_state.get("language","fr")
+    max_a = PLAN_LIMITS[plan]["audits_mois"]
+    try:
+        _arc = load_archives_from_sheets(username)
+        if _arc is None or _arc.empty:
+            used = 0
+        else:
+            import datetime as _dtc
+            this_month = datetime.datetime.now().month
+            this_year  = datetime.datetime.now().year
+            if "date" in _arc.columns:
+                _arc["_m"] = pd.to_datetime(_arc["date"], format="%d/%m/%Y", errors="coerce").dt.month
+                _arc["_y"] = pd.to_datetime(_arc["date"], format="%d/%m/%Y", errors="coerce").dt.year
+                used = len(_arc[(_arc["_m"]==this_month) & (_arc["_y"]==this_year)])
+            elif "created_at" in _arc.columns:
+                _arc["_dt2"] = pd.to_datetime(_arc["created_at"], errors="coerce")
+                used = len(_arc[(_arc["_dt2"].dt.month==this_month) & (_arc["_dt2"].dt.year==this_year)])
+            else:
+                used = 0
+    except Exception:
+        used = 0
+
+    color = "#E8304A" if used >= max_a else ("#F39C12" if used >= max_a*0.6 else "#00C896")
+    pct = min(int((used/max_a)*100), 100)
+
+    lbl = f"Audits ce mois" if lang=="fr" else "Audits this month"
+    st.sidebar.markdown(f"""
+    <div style="padding:8px 12px;background:rgba(255,255,255,0.05);
+                border-radius:8px;margin-bottom:8px;">
+        <div style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:3px;">
+            {lbl}
+        </div>
+        <div style="font-size:16px;font-weight:800;color:{color};
+                    font-family:Syne,sans-serif;">{used}/{max_a}</div>
+        <div style="height:3px;background:rgba(255,255,255,0.1);
+                    border-radius:99px;margin-top:4px;overflow:hidden;">
+            <div style="height:100%;width:{pct}%;background:{color};
+                        border-radius:99px;"></div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if used >= max_a:
+        lbl_q = "Quota atteint" if lang=="fr" else "Quota reached"
+        st.sidebar.warning(lbl_q)
+        return False
+    return True
+
+
 def detect_sector(df=None, module="stock", mode_detected=None):
     """Detecte le secteur pertinent selon le fichier, le module et le contexte geo."""
     if module == "transport":
@@ -425,7 +789,7 @@ USERS_DB = _load_users()
 # =========================================
 T = {
     "fr": {
-        "nav_dashboard":"Tableau de bord","nav_workspace":"Espace de Travail","nav_archives":"Archives",
+        "nav_dashboard":"Tableau de bord","nav_compte":"Mon Compte","nav_workspace":"Espace de Travail","nav_archives":"Archives",
         "nav_params":"Paramètres","nav_legal":"Informations Légales","nav_logout":"Déconnexion",
         "home_title":"LOGIFLO.IO",
         "home_sub":"Plateforme d'Intelligence Logistique et d'Optimisation Financière",
@@ -494,7 +858,7 @@ T = {
         "iss1":"Optimisation BFR (Stocks)","iss2":"Réduction coûts Transport","iss3":"Global Supply Chain",
     },
     "en": {
-        "nav_dashboard":"Dashboard","nav_workspace":"Workspace","nav_archives":"Archives",
+        "nav_dashboard":"Dashboard","nav_compte":"My Account","nav_workspace":"Workspace","nav_archives":"Archives",
         "nav_params":"Settings","nav_legal":"Legal Information","nav_logout":"Log out",
         "home_title":"LOGIFLO.IO",
         "home_sub":"Logistics Intelligence & Financial Optimization Platform",
@@ -569,8 +933,142 @@ def _(key):
     return T.get(lang,T["fr"]).get(key, T["fr"].get(key, key))
 
 # =========================================
-# 0.2 GOOGLE SHEETS
+# 0.2 SUPABASE (remplace Google Sheets)
 # =========================================
+@st.cache_resource
+def get_supabase():
+    """Client Supabase — fallback silencieux si non configuré."""
+    try:
+        url = st.secrets.get("SUPABASE_URL","")
+        key = st.secrets.get("SUPABASE_KEY","")
+        if url and key and _supa_create:
+            return _supa_create(url, key)
+    except Exception:
+        pass
+    return None
+
+def _supa_set_user(client, username):
+    """Injecte le user_id pour le Row Level Security."""
+    try:
+        client.postgrest.auth(st.secrets.get("SUPABASE_KEY",""))
+    except Exception:
+        pass
+
+def save_audit_to_sheets(username, module, nb_lignes, kpis, labels,
+                          resume_ia, pdf_bytes):
+    """Sauvegarde un audit dans Supabase (compatible ancien nom)."""
+    sb = get_supabase()
+    if not sb:
+        return _save_audit_sheets_fallback(username, module, nb_lignes,
+                                           kpis, labels, resume_ia, pdf_bytes)
+    try:
+        now = datetime.datetime.now()
+        pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8") if pdf_bytes else ""
+        sb.table("audits").insert({
+            "user_id":     username,
+            "created_at":  now.isoformat(),
+            "module":      module,
+            "nb_lignes":   int(nb_lignes),
+            "kpi_1":       round(float(kpis[0]),2) if len(kpis)>0 else 0,
+            "kpi_2":       round(float(kpis[1]),2) if len(kpis)>1 else 0,
+            "kpi_3":       round(float(kpis[2]),2) if len(kpis)>2 else 0,
+            "kpi_label_1": labels[0] if len(labels)>0 else "",
+            "kpi_label_2": labels[1] if len(labels)>1 else "",
+            "kpi_label_3": labels[2] if len(labels)>2 else "",
+            "resume_ia":   (resume_ia or "")[:800],
+            "pdf_base64":  pdf_b64,
+        }).execute()
+        return True
+    except Exception as _e:
+        return _save_audit_sheets_fallback(username, module, nb_lignes,
+                                           kpis, labels, resume_ia, pdf_bytes)
+
+def load_archives_from_sheets(username):
+    """Charge les archives depuis Supabase (compatible ancien nom)."""
+    sb = get_supabase()
+    if not sb:
+        return _load_archives_sheets_fallback(username)
+    try:
+        resp = (sb.table("audits")
+                  .select("*")
+                  .eq("user_id", username)
+                  .order("created_at", desc=False)
+                  .execute())
+        if not resp.data:
+            return pd.DataFrame()
+        df = pd.DataFrame(resp.data)
+        # Normaliser les colonnes pour compatibilité avec le reste du code
+        if "created_at" in df.columns:
+            df["date"]  = pd.to_datetime(df["created_at"]).dt.strftime("%d/%m/%Y")
+            df["heure"] = pd.to_datetime(df["created_at"]).dt.strftime("%H:%M")
+        return df
+    except Exception:
+        return _load_archives_sheets_fallback(username)
+
+# ── Prefs utilisateur ─────────────────────────────────────────────
+def load_user_prefs(username):
+    """Charge les préférences utilisateur depuis Supabase."""
+    sb = get_supabase()
+    if not sb:
+        return {}
+    try:
+        resp = (sb.table("user_prefs")
+                  .select("*")
+                  .eq("user_id", username)
+                  .execute())
+        if resp.data:
+            return resp.data[0]
+        return {}
+    except Exception:
+        return {}
+
+def save_user_prefs(username, prefs_dict):
+    """Sauvegarde ou met à jour les prefs utilisateur."""
+    sb = get_supabase()
+    if not sb:
+        return False
+    try:
+        prefs_dict["user_id"] = username
+        prefs_dict["updated_at"] = datetime.datetime.now().isoformat()
+        sb.table("user_prefs").upsert(prefs_dict).execute()
+        return True
+    except Exception:
+        return False
+
+# ── Fallbacks Google Sheets (si Supabase indisponible) ────────────
+def _save_audit_sheets_fallback(username, module, nb_lignes, kpis,
+                                 labels, resume_ia, pdf_bytes):
+    try:
+        gc_f = get_gsheet_client()
+        if not gc_f or not SHEET_ID: return False
+        sh_f = gc_f.open_by_key(SHEET_ID)
+        try: ws_f = sh_f.worksheet(username)
+        except: ws_f = sh_f.add_worksheet(title=username,rows=1000,cols=12)
+        now_f = datetime.datetime.now()
+        ws_f.append_row([now_f.strftime("%d/%m/%Y"),now_f.strftime("%H:%M"),
+            module,nb_lignes,
+            round(kpis[0],2) if len(kpis)>0 else "",
+            round(kpis[1],2) if len(kpis)>1 else "",
+            round(kpis[2],2) if len(kpis)>2 else "",
+            labels[0] if len(labels)>0 else "",
+            labels[1] if len(labels)>1 else "",
+            labels[2] if len(labels)>2 else "",
+            (resume_ia or "")[:800],
+            base64.b64encode(pdf_bytes).decode("utf-8") if pdf_bytes else ""])
+        return True
+    except: return False
+
+def _load_archives_sheets_fallback(username):
+    try:
+        gc_f = get_gsheet_client()
+        if not gc_f or not SHEET_ID: return None
+        sh_f = gc_f.open_by_key(SHEET_ID)
+        try: ws_f = sh_f.worksheet(username)
+        except: return pd.DataFrame()
+        records = ws_f.get_all_records()
+        return pd.DataFrame(records) if records else pd.DataFrame()
+    except: return None
+
 @st.cache_resource
 def get_gsheet_client():
     try:
@@ -579,44 +1077,6 @@ def get_gsheet_client():
             scopes=["https://www.googleapis.com/auth/spreadsheets",
                     "https://www.googleapis.com/auth/drive"])
         return gspread.authorize(creds)
-    except: return None
-
-def get_user_sheet(username):
-    gc=get_gsheet_client()
-    if not gc or not SHEET_ID: return None
-    try:
-        sh=gc.open_by_key(SHEET_ID)
-        try: return sh.worksheet(username)
-        except gspread.WorksheetNotFound:
-            ws=sh.add_worksheet(title=username,rows=1000,cols=12)
-            ws.append_row(["date","heure","module","nb_lignes","kpi_1","kpi_2","kpi_3",
-                           "kpi_label_1","kpi_label_2","kpi_label_3","resume_ia","pdf_base64"])
-            return ws
-    except: return None
-
-def save_audit_to_sheets(username,module,nb_lignes,kpis,labels,resume_ia,pdf_bytes):
-    ws=get_user_sheet(username)
-    if not ws: return False
-    try:
-        now=datetime.datetime.now()
-        ws.append_row([now.strftime("%d/%m/%Y"),now.strftime("%H:%M"),module,nb_lignes,
-            round(kpis[0],2) if len(kpis)>0 else "",
-            round(kpis[1],2) if len(kpis)>1 else "",
-            round(kpis[2],2) if len(kpis)>2 else "",
-            labels[0] if len(labels)>0 else "",
-            labels[1] if len(labels)>1 else "",
-            labels[2] if len(labels)>2 else "",
-            resume_ia[:800] if resume_ia else "",
-            base64.b64encode(pdf_bytes).decode("utf-8") if pdf_bytes else ""])
-        return True
-    except: return False
-
-def load_archives_from_sheets(username):
-    ws=get_user_sheet(username)
-    if not ws: return None
-    try:
-        records=ws.get_all_records()
-        return pd.DataFrame(records) if records else pd.DataFrame()
     except: return None
 
 def get_historique_audits(username, module, n=6, current_kpis=None, current_labels=None):
@@ -2507,6 +2967,274 @@ Tout ecart negatif de plus de 5 points merite une action cette semaine.
 *Analyse IA complete disponible dans quelques minutes — relancez si necessaire.*"""
 
 
+
+def render_prediction_rupture(df, lang="fr"):
+    """
+    Affiche les alertes de rupture prédites visuellement.
+    S'insère entre les KPIs et l'analyse IA dans l'audit stock.
+    """
+    alertes = predict_ruptures(df, lang=lang)
+    if not alertes:
+        return
+
+    _lbl = "Prédictions de rupture — 4 semaines" if lang=="fr" else "Stockout Predictions — 4 weeks"
+    st.markdown(f"""
+    <div style="font-size:11px;font-weight:700;color:#4A6080;
+                letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;
+                margin-top:20px;">
+        ⚠️ {_lbl}
+    </div>
+    """, unsafe_allow_html=True)
+
+    for a in alertes:
+        _clr  = "#E8304A" if a["urgence"]=="critique" else (
+                "#F39C12" if a["urgence"]=="urgent" else "#F59E0B")
+        _bg   = "#FFF1F2" if a["urgence"]=="critique" else (
+                "#FFFBEB" if a["urgence"]=="urgent" else "#FEFCE8")
+        _icon = "🔴" if a["urgence"]=="critique" else (
+                "🟠" if a["urgence"]=="urgent" else "🟡")
+        _semaines = a["semaines"]
+        _ref   = str(a["reference"])
+        _stock = f"{a['stock']:.0f}"
+        _conso = f"{a['conso_hebdo']:.1f}"
+
+        if lang=="en":
+            _msg = (f"<strong>{_ref}</strong> — {_stock} units left · "
+                    f"consumption {_conso}/week · "
+                    f"<strong>stockout in ~{_semaines:.1f} weeks</strong>")
+        else:
+            _msg = (f"<strong>{_ref}</strong> — {_stock} unités restantes · "
+                    f"conso {_conso}/sem · "
+                    f"<strong>rupture dans ~{_semaines:.1f} semaines</strong>")
+
+        st.markdown(f"""
+        <div style="background:{_bg};border:1px solid {_clr}30;
+                    border-left:4px solid {_clr};border-radius:8px;
+                    padding:10px 14px;margin-bottom:6px;
+                    display:flex;align-items:center;gap:10px;">
+            <span style="font-size:18px;flex-shrink:0;">{_icon}</span>
+            <div style="flex:1;font-size:12px;color:#0B2545;line-height:1.4;">
+                {_msg}
+            </div>
+            <div style="font-size:10px;font-weight:700;color:{_clr};
+                        text-transform:uppercase;letter-spacing:1px;
+                        flex-shrink:0;">
+                {a["urgence"]}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+
+
+# ══════════════════════════════════════════════════════════════════
+# TOOLTIPS SUR LES METRIQUES KPI
+# ══════════════════════════════════════════════════════════════════
+KPI_TOOLTIPS = {
+    "fr": {
+        "Taux de service":      ("Pourcentage de commandes livrées sans rupture.", "Benchmark : > 93% B2B · > 96% B2C"),
+        "Taux Service":         ("Pourcentage de commandes livrées sans rupture.", "Benchmark : > 93% B2B · > 96% B2C"),
+        "Capital immobilisé":   ("Valeur totale du stock en EUR. Un capital trop élevé pèse sur la trésorerie.", "Norme : < 60 jours de CA"),
+        "Capital Immobilisé":   ("Valeur totale du stock en EUR.", "Norme : < 60 jours de CA"),
+        "Ruptures":             ("Références dont le stock est à zéro ou sous le seuil d'alerte défini.", "Objectif : < 2% des références"),
+        "Marge nette":          ("CA moins les coûts d'exploitation (carburant, chauffeur, péages).", "Norme PME transport : 6-10% · Excellent : > 10%"),
+        "Marge Nette":          ("CA moins les coûts d'exploitation.", "Norme PME transport : 6-10%"),
+        "Taux rentabilité":     ("Pourcentage de trajets avec une marge positive.", "Objectif : > 80% des trajets sains"),
+        "Trajets toxiques":     ("Trajets avec une marge < 5% ou négative.", "Alerte si > 20% du portefeuille"),
+        "BFR":                  ("Besoin en Fonds de Roulement : capital bloqué dans votre cycle d'exploitation.", "Cible : < 45 jours de CA"),
+        "Score Logiflo":        ("Score composite sur 3 dimensions calculé côté Python.", "Vert ≥ 70 · Orange ≥ 40 · Rouge < 40"),
+    },
+    "en": {
+        "Service Level":        ("Percentage of orders fulfilled without stockout.", "Benchmark: > 93% B2B · > 96% B2C"),
+        "Tied-up Capital":      ("Total stock value in EUR. Excess capital strains cash flow.", "Norm: < 60 days revenue"),
+        "Stockouts":            ("References at zero stock or below the defined alert threshold.", "Target: < 2% of references"),
+        "Net Margin":           ("Revenue minus operating costs (fuel, driver, tolls).", "SME transport norm: 6-10% · Excellent: > 10%"),
+        "Profitability Rate":   ("Percentage of routes with positive margin.", "Target: > 80% healthy routes"),
+        "Toxic Routes":         ("Routes with margin < 5% or negative.", "Alert if > 20% of portfolio"),
+        "WCR":                  ("Working Capital Requirement: capital locked in your operating cycle.", "Target: < 45 days revenue"),
+        "Logiflo Score":        ("Composite score on 3 dimensions — calculated in Python.", "Green ≥ 70 · Orange ≥ 40 · Red < 40"),
+    }
+}
+
+def tooltip_metric(label, value, unit="", delta=None, lang="fr"):
+    """
+    Affiche une métrique avec tooltip au survol (ligne pointillée).
+    Wrapper autour de st.metric avec HTML enrichi.
+    """
+    tips = KPI_TOOLTIPS.get(lang, KPI_TOOLTIPS["fr"])
+    tip = tips.get(label)
+
+    if tip:
+        def_txt, bench_txt = tip
+        tooltip_html = f"""
+        <div style="position:relative;display:inline-block;">
+            <span style="font-size:11px;color:#4A6080;
+                         border-bottom:1.5px dashed #4A6080;
+                         cursor:help;"
+                  title="{def_txt} | {bench_txt}">
+                {label}
+            </span>
+        </div>
+        """
+    else:
+        tooltip_html = f'<span style="font-size:11px;color:#4A6080;">{label}</span>'
+
+    # Valeur formatée
+    if isinstance(value, float):
+        val_str = f"{value:,.1f}"
+    elif isinstance(value, int):
+        val_str = f"{value:,}"
+    else:
+        val_str = str(value)
+
+    color = "#00C896"
+    if delta is not None:
+        color = "#00C896" if delta >= 0 else "#E8304A"
+
+    st.markdown(f"""
+    <div style="background:white;border:1px solid #E2E8F0;
+                border-top:3px solid {color};border-radius:12px;
+                padding:14px 16px;text-align:center;">
+        {tooltip_html}
+        <div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;
+                    color:{color};margin-top:4px;line-height:1;">
+            {val_str}
+            <span style="font-size:13px;font-weight:400;color:#4A6080;">{unit}</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+
+def generate_exemple_excel():
+    """
+    Génère un fichier Excel exemple téléchargeable depuis l'accueil.
+    20 lignes réalistes — fonctionne avec Stock et Transport.
+    """
+    import io
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment
+    except ImportError:
+        return None
+
+    wb = openpyxl.Workbook()
+
+    # ── Onglet Stock ──────────────────────────────────────────────
+    ws_stock = wb.active
+    ws_stock.title = "Stock"
+
+    headers_stock = ["Reference","Designation","Fournisseur","Prix_Achat",
+                     "Prix_Vente","Stock","Conso_2023","Conso_2024","Conso_2025",
+                     "Categorie","Date_Entree"]
+    for ci, h in enumerate(headers_stock, 1):
+        cell = ws_stock.cell(row=1, column=ci, value=h)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="0B2545")
+        cell.alignment = Alignment(horizontal="center")
+
+    data_stock = [
+        ("REF-001","T-shirt Coton Bio","FournisseurA",8.5,22.0,45,120,135,98,"Textile","15/01/2025"),
+        ("REF-002","Pantalon Slim","FournisseurB",15.0,45.0,12,80,75,62,"Textile","20/01/2025"),
+        ("REF-003","Chaussures Sport","FournisseurC",25.0,89.0,0,60,55,48,"Chaussures","10/02/2025"),
+        ("REF-004","Veste Laine","FournisseurA",35.0,120.0,3,40,38,29,"Textile","05/03/2025"),
+        ("REF-005","Echarpe Cachemire","FournisseurD",18.0,65.0,28,55,50,44,"Accessoires","12/03/2025"),
+        ("REF-006","Sac a Dos","FournisseurB",12.0,38.0,0,90,95,88,"Accessoires","08/04/2025"),
+        ("REF-007","Bonnet Laine","FournisseurA",5.5,18.0,67,200,185,170,"Accessoires","02/01/2025"),
+        ("REF-008","Pull Cachemire","FournisseurD",45.0,150.0,8,30,25,0,"Textile","18/02/2025"),
+        ("REF-009","Jean Denim","FournisseurC",20.0,65.0,34,110,105,98,"Textile","25/01/2025"),
+        ("REF-010","Chemise Oxford","FournisseurB",18.0,55.0,15,70,68,62,"Textile","30/01/2025"),
+        ("REF-011","Robe Ete","FournisseurA",12.0,40.0,52,150,140,130,"Textile","10/04/2025"),
+        ("REF-012","Short Sport","FournisseurC",8.0,25.0,75,180,175,160,"Sport","15/04/2025"),
+        ("REF-013","Manteau Long","FournisseurD",65.0,220.0,2,20,18,15,"Textile","01/02/2025"),
+        ("REF-014","Ceinture Cuir","FournisseurB",9.0,29.0,40,95,90,85,"Accessoires","20/02/2025"),
+        ("REF-015","Gants Hiver","FournisseurA",7.0,22.0,22,130,125,110,"Accessoires","05/11/2024"),
+        ("REF-016","Polo Coton","FournisseurC",10.0,32.0,0,100,95,80,"Textile","28/01/2025"),
+        ("REF-017","Legging Sport","FournisseurB",12.0,38.0,88,160,155,148,"Sport","12/04/2025"),
+        ("REF-018","Chaussettes x3","FournisseurA",3.5,12.0,150,300,290,270,"Accessoires","08/01/2025"),
+        ("REF-019","Sweat Zip","FournisseurD",22.0,72.0,18,85,80,72,"Textile","22/02/2025"),
+        ("REF-020","Casquette","FournisseurC",6.0,19.0,95,220,210,195,"Accessoires","15/01/2025"),
+    ]
+    for ri, row in enumerate(data_stock, 2):
+        for ci, val in enumerate(row, 1):
+            ws_stock.cell(row=ri, column=ci, value=val)
+
+    # ── Onglet Transport ──────────────────────────────────────────
+    ws_trans = wb.create_sheet("Transport")
+    headers_trans = ["Client","Depart","Arrivee","Distance_km","CA_EUR",
+                     "Cout_EUR","Poids_kg","Date_Livraison","Mode"]
+    for ci, h in enumerate(headers_trans, 1):
+        cell = ws_trans.cell(row=1, column=ci, value=h)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="0B2545")
+        cell.alignment = Alignment(horizontal="center")
+
+    data_trans = [
+        ("Carrefour","Marseille","Lyon",315,450,385,1200,"05/04/2025","Routier"),
+        ("Auchan","Paris","Bordeaux",580,820,710,2500,"06/04/2025","Routier"),
+        ("Lidl","Lyon","Toulouse",295,420,368,900,"07/04/2025","Routier"),
+        ("BHV","Marseille","Nice",200,280,245,600,"07/04/2025","Routier"),
+        ("Leclerc","Bordeaux","Paris",580,750,680,1800,"08/04/2025","Routier"),
+        ("Fnac","Paris","Lille",225,310,272,800,"08/04/2025","Routier"),
+        ("Decathlon","Lyon","Paris",465,640,575,2200,"09/04/2025","Routier"),
+        ("Ikea","Marseille","Montpellier",170,245,215,1500,"09/04/2025","Routier"),
+        ("Zara","Paris","Strasbourg",490,680,595,1100,"10/04/2025","Routier"),
+        ("H&M","Lille","Bruxelles",105,165,148,500,"10/04/2025","Routier"),
+        ("Michelin","Clermont","Lyon",175,240,215,3000,"11/04/2025","Routier"),
+        ("Renault","Paris","Le Havre",200,285,250,5000,"11/04/2025","Routier"),
+        ("Total","Marseille","Fos",45,95,88,8000,"12/04/2025","Routier"),
+        ("DHL","Roissy","Lyon",465,580,510,1800,"12/04/2025","Routier"),
+        ("GlobeTrans","Marseille","Barcelona",820,1100,985,2200,"13/04/2025","Routier"),
+        ("FalconDist","Paris","Amsterdam",510,720,640,1500,"13/04/2025","Routier"),
+        ("BetaLog","Lyon","Geneve",155,195,188,900,"14/04/2025","Routier"),
+        ("AlphaFret","Marseille","Turin",450,610,545,2800,"14/04/2025","Routier"),
+        ("SudLog","Toulouse","Madrid",1050,1450,1280,3500,"15/04/2025","Routier"),
+        ("NordTrans","Lille","Hamburg",680,920,810,2100,"15/04/2025","Routier"),
+    ]
+    for ri, row in enumerate(data_trans, 2):
+        for ci, val in enumerate(row, 1):
+            ws_trans.cell(row=ri, column=ci, value=val)
+
+    # ── Onglet Guide ──────────────────────────────────────────────
+    ws_guide = wb.create_sheet("Guide")
+    ws_guide.cell(1,1,"GUIDE — Colonnes reconnues par Logiflo").font = Font(bold=True, size=14)
+    guide_lines = [
+        (3,"ONGLET STOCK",""),
+        (4,"Reference","Code article ou SKU — requis"),
+        (5,"Designation","Nom du produit — optionnel"),
+        (6,"Fournisseur","Nom du fournisseur — optionnel"),
+        (7,"Prix_Achat","Prix d'achat unitaire en EUR — pour le calcul BFR"),
+        (8,"Prix_Vente","Prix de vente unitaire en EUR — pour la marge"),
+        (9,"Stock","Quantité en stock actuelle — requis"),
+        (10,"Conso_2023/2024/2025","Consommation annuelle — pour la rotation et la prédiction rupture"),
+        (11,"Categorie","Famille ou catégorie produit — optionnel"),
+        (12,"Date_Entree","Date d'entrée en stock — pour la saisonnalité"),
+        (14,"ONGLET TRANSPORT",""),
+        (15,"Client","Nom du client ou destinataire — requis"),
+        (16,"Depart","Ville ou code de départ — requis"),
+        (17,"Arrivee","Ville ou code d'arrivée — requis"),
+        (18,"Distance_km","Distance en km — calculée automatiquement si absent"),
+        (19,"CA_EUR","Chiffre d'affaires du trajet en EUR — requis"),
+        (20,"Cout_EUR","Coût du trajet en EUR — requis"),
+        (21,"Poids_kg","Poids total chargé — optionnel"),
+        (22,"Date_Livraison","Date de livraison — pour la saisonnalité"),
+        (23,"Mode","Routier / Maritime / Aerien / Ferroviaire — détecté auto"),
+    ]
+    for row_num, label, desc in guide_lines:
+        ws_guide.cell(row_num, 1, label).font = Font(bold=(not desc))
+        if desc:
+            ws_guide.cell(row_num, 2, desc)
+
+    # Largeurs colonnes
+    for ws in [ws_stock, ws_trans, ws_guide]:
+        for col in ws.columns:
+            ws.column_dimensions[col[0].column_letter].width = 18
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf.read()
+
+
 def generate_free_pdf(module, summary_text, kpis, labels):
     """PDF ultra-leger audit gratuit — 2 pages, sans graphiques."""
     pdf = PDFReport()
@@ -2612,8 +3340,26 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
     pdf.ln(8)
     pdf.set_draw_color(0,200,150); pdf.set_line_width(0.8)
     pdf.line(40,pdf.get_y(),170,pdf.get_y()); pdf.ln(10)
+    # Nom entreprise et numéro rapport
+    _cpdf = st.session_state.get("company_name","")
+    _updf = st.session_state.get("current_user","")
+    _rnum = 0
+    try:
+        _ap = load_archives_from_sheets(_updf)
+        if _ap is not None and not _ap.empty and "module" in _ap.columns:
+            _rnum = len(_ap[_ap["module"]==module]) + 1
+    except Exception:
+        pass
+
     pdf.set_text_color(255,255,255); pdf.set_font("Arial","B",22)
-    pdf.multi_cell(0,12,_s(title),align='C'); pdf.ln(8)
+    pdf.multi_cell(0,12,_s(title),align='C'); pdf.ln(4)
+    if _cpdf:
+        pdf.set_font("Arial","",14); pdf.set_text_color(0,200,150)
+        pdf.cell(0,9,_s(_cpdf),ln=True,align='C')
+    if _rnum > 0:
+        pdf.set_font("Arial","",11); pdf.set_text_color(180,200,220)
+        pdf.cell(0,7,_s(f"Rapport #{_rnum}"),ln=True,align='C')
+    pdf.ln(4)
     pdf.set_font("Arial","",12); pdf.set_text_color(180,200,220)
     conf = "CONFIDENTIAL" if lang=="en" else "CONFIDENTIEL"
     pdf.cell(0,8,_s(f"Date : {datetime.date.today().strftime('%d/%m/%Y')}"),ln=True,align='C')
@@ -3113,6 +3859,22 @@ if st.session_state.page=="accueil":
         st.markdown("<span class='big-emoji'>📦</span>",unsafe_allow_html=True)
         if st.button(_("home_stock"),use_container_width=True):
             st.session_state.module="stock";st.session_state.page="choix_profil_stock";st.rerun()
+
+        # Fichier exemple téléchargeable
+        _lang_acc = st.session_state.get("language","fr")
+        _ex_lbl = "📥 Télécharger le fichier exemple" if _lang_acc=="fr" else "📥 Download sample file"
+        try:
+            _ex_bytes = generate_exemple_excel()
+            if _ex_bytes:
+                st.download_button(
+                    _ex_lbl, _ex_bytes,
+                    "logiflo_modele.xlsx",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                    key="dl_exemple_accueil"
+                )
+        except Exception:
+            pass
     with c2:
         st.markdown("<span class='big-emoji'>🌍</span>",unsafe_allow_html=True)
         if st.button(_("home_transport"),use_container_width=True):
@@ -3239,6 +4001,20 @@ elif st.session_state.page=="login":
             if st.form_submit_button(_("login_btn"),use_container_width=True):
                 if u in USERS_DB and USERS_DB[u]==p:
                     st.session_state.auth=True;st.session_state.current_user=u
+                    # Charger prefs Supabase
+                    try:
+                        _prefs_l = load_user_prefs(u)
+                        if _prefs_l:
+                            if _prefs_l.get("company_name"):
+                                st.session_state["company_name"] = _prefs_l["company_name"]
+                            if _prefs_l.get("language"):
+                                st.session_state["language"] = _prefs_l["language"]
+                            if _prefs_l.get("seuil_rupture") is not None:
+                                st.session_state["seuil_rupture"] = int(_prefs_l["seuil_rupture"])
+                            if _prefs_l.get("preferred_module"):
+                                st.session_state["preferred_module"] = _prefs_l["preferred_module"]
+                    except Exception:
+                        pass
                     st.session_state.page="app";st.rerun()
                 else: st.error(_("login_err"))
         if st.button(_("login_back"),use_container_width=True): st.session_state.page="accueil";st.rerun()
@@ -3250,8 +4026,15 @@ elif st.session_state.auth and st.session_state.page=="app":
                 <div class="sidebar-logo">LOGI<span>FLO</span>.IO</div>
                 <div style="font-size:20px;line-height:1.2;">📦<br>📦📦</div>
             </div>
-            <div style="font-size:12px;color:#4A6080;margin-bottom:12px;">
+            <div style="font-size:12px;color:#4A6080;margin-bottom:6px;">
                 👤 {st.session_state.current_user}
+            </div>
+            <div style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;
+                        border-radius:20px;margin-bottom:10px;
+                        background:{_pinfo_sb['bg']};color:{_pinfo_sb['color']};
+                        border:1px solid {_pinfo_sb['color']}40;
+                        font-size:10px;font-weight:700;">
+                {_pinfo_sb['icon']} {_pinfo_sb['label']}
             </div>
         """,unsafe_allow_html=True)
         # Sélecteur langue dans sidebar
@@ -3263,7 +4046,7 @@ elif st.session_state.auth and st.session_state.page=="app":
         _is_terrain = (st.session_state.get("stock_view","") == "TERRAIN")
         _nav_items = ([_("nav_workspace"),_("nav_archives"),_("nav_params"),_("nav_legal")]
                       if _is_terrain else
-                      [_("nav_dashboard"),_("nav_workspace"),_("nav_archives"),_("nav_params"),_("nav_legal")])
+                      [_("nav_dashboard"),_("nav_workspace"),_("nav_archives"),_("nav_compte"),_("nav_params"),_("nav_legal")])
         nav=st.radio("",_nav_items,
                      label_visibility="collapsed")
         st.markdown("---")
@@ -3435,6 +4218,20 @@ elif st.session_state.auth and st.session_state.page=="app":
 
             # Pas de boutons CTA — le dashboard est une vue de lecture pure
 
+            # ── News sectorielles ─────────────────────────────
+            try:
+                _sector_dash = "generique"
+                if not _df_arch.empty and "sector_key" in _df_arch.columns:
+                    _sk_s = _df_arch["sector_key"].dropna()
+                    if len(_sk_s) > 0:
+                        _sector_dash = str(_sk_s.iloc[-1])
+                elif not _df_arch.empty and "module" in _df_arch.columns:
+                    _lm = _df_arch["module"].dropna().iloc[-1] if len(_df_arch)>0 else ""
+                    _sector_dash = "transport_routier" if _lm=="transport" else "stock_distribution"
+                render_news_widget(_sector_dash, lang=lang_d)
+            except Exception:
+                pass
+
     elif nav==_("nav_legal"):
         st.title(_("nav_legal"))
         tab1,tab2,tab3=st.tabs(["📋 Mentions Légales / Legal","🔒 Confidentialité / Privacy","📄 CGUV / Terms"])
@@ -3533,6 +4330,177 @@ elif st.session_state.auth and st.session_state.page=="app":
                             f"Logiflo_{row.get('date','').replace('/','_')}_{row.get('module','')}.pdf",
                             key=f"dl_{row.get('date','')}_{row.get('heure','')}",use_container_width=True)
                     except: pass
+
+
+    # ── MON COMPTE ──────────────────────────────────────────────
+    elif nav==_("nav_compte"):
+        lang_c = st.session_state.get("language","fr")
+        username_c = st.session_state.current_user
+        plan_c = get_user_plan(username_c)
+        plan_info_c = PLAN_LIMITS.get(plan_c, PLAN_LIMITS["starter"])
+
+        # Titre
+        st.markdown(f"""
+        <div style="background:linear-gradient(135deg,#0B2545 0%,#0f2f5a 100%);
+                    border-radius:14px;padding:22px 24px;margin-bottom:20px;
+                    display:flex;align-items:center;gap:16px;">
+            <div style="width:52px;height:52px;border-radius:50%;background:#00C896;
+                        display:flex;align-items:center;justify-content:center;
+                        font-family:Syne,sans-serif;font-size:18px;font-weight:800;
+                        color:#0B2545;flex-shrink:0;">
+                {username_c[:2].upper()}
+            </div>
+            <div>
+                <div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;
+                            color:white;">{username_c}</div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px;">
+                    {'My Account' if lang_c=='en' else 'Mon Compte'}
+                </div>
+            </div>
+            <div style="margin-left:auto;padding:4px 12px;border-radius:20px;
+                        background:{plan_info_c['bg']};color:{plan_info_c['color']};
+                        border:1px solid {plan_info_c['color']}40;
+                        font-size:11px;font-weight:700;">
+                {plan_info_c['icon']} {plan_info_c['label']}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # ── Section abonnement
+        _sect_abo = "Mon abonnement" if lang_c=="fr" else "My subscription"
+        st.markdown(f"**{_sect_abo}**")
+        st.markdown(f"""
+        <div style="background:white;border:1px solid #E2E8F0;border-radius:12px;
+                    padding:16px 18px;margin-bottom:14px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                    <div style="font-size:11px;color:#8FA3BC;margin-bottom:4px;">
+                        {'Plan actuel' if lang_c=='fr' else 'Current plan'}
+                    </div>
+                    <div style="font-size:16px;font-weight:800;
+                                font-family:Syne,sans-serif;color:{plan_info_c['color']};">
+                        {plan_info_c['icon']} {plan_info_c['label']}
+                        <span style="font-size:12px;font-weight:400;color:#4A6080;
+                                     margin-left:6px;">{plan_info_c['price']}</span>
+                    </div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-size:11px;color:#8FA3BC;">
+                        {'Modules' if lang_c=='en' else 'Modules'}
+                    </div>
+                    <div style="font-size:13px;font-weight:600;color:#0B2545;">
+                        {'Stock + Transport' if plan_info_c.get('modules',1) >= 2 else '1 module'}
+                    </div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        if plan_c != "expert":
+            _upgrade_lbl = "Passer à un plan supérieur →" if lang_c=="fr" else "Upgrade your plan →"
+            st.markdown(f"""<div style="font-size:12px;color:#059669;margin-bottom:16px;">
+                📧 {_upgrade_lbl} contact@logiflo.io</div>""", unsafe_allow_html=True)
+
+        # ── Section entreprise
+        _sect_ent = "Mon entreprise" if lang_c=="fr" else "My company"
+        st.markdown(f"**{_sect_ent}**")
+        with st.form("form_company"):
+            _company_curr = st.session_state.get("company_name","")
+            _company_new = st.text_input(
+                "Nom d'entreprise" if lang_c=="fr" else "Company name",
+                value=_company_curr
+            )
+            _sector_opt = ["Transport","Distribution","Industrie","Agroalimentaire",
+                           "Pharma","Retail","BTP","Autre"]
+            _saved_sector = st.session_state.get("company_sector","")
+            _sector_new = st.selectbox(
+                "Secteur" if lang_c=="fr" else "Sector",
+                _sector_opt,
+                index=_sector_opt.index(_saved_sector) if _saved_sector in _sector_opt else 0
+            )
+            _save_btn = st.form_submit_button(
+                "💾 Sauvegarder" if lang_c=="fr" else "💾 Save",
+                use_container_width=True
+            )
+            if _save_btn:
+                st.session_state["company_name"] = _company_new
+                st.session_state["company_sector"] = _sector_new
+                save_user_prefs(username_c, {
+                    "company_name": _company_new,
+                    "company_sector": _sector_new,
+                })
+                st.success("✓ Sauvegardé" if lang_c=="fr" else "✓ Saved")
+
+        # ── Section préférences
+        st.markdown("<br>", unsafe_allow_html=True)
+        _sect_pref = "Mes préférences" if lang_c=="fr" else "Preferences"
+        st.markdown(f"**{_sect_pref}**")
+        _col_p1, _col_p2 = st.columns(2)
+        with _col_p1:
+            _lang_opt = ["🇫🇷 Français","🇬🇧 English"]
+            _lang_curr = 1 if lang_c=="en" else 0
+            _lang_new = st.selectbox(
+                "Langue" if lang_c=="fr" else "Language",
+                _lang_opt, index=_lang_curr
+            )
+            if "English" in _lang_new and lang_c != "en":
+                st.session_state["language"] = "en"
+                save_user_prefs(username_c, {"language":"en"})
+                st.rerun()
+            elif "Français" in _lang_new and lang_c != "fr":
+                st.session_state["language"] = "fr"
+                save_user_prefs(username_c, {"language":"fr"})
+                st.rerun()
+        with _col_p2:
+            _mod_opts = ["📦 Stock","🚚 Transport"]
+            _mod_curr = 1 if st.session_state.get("preferred_module")=="transport" else 0
+            _mod_new = st.selectbox(
+                "Module par défaut" if lang_c=="fr" else "Default module",
+                _mod_opts, index=_mod_curr
+            )
+            _mod_val = "transport" if "Transport" in _mod_new else "stock"
+            if _mod_val != st.session_state.get("preferred_module","stock"):
+                st.session_state["preferred_module"] = _mod_val
+                save_user_prefs(username_c, {"preferred_module": _mod_val})
+
+        # Seuil rupture
+        _seuil_lbl = "Seuil alerte rupture (unités)" if lang_c=="fr" else "Stockout alert threshold (units)"
+        _seuil_curr = st.session_state.get("seuil_rupture", 5)
+        _seuil_new = st.slider(_seuil_lbl, 0, 20, int(_seuil_curr))
+        if _seuil_new != _seuil_curr:
+            st.session_state["seuil_rupture"] = _seuil_new
+            save_user_prefs(username_c, {"seuil_rupture": _seuil_new})
+
+        # ── Scoring dernier audit
+        st.markdown("<br>", unsafe_allow_html=True)
+        _sect_score = "Mon dernier scoring" if lang_c=="fr" else "My last score"
+        st.markdown(f"**{_sect_score}**")
+        try:
+            _arcs = load_archives_from_sheets(username_c)
+            if _arcs is not None and not _arcs.empty:
+                _last_arc = _arcs.sort_values("created_at" if "created_at" in _arcs.columns else "date",
+                                               ascending=False).iloc[0]
+                _k2 = float(_last_arc.get("kpi_2",0))
+                _k2c = "#00C896" if _k2>=90 else ("#F39C12" if _k2>=75 else "#E8304A")
+                _lbl2 = str(_last_arc.get("kpi_label_2",""))
+                _mod_arc = str(_last_arc.get("module",""))
+                _date_arc = str(_last_arc.get("date",""))
+                st.markdown(f"""
+                <div style="background:white;border:1px solid #E2E8F0;border-radius:12px;
+                            padding:14px 18px;margin-bottom:8px;">
+                    <div style="font-size:11px;color:#8FA3BC;margin-bottom:4px;">
+                        {'📦' if _mod_arc=='stock' else '🚚'} {_mod_arc.upper()} — {_date_arc}
+                    </div>
+                    <div style="font-size:28px;font-weight:800;
+                                font-family:Syne,sans-serif;color:{_k2c};">
+                        {_k2:.1f}<span style="font-size:13px;font-weight:400;
+                        color:#4A6080;">%</span>
+                    </div>
+                    <div style="font-size:11px;color:#4A6080;">{_lbl2}</div>
+                </div>
+                """, unsafe_allow_html=True)
+        except Exception:
+            pass
+
 
     elif nav==_("nav_params"):
         st.title(_("params_title"))
