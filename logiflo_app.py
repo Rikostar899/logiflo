@@ -4261,10 +4261,15 @@ elif st.session_state.auth and st.session_state.page=="app":
                 df_propre,statut=smart_ingester_stock_ultime(df_brut,client_ai=client)
                 pg.step(_("step_calc"));pg.done()
                 if df_propre is None: st.error(statut)
-                else: st.session_state.df_stock=df_propre
+                else:
+                    if st.session_state.stock_view=="MANAGER":
+                        st.session_state.df_stock_manager=df_propre
+                    else:
+                        st.session_state.df_stock_terrain=df_propre
 
-            if st.session_state.df_stock is not None:
-                df=st.session_state.df_stock.copy()
+            _df_key = "df_stock_manager" if st.session_state.stock_view=="MANAGER" else "df_stock_terrain"
+            if st.session_state.get(_df_key) is not None:
+                df=st.session_state[_df_key].copy()
                 sans_prix=bool(df.get("_sans_prix",pd.Series([True])).iloc[0]) if "_sans_prix" in df.columns else True
                 has_conso=bool(df.get("_has_conso",pd.Series([False])).iloc[0]) if "_has_conso" in df.columns else False
                 if sans_prix: st.markdown(f"<span class='sans-prix-badge'>{_('stock_badge_no_price')}</span>",unsafe_allow_html=True)
