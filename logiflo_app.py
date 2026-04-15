@@ -219,6 +219,36 @@ def render_news_widget(sector_key, lang="fr"):
     st.markdown("</div>", unsafe_allow_html=True)
 
 
+
+# ══════════════════════════════════════════════════════════════════
+# PLANS D'ABONNEMENT
+# ══════════════════════════════════════════════════════════════════
+USERS_PLAN = {
+    "eric":"expert","admin":"expert","demo_client1":"starter",
+    "demo_client2":"business","jury":"expert","partenaire":"business","test":"starter",
+}
+
+PLAN_LIMITS = {
+    "starter": {
+        "label":"Starter","price":"290€/mois","color":"#6D28D9","bg":"#F3E8FF","icon":"●",
+        "modules":1,"audits_mois":5,"profils":["MANAGER"],"historique_j":30,
+        "benchmarks":False,"prediction":False,"bfr":False,"terrain":False,
+        "scoring_detail":False,"news":False,"pdf_pages":2,
+    },
+    "business": {
+        "label":"Business","price":"590€/mois","color":"#047857","bg":"#D1FAE5","icon":"◆",
+        "modules":2,"audits_mois":None,"profils":["MANAGER","TERRAIN"],"historique_j":180,
+        "benchmarks":True,"prediction":True,"bfr":True,"terrain":True,
+        "scoring_detail":True,"news":True,"pdf_pages":5,
+    },
+    "expert": {
+        "label":"Expert","price":"Sur devis","color":"#B45309","bg":"#FDE68A","icon":"★",
+        "modules":99,"audits_mois":None,"profils":["MANAGER","TERRAIN"],"historique_j":730,
+        "benchmarks":True,"prediction":True,"bfr":True,"terrain":True,
+        "scoring_detail":True,"news":True,"pdf_pages":5,"api":True,"logo_pdf":True,
+    }
+}
+
 def get_user_plan(username):
     """Retourne le plan de l'utilisateur (depuis Supabase ou USERS_PLAN)."""
     try:
@@ -3185,6 +3215,39 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
                 pdf.set_x(14); pdf.cell(4,5,"-"); pdf.set_x(18)
                 pdf.multi_cell(182,5,_s(_pl[:120]))
 
+    # ── PRÉDICTIONS RUPTURE (si données disponibles, module stock) ──
+    if module == "stock":
+        try:
+            _preds_pdf = st.session_state.get("_last_predictions", [])
+            if not _preds_pdf:
+                # Recalculer depuis les KPIs si pas en session
+                pass
+            if _preds_pdf:
+                if pdf.get_y() > 240:
+                    pdf.add_page(); pdf.ln(5)
+                pdf.set_font("Arial","B",10); pdf.set_text_color(11,37,69)
+                _pred_lbl = "Stockout Predictions (next 4 weeks)" if lang=="en" else "Predictions de rupture (4 prochaines semaines)"
+                pdf.ln(4)
+                _ypr = pdf.get_y()
+                pdf.set_fill_color(232,48,74); pdf.rect(10,_ypr,3,10,"F")
+                pdf.set_fill_color(255,241,242); pdf.rect(13,_ypr,187,10,"F")
+                pdf.set_x(17); pdf.cell(183,10,_s(_pred_lbl.upper()),ln=True); pdf.ln(3)
+                for _pr in _preds_pdf[:6]:
+                    if pdf.get_y() > 272: break
+                    _urgence = str(_pr.get("urgence","")).upper()
+                    _ref_pr  = str(_pr.get("reference",""))
+                    _stk_pr  = int(_pr.get("stock",0))
+                    _sem_pr  = float(_pr.get("semaines",0))
+                    _conso_pr= float(_pr.get("conso_hebdo",0))
+                    pdf.set_font("Arial","",9); pdf.set_text_color(40,40,40)
+                    _txt_pr = f"[{_urgence}] {_ref_pr} — {_stk_pr} unites, conso {_conso_pr:.1f}/sem, rupture dans ~{_sem_pr:.1f} sem"
+                    if lang=="en":
+                        _txt_pr = f"[{_urgence}] {_ref_pr} — {_stk_pr} units, consumption {_conso_pr:.1f}/wk, stockout in ~{_sem_pr:.1f}wk"
+                    pdf.set_x(14); pdf.cell(4,5,"⚠"); pdf.set_x(18)
+                    pdf.multi_cell(182,5,_s(_txt_pr))
+        except Exception:
+            pass
+
     # ── PAGE 4 : ANALYSE IA ───────────────────────────────────────
     pdf.add_page()
     pdf.set_fill_color(11,37,69); pdf.rect(0,0,210,18,'F')
@@ -4236,9 +4299,34 @@ elif st.session_state.auth and st.session_state.page=="app":
                     kpi1_label=_("stock_kpi_capital") if not sans_prix else _("stock_kpi_articles")
                     kpi1_val=f"{val_totale:,.0f} €" if not sans_prix else str(len(df))
                     kpi1_color="#0B2545"
-                    c1.markdown(f"<div class='kpi-card'><h4>{kpi1_label}</h4><h2 style='color:{kpi1_color};'>{kpi1_val}</h2></div>",unsafe_allow_html=True)
-                    c2.markdown(f"<div class='kpi-card'><h4>{_('stock_kpi_service')}</h4><h2 style='color:#00C896;'>{tx_serv:.1f} %</h2></div>",unsafe_allow_html=True)
-                    c3.markdown(f"<div class='kpi-card'><h4>{_('stock_kpi_rupture')}</h4><h2 style='color:#E8304A;'>{len(ruptures)}</h2></div>",unsafe_allow_html=True)
+
+                    # ── Tooltips KPI (surligné desktop, ❓ mobile) ──
+                    _TIP_CSS = ("<style>.kpi-tip{border-bottom:1.5px dashed #4A6080;cursor:help;}"
+                                "@media(max-width:600px){.kpi-tip{border-bottom:none;}"
+                                ".kpi-q{display:inline!important;}}.kpi-q{display:none;}</style>")
+                    def _mk(col,title,value,color,tip_d,tip_b):
+                        col.markdown(
+                            _TIP_CSS+"<div class='kpi-card'>"
+                            "<span class='kpi-tip' title='"+tip_d+" | "+tip_b+"'>"+title+"</span>"
+                            "<span class='kpi-q'> ❓</span>"
+                            "<h2 style='color:"+color+";'>"+value+"</h2></div>",
+                            unsafe_allow_html=True)
+                    _lkpi = st.session_state.get("language","fr")
+                    _tips = (
+                        [("Capital immobilisé","< 60 jours de CA"),
+                         ("Taux de service","Benchmark : > 93% B2B"),
+                         ("Références en rupture","Objectif : < 2% des références")]
+                        if _lkpi=="fr" else
+                        [("Tied-up capital","Norm: < 60 days revenue"),
+                         ("Service level","Benchmark: > 93% B2B"),
+                         ("Stockouts","Target: < 2% of references")]
+                    )
+                    _mk(c1,_tips[0][0],kpi1_val,kpi1_color,
+                         'Capital immob. en EUR. Trop élevé = trésorerie sous pression.' if _lkpi=='fr' else 'Tied-up capital. Excess stock strains cash flow.',_tips[0][1])
+                    _mk(c2,_tips[1][0],f"{tx_serv:.1f} %","#00C896",
+                         '% commandes livrées sans rupture.' if _lkpi=='fr' else '% orders fulfilled without stockout.',_tips[1][1])
+                    _mk(c3,_tips[2][0],str(len(ruptures)),"#E8304A",
+                         'Références à zéro ou sous le seuil d alerte.' if _lkpi=='fr' else 'References at zero or below alert threshold.',_tips[2][1])
                     st.markdown("<br>",unsafe_allow_html=True)
                     cp,cl2=st.columns(2)
                     cmap={"🔴 Rupture":"#E8304A","🟢 OK":"#00C896","🟢 OK":"#00C896",
@@ -4271,6 +4359,31 @@ elif st.session_state.auth and st.session_state.page=="app":
                                 st.session_state.analysis_stock_manager or "",st.session_state.last_pdf or b"")
                             if ok: st.success(_("stock_saved"))
                             else: st.warning(_("stock_save_err"))
+
+                    # ── Prédiction rupture (visible à partir du 3e audit) ──
+                    _lang_pred = st.session_state.get("language","fr")
+                    if can_access("prediction"):
+                        try:
+                            _nb_pred = 0
+                            _arc_pred = load_archives_from_sheets(st.session_state.current_user)
+                            if _arc_pred is not None and not _arc_pred.empty:
+                                _col_mp = "module" if "module" in _arc_pred.columns else None
+                                _nb_pred = len(_arc_pred[_arc_pred[_col_mp]=="stock"]) if _col_mp else len(_arc_pred)
+                            if _nb_pred >= 2:
+                                _preds_ui = predict_ruptures(df, lang=_lang_pred)
+                                st.session_state["_last_predictions"] = _preds_ui
+                                render_prediction_rupture(df, lang=_lang_pred)
+                            else:
+                                _rem = max(0, 2 - _nb_pred)
+                                st.info(
+                                    f"💡 La prédiction de rupture apparaîtra à partir du 3e audit ({_rem} audit(s) restant(s))."
+                                    if _lang_pred=="fr" else
+                                    f"💡 Stockout prediction available from the 3rd audit ({_rem} remaining)."
+                                )
+                        except Exception:
+                            pass
+                    else:
+                        show_lock("prediction")
 
                     if run_ia:
                         _ia_txt = "Deep AI Analysis in progress..." if st.session_state.get("language","fr")=="en" else "Analyse approfondie IA en cours..."
