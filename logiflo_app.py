@@ -185,88 +185,71 @@ def get_sector_news(sector_key, lang="fr"):
 
 def render_news_widget(sector_key, lang="fr"):
     """
-    News sectorielles — slide unique pleine largeur, défilement auto 5s.
-    Chaque card : source, titre complet, aperçu 2 lignes, date, bouton Lire.
-    Clic n'importe où → article original dans nouvel onglet.
+    News sectorielles : une card à la fois, pleine largeur.
+    Défilement automatique toutes les 5 secondes.
+    Clic → article original dans nouvel onglet.
     """
     news = get_sector_news(sector_key, lang)
-    _articles = [a for a in (news or []) if str(a.get("title","")).strip() and a.get("link","")]
-    if not _articles:
+    _arts = [a for a in (news or []) if str(a.get("title","")).strip() and a.get("link","")]
+    if not _arts:
         return
 
     _lbl  = "Actualités sectorielles" if lang=="fr" else "Sector News"
-    _read = "Lire l'article" if lang=="fr" else "Read article"
-    _uid  = abs(hash(sector_key + lang)) % 99999
+    _read = "Lire l'article complet →" if lang=="fr" else "Read full article →"
+    _uid  = abs(hash(sector_key + lang)) % 999999
 
-    _cards_html = ""
-    for _art in _articles[:6]:
-        _title = str(_art.get("title",""))[:120].replace("'","&#39;").replace('"','&quot;')
-        _link  = str(_art.get("link",""))
-        _date  = str(_art.get("date",""))[:10]
-        _src   = _link.split("/")[2].replace("www.","") if "://" in _link else ""
-        # Aperçu = titre reformulé sur 2 lignes (les 140 premiers caractères)
-        _ap = (_title[:140] + "…") if len(_title) > 140 else _title
-        _cards_html += f"""
-        <a href="{_link}" target="_blank" style="text-decoration:none;display:block;">
-        <div class="nwc">
-            <div class="nwc-src">📰 {_src}</div>
-            <div class="nwc-title">{_title}</div>
-            <div class="nwc-ap">{_ap}</div>
-            <div class="nwc-foot">
-                <span class="nwc-date">{_date}</span>
-                <span class="nwc-btn">{_read} →</span>
+    _cards = ""
+    for _a in _arts[:6]:
+        _t   = str(_a.get("title",""))[:150].replace("<","&lt;").replace(">","&gt;").replace("'","&#39;")
+        _l   = str(_a.get("link",""))
+        _d   = str(_a.get("date",""))[:10]
+        _src = _l.split("/")[2].replace("www.","") if "://" in _l else ""
+        # Aperçu = les 180 premiers chars du titre comme accroche
+        _ap  = (_t[:180] + "…") if len(_t) > 180 else _t
+        _cards += f"""<div class="ns{_uid}" style="min-width:100%;box-sizing:border-box;
+            padding:24px 28px;background:white;border-top:4px solid #00C896;cursor:pointer;"
+            onclick="window.open('{_l}','_blank')">
+            <div style="font-size:10px;font-weight:700;color:#00C896;text-transform:uppercase;
+                        letter-spacing:1.5px;margin-bottom:10px;">{_src}</div>
+            <div style="font-size:17px;font-weight:800;color:#0B2545;line-height:1.4;
+                        margin-bottom:12px;font-family:Syne,sans-serif;">{_t}</div>
+            <div style="font-size:13px;color:#4A6080;line-height:1.65;margin-bottom:18px;
+                        overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;
+                        -webkit-box-orient:vertical;">{_ap}</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;
+                        border-top:1px solid #F0F4F8;padding-top:14px;">
+                <span style="font-size:11px;color:#8FA3BC;">{_d}</span>
+                <span style="font-size:12px;font-weight:700;color:white;background:#00C896;
+                             padding:6px 16px;border-radius:20px;">{_read}</span>
             </div>
-        </div>
-        </a>"""
+        </div>"""
 
+    _n = len(_arts[:6])
     st.markdown(f"""
 <div style="font-size:11px;font-weight:700;color:#4A6080;
             letter-spacing:2px;text-transform:uppercase;
-            margin-bottom:12px;margin-top:20px;">
-    📰 {_lbl}
-</div>
+            margin-bottom:12px;margin-top:24px;">📰 {_lbl}</div>
 <style>
-#nw{_uid}{{overflow:hidden;border-radius:14px;box-shadow:0 2px 16px rgba(11,37,69,0.08);}}
+#nw{_uid}{{overflow:hidden;border-radius:14px;
+           box-shadow:0 2px 20px rgba(11,37,69,0.10);}}
 #ntr{_uid}{{display:flex;transition:transform 0.55s cubic-bezier(.4,0,.2,1);will-change:transform;}}
-.nwc{{
-    min-width:100%;box-sizing:border-box;padding:22px 24px;
-    background:white;border-top:4px solid #00C896;
-    cursor:pointer;
-}}
-.nwc:hover{{background:#F0FDF9;}}
-.nwc-src{{font-size:10px;font-weight:700;color:#00C896;text-transform:uppercase;
-           letter-spacing:1.5px;margin-bottom:8px;}}
-.nwc-title{{font-size:16px;font-weight:800;color:#0B2545;line-height:1.4;
-             margin-bottom:10px;font-family:Syne,sans-serif;}}
-.nwc-ap{{font-size:13px;color:#4A6080;line-height:1.6;margin-bottom:14px;
-          display:-webkit-box;-webkit-line-clamp:2;
-          -webkit-box-orient:vertical;overflow:hidden;}}
-.nwc-foot{{display:flex;justify-content:space-between;align-items:center;
-            border-top:1px solid #F0F4F8;padding-top:12px;}}
-.nwc-date{{font-size:11px;color:#8FA3BC;}}
-.nwc-btn{{font-size:12px;font-weight:700;color:white;background:#00C896;
-           padding:5px 14px;border-radius:20px;}}
-#ndots{_uid}{{display:flex;gap:6px;justify-content:center;padding:10px 0 2px;}}
-.nwd{{width:7px;height:7px;border-radius:50%;background:#E2E8F0;
-       transition:background 0.3s;cursor:pointer;border:none;padding:0;}}
-.nwd.act{{background:#00C896;width:20px;border-radius:4px;}}
+.ns{_uid}:hover{{background:#F0FDF9 !important;}}
+#nd{_uid}{{display:flex;gap:6px;justify-content:center;padding:10px 0 2px;}}
+.ndot{_uid}{{width:7px;height:7px;border-radius:50%;background:#E2E8F0;
+              transition:all 0.3s;cursor:pointer;border:none;padding:0;}}
+.ndot{_uid}.act{{background:#00C896;width:22px;border-radius:4px;}}
 </style>
-<div id="nw{_uid}">
-  <div id="ntr{_uid}">{_cards_html}</div>
-</div>
-<div id="ndots{_uid}">
-  {"".join(f'<button class="nwd{" act" if i==0 else ""}" onclick="nwG{_uid}({i})"></button>' for i in range(len(_articles)))}
+<div id="nw{_uid}"><div id="ntr{_uid}">{_cards}</div></div>
+<div id="nd{_uid}">
+{"".join(f'<button class="ndot{_uid}{" act" if i==0 else ""}" onclick="nwG{_uid}({i})"></button>' for i in range(_n))}
 </div>
 <script>
 (function(){{
-  var c={0},n={len(_articles)};
+  var c=0,n={_n};
   var tr=document.getElementById("ntr{_uid}");
-  var ds=document.querySelectorAll("#ndots{_uid} .nwd");
-  function go(i){{
-    c=i;
-    tr.style.transform="translateX(-"+i*100+"%)";
-    ds.forEach(function(d,j){{d.classList.toggle("act",j===i);}});
-  }}
+  var ds=document.querySelectorAll("#nd{_uid} .ndot{_uid}");
+  function go(i){{c=i;tr.style.transform="translateX(-"+i*100+"%)";
+    ds.forEach(function(d,j){{d.classList.toggle("act",j===i);}});}}
   window["nwG{_uid}"]=go;
   setInterval(function(){{go((c+1)%n);}},5000);
 }})();
@@ -4648,7 +4631,7 @@ elif st.session_state.auth and st.session_state.page=="app":
                     f"""<div class="archive-card">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                         <h4 style="margin:0;">{_ico_a} {_mod_a.upper()}</h4>
-                        <span style="font-size:12px;color:#0B2545;font-weight:600;">{_date_a} {_h_a}</span>
+                        <span style="font-size:13px;color:#0B2545;font-weight:700;letter-spacing:0.3px;">{_date_a} — {_h_a}</span>
                     </div>
                     <span class="archive-kpi">{_row_a.get("kpi_label_1","")}: {float(_row_a.get("kpi_1",0)):.0f}</span>
                     <span class="archive-kpi" style="color:{_clr_a};">{_l2_a}: {_k2_a:.1f}%</span>
@@ -4946,6 +4929,60 @@ elif st.session_state.auth and st.session_state.page=="app":
                         pg2.done()
 
                     if st.session_state.analysis_stock_manager:
+                        # ── Scoring Logiflo (sous le titre, avant l'analyse textuelle) ──
+                        try:
+                            _score_ui = compute_logiflo_score(
+                                module="stock", df=df,
+                                kpis=_kpis_final, labels=_labels_final,
+                                sector_key=_sector_s,
+                                lang=st.session_state.get("language","fr")
+                            )
+                            _global_ui = _score_ui.get("global", 0)
+                            _details_ui = _score_ui.get("details", {})
+                            _clr_ui = "#00C896" if _global_ui>=70 else ("#F39C12" if _global_ui>=40 else "#E8304A")
+                            _lang_ui = st.session_state.get("language","fr")
+                            _sc_lbl = "Scoring Logiflo" if _lang_ui=="fr" else "Logiflo Score"
+                            st.markdown(f"""
+                            <div style="background:white;border:1px solid #E2E8F0;border-radius:12px;
+                                        padding:18px 22px;margin:16px 0;">
+                                <div style="font-size:13px;font-weight:700;color:#0B2545;
+                                            margin-bottom:14px;text-transform:uppercase;
+                                            letter-spacing:1px;">{_sc_lbl}</div>
+                                <div style="display:flex;align-items:center;gap:20px;margin-bottom:14px;">
+                                    <div style="font-family:Syne,sans-serif;font-size:48px;
+                                                font-weight:800;color:{_clr_ui};line-height:1;">
+                                        {_global_ui}<span style="font-size:18px;color:#4A6080;">/100</span>
+                                    </div>
+                                    <div style="flex:1;">
+                                        <div style="height:8px;background:#F0F4F8;border-radius:99px;overflow:hidden;">
+                                            <div style="height:100%;width:{_global_ui}%;background:{_clr_ui};
+                                                        border-radius:99px;"></div>
+                                        </div>
+                                        <div style="font-size:11px;color:#4A6080;margin-top:4px;">
+                                            {"Vert ≥ 70 · Orange ≥ 40 · Rouge < 40" if _lang_ui=="fr" else "Green ≥ 70 · Orange ≥ 40 · Red < 40"}
+                                        </div>
+                                    </div>
+                                </div>
+                            """, unsafe_allow_html=True)
+                            for _dlbl, _dval in _details_ui.items():
+                                _dc = "#00C896" if _dval>=70 else ("#F39C12" if _dval>=40 else "#E8304A")
+                                st.markdown(f"""
+                                <div style="margin-bottom:8px;">
+                                    <div style="display:flex;justify-content:space-between;
+                                                font-size:12px;margin-bottom:4px;">
+                                        <span style="color:#4A6080;">{_dlbl}</span>
+                                        <span style="color:{_dc};font-weight:700;">{_dval}/100</span>
+                                    </div>
+                                    <div style="height:5px;background:#F0F4F8;border-radius:99px;overflow:hidden;">
+                                        <div style="height:100%;width:{_dval}%;background:{_dc};
+                                                    border-radius:99px;"></div>
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                            st.markdown("</div>", unsafe_allow_html=True)
+                        except Exception:
+                            pass
+
                         st.markdown(render_report(st.session_state.analysis_stock_manager,"manager"),unsafe_allow_html=True)
                         st.markdown("<br>",unsafe_allow_html=True)
                         if st.session_state.last_pdf:
