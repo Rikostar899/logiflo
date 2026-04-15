@@ -163,7 +163,7 @@ def get_sector_news(sector_key, lang="fr"):
     return articles
 
 def render_news_widget(sector_key, lang="fr"):
-    """News sectorielles — format cards défilantes, clic → article original."""
+    """News horizontales défilantes toutes les 5 secondes, clic vers article original."""
     news = get_sector_news(sector_key, lang)
     if not news:
         return
@@ -171,83 +171,100 @@ def render_news_widget(sector_key, lang="fr"):
     _lbl = "Actualités sectorielles" if lang=="fr" else "Sector News"
     st.markdown(f"""
     <div style="font-size:11px;font-weight:700;color:#4A6080;
-                letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;margin-top:16px;">
+                letter-spacing:2px;text-transform:uppercase;
+                margin-bottom:10px;margin-top:16px;">
         📰 {_lbl}
-    </div>
-    <style>
-    .news-scroll {{
-        display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;
-        scrollbar-width:thin;scrollbar-color:#E2E8F0 transparent;
-    }}
-    .news-scroll::-webkit-scrollbar{{height:4px;}}
-    .news-scroll::-webkit-scrollbar-track{{background:transparent;}}
-    .news-scroll::-webkit-scrollbar-thumb{{background:#E2E8F0;border-radius:99px;}}
-    .news-card {{
-        min-width:220px;max-width:220px;
-        background:white;border:1px solid #E2E8F0;border-radius:12px;
-        padding:14px 16px;cursor:pointer;flex-shrink:0;
-        transition:all 0.2s;text-decoration:none;display:block;
-        border-top:3px solid #00C896;
-    }}
-    .news-card:hover{{border-color:#00C896;box-shadow:0 4px 16px rgba(0,200,150,0.15);
-                      transform:translateY(-2px);}}
-    .news-title{{font-size:12px;font-weight:700;color:#0B2545;line-height:1.4;
-                 margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:3;
-                 -webkit-box-orient:vertical;overflow:hidden;}}
-    .news-meta{{font-size:10px;color:#8FA3BC;}}
-    .news-source{{font-size:10px;color:#00C896;font-weight:600;margin-top:4px;
-                  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
-    </style>
-    <div class="news-scroll">
-    """, unsafe_allow_html=True)
+    </div>""", unsafe_allow_html=True)
 
-    for _art in news[:6]:
-        _title  = str(_art.get("title",""))[:100]
+    _articles = [a for a in news[:6] if a.get("title","").strip() and a.get("link","")]
+
+    if not _articles:
+        return
+
+    # Construire les cards en HTML — défilement automatique JS toutes les 5s
+    _cards_html = ""
+    for _art in _articles:
+        _title  = str(_art.get("title",""))[:90].replace("'","&#39;").replace('"','&quot;')
         _link   = str(_art.get("link",""))
         _date   = str(_art.get("date",""))[:10]
-        _source = _link.split("/")[2].replace("www.","") if "/" in _link else ""
-        if not _title.strip() or not _link:
-            continue
-        st.markdown(f"""
-        <a href="{_link}" target="_blank" class="news-card">
-            <div class="news-title">{_title}</div>
-            <div class="news-meta">{_date}</div>
-            <div class="news-source">↗ {_source}</div>
-        </a>
-        """, unsafe_allow_html=True)
+        _src    = _link.split("/")[2].replace("www.","") if "/" in _link else ""
+        # Aperçu = les 60 premiers caractères du titre reformulés comme accroche
+        _apercu = _title[:60] + "…" if len(_title)>60 else _title
+        _cards_html += f"""
+        <div class="nw-card">
+            <a href="{_link}" target="_blank" style="text-decoration:none;display:block;height:100%;">
+                <div class="nw-cat">📰 {_src}</div>
+                <div class="nw-title">{_title}</div>
+                <div class="nw-apercu">{_apercu}</div>
+                <div class="nw-footer">
+                    <span class="nw-date">{_date}</span>
+                    <span class="nw-arrow">Lire →</span>
+                </div>
+            </a>
+        </div>"""
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    _uid = abs(hash(sector_key)) % 99999
+    st.markdown(f"""
+    <style>
+    #nwrap_{_uid} {{
+        position:relative;overflow:hidden;border-radius:12px;
+        background:#F8FAFC;border:1px solid #E2E8F0;
+    }}
+    #ntrack_{_uid} {{
+        display:flex;transition:transform 0.6s cubic-bezier(.4,0,.2,1);
+        will-change:transform;
+    }}
+    .nw-card {{
+        min-width:100%;box-sizing:border-box;
+        padding:18px 20px;
+        background:white;border-radius:12px;
+        border-top:3px solid #00C896;
+        cursor:pointer;
+    }}
+    .nw-card:hover {{ background:#F0FDF9; }}
+    .nw-cat {{font-size:10px;font-weight:700;color:#00C896;text-transform:uppercase;
+               letter-spacing:1px;margin-bottom:6px;}}
+    .nw-title {{font-size:14px;font-weight:700;color:#0B2545;line-height:1.4;margin-bottom:6px;}}
+    .nw-apercu {{font-size:12px;color:#4A6080;line-height:1.5;margin-bottom:10px;
+                  display:-webkit-box;-webkit-line-clamp:2;
+                  -webkit-box-orient:vertical;overflow:hidden;}}
+    .nw-footer {{display:flex;justify-content:space-between;align-items:center;
+                  border-top:1px solid #F0F4F8;padding-top:8px;}}
+    .nw-date {{font-size:10px;color:#8FA3BC;}}
+    .nw-arrow {{font-size:11px;font-weight:700;color:#00C896;}}
+    .nw-dots {{display:flex;gap:5px;justify-content:center;padding:8px 0 4px;}}
+    .nw-dot {{width:6px;height:6px;border-radius:50%;background:#E2E8F0;
+               transition:background 0.3s;cursor:pointer;}}
+    .nw-dot.active {{background:#00C896;}}
+    </style>
+    <div id="nwrap_{_uid}">
+        <div id="ntrack_{_uid}">{_cards_html}</div>
+    </div>
+    <div class="nw-dots" id="ndots_{_uid}">
+        {"".join(f'<div class="nw-dot{" active" if i==0 else ""}" onclick="nwGo_{_uid}({i})"></div>' for i in range(len(_articles)))}
+    </div>
+    <script>
+    (function(){{
+        var cur_{_uid} = 0;
+        var n_{_uid}   = {len(_articles)};
+        var track_{_uid} = document.getElementById("ntrack_{_uid}");
+        var dots_{_uid}  = document.querySelectorAll("#ndots_{_uid} .nw-dot");
+        function nwSet_{_uid}(i){{
+            cur_{_uid} = i;
+            track_{_uid}.style.transform = "translateX(-" + (i*100) + "%)";
+            dots_{_uid}.forEach(function(d,j){{
+                d.classList.toggle("active", j===i);
+            }});
+        }}
+        window["nwGo_{_uid}"] = function(i){{ nwSet_{_uid}(i); }};
+        setInterval(function(){{
+            nwSet_{_uid}((cur_{_uid}+1) % n_{_uid});
+        }}, 5000);
+    }})();
+    </script>
+    """, unsafe_allow_html=True)
 
 
-
-# ══════════════════════════════════════════════════════════════════
-# PLANS D'ABONNEMENT
-# ══════════════════════════════════════════════════════════════════
-USERS_PLAN = {
-    "eric":"expert","admin":"expert","demo_client1":"starter",
-    "demo_client2":"business","jury":"expert","partenaire":"business","test":"starter",
-}
-
-PLAN_LIMITS = {
-    "starter": {
-        "label":"Starter","price":"290€/mois","color":"#6D28D9","bg":"#F3E8FF","icon":"●",
-        "modules":1,"audits_mois":5,"profils":["MANAGER"],"historique_j":30,
-        "benchmarks":False,"prediction":False,"bfr":False,"terrain":False,
-        "scoring_detail":False,"news":False,"pdf_pages":2,
-    },
-    "business": {
-        "label":"Business","price":"590€/mois","color":"#047857","bg":"#D1FAE5","icon":"◆",
-        "modules":2,"audits_mois":None,"profils":["MANAGER","TERRAIN"],"historique_j":180,
-        "benchmarks":True,"prediction":True,"bfr":True,"terrain":True,
-        "scoring_detail":True,"news":True,"pdf_pages":5,
-    },
-    "expert": {
-        "label":"Expert","price":"Sur devis","color":"#B45309","bg":"#FDE68A","icon":"★",
-        "modules":99,"audits_mois":None,"profils":["MANAGER","TERRAIN"],"historique_j":730,
-        "benchmarks":True,"prediction":True,"bfr":True,"terrain":True,
-        "scoring_detail":True,"news":True,"pdf_pages":5,"api":True,"logo_pdf":True,
-    }
-}
 
 def get_user_plan(username):
     """Retourne le plan de l'utilisateur (depuis Supabase ou USERS_PLAN)."""
@@ -374,6 +391,237 @@ def audit_counter_sidebar(username, plan):
         return False
     return True
 
+
+
+# ══════════════════════════════════════════════════════════════════
+# BENCHMARKS SECTORIELS
+# ══════════════════════════════════════════════════════════════════
+SECTORAL_DB = {
+    "transport_routier": {
+        "keywords": ["routier","camion","transport","trajet","trajet","fret","livraison","tournee","chauffeur","vehicule","traction","semiremorque","porteur","messagerie"],
+        "fr": """BENCHMARKS TRANSPORT ROUTIER CNR 2026:
+- Cout/km longue distance articule gazole: 1,85-2,10 EUR/km
+- Cout/km regional porteur: 1,40-1,65 EUR/km
+- Part carburant: ~26,5% du cout total
+- Marge nette saine PME transport: 6-10% | Alerte < 6% | Perte < 0%
+- Taux de remplissage sain: > 80%
+- Temps de conduite max: 9h/jour | 56h/semaine (reglementation EU)""",
+        "en": """CNR 2026 ROAD TRANSPORT BENCHMARKS:
+- Long-haul articulated cost/km: 1.85-2.10 EUR/km
+- Regional rigid truck cost/km: 1.40-1.65 EUR/km
+- Fuel share: ~26.5% of total cost
+- Healthy net margin SME transport: 6-10% | Alert < 6% | Loss < 0%
+- Load factor target: > 80%"""
+    },
+    "transport_maritime": {
+        "keywords": ["maritime","port","navire","conteneur","teu","fcl","lcl","bateaux","shipping","fos","havre","marseille"],
+        "fr": """BENCHMARKS TRANSPORT MARITIME 2026:
+- Transit Europe-Asie via Suez: 28-35 jours
+- Demurrage moyen: 120-180 EUR/jour/conteneur
+- Marge transitaire maritime: 15-25%
+- Taux de ponctualite armateurs: 55-70%""",
+        "en": """MARITIME TRANSPORT BENCHMARKS 2026:
+- Europe-Asia transit via Suez: 28-35 days
+- Avg demurrage: 120-180 EUR/day/container
+- Freight forwarder margin: 15-25%
+- Carrier on-time rate: 55-70%"""
+    },
+    "transport_aerien": {
+        "keywords": ["aerien","air","cargo","fret aerien","awb","airline","avion","roissy","cdg","orly"],
+        "fr": """BENCHMARKS FRET AERIEN 2026:
+- Taux fret Europe-Asie: 2,20-3,80 EUR/kg
+- Europe-Amerique du Nord: 2,80-4,50 EUR/kg
+- Surcharge carburant FSC: 25-40% du tarif de base
+- Marge transitaire aerien: 20-35%""",
+        "en": """AIR FREIGHT BENCHMARKS 2026:
+- Europe-Asia rate: 2.20-3.80 EUR/kg
+- Europe-North America: 2.80-4.50 EUR/kg
+- Fuel surcharge FSC: 25-40% of base rate
+- Freight forwarder margin air: 20-35%"""
+    },
+    "stock_industrie": {
+        "keywords": ["industrie","manufacturing","usine","production","piece","composant","matiere","cable","machine","outil"],
+        "fr": """BENCHMARKS STOCK INDUSTRIEL 2026:
+- Taux de service cible: > 97%
+- Couverture stock saine: 1-3 mois
+- Stock dormant: alerte si > 5% du capital
+- Cout possession stock: 18-25% valeur/an
+- BFR cible: < 45 jours de CA""",
+        "en": """INDUSTRIAL STOCK BENCHMARKS 2026:
+- Target service level: > 97%
+- Healthy stock coverage: 1-3 months
+- Dormant stock: alert if > 5% of capital
+- Holding cost: 18-25% value/year
+- Target WCR: < 45 days revenue"""
+    },
+    "stock_distribution": {
+        "keywords": ["distribution","grossiste","negoce","commerce","grossiste","import","export","vente"],
+        "fr": """BENCHMARKS STOCK DISTRIBUTION 2026:
+- Taux de service cible: > 95%
+- Couverture stock saine: 1-2 mois
+- Rotation stock annuelle saine: > 6 fois
+- Stock dormant: alerte si > 8% du capital
+- Cout possession: 20-28% valeur/an""",
+        "en": """DISTRIBUTION STOCK BENCHMARKS 2026:
+- Target service level: > 95%
+- Healthy stock coverage: 1-2 months
+- Healthy annual inventory turns: > 6x
+- Dormant stock: alert if > 8% of capital
+- Holding cost: 20-28% value/year"""
+    },
+    "stock_pharma": {
+        "keywords": ["pharma","medicament","lot","dluo","dlc","peremption","sante","medicament","molecule","laboratoire"],
+        "fr": """BENCHMARKS STOCK PHARMACEUTIQUE 2026:
+- Taux de service: > 99% (critique)
+- Gestion des lots FEFO obligatoire
+- Alertes peremption: > 6 mois avant DLC
+- Temperature stockage: tracabilite obligatoire
+- Stock dormant: < 2% des references""",
+        "en": """PHARMACEUTICAL STOCK BENCHMARKS 2026:
+- Service level: > 99% (critical)
+- FEFO lot management mandatory
+- Expiry alerts: > 6 months before expiry
+- Storage temperature: traceability mandatory
+- Dormant stock: < 2% of references"""
+    },
+    "stock_retail": {
+        "keywords": ["retail","magasin","boutique","fashion","mode","soldes","enseigne","rayon","commerce de detail"],
+        "fr": """BENCHMARKS STOCK RETAIL / E-COMMERCE 2026:
+- Taux de service: > 96%
+- Rotation stock fashion: > 4 fois/an
+- Stock dormant: alerte si > 6 mois sans mouvement
+- Taux de retour e-commerce sain: < 20%
+- BFR cible: < 60 jours de CA""",
+        "en": """RETAIL / E-COMMERCE STOCK BENCHMARKS 2026:
+- Service level: > 96%
+- Fashion stock turns: > 4x/year
+- Dormant stock: alert if > 6 months no movement
+- E-commerce return rate: < 20%
+- Target WCR: < 60 days revenue"""
+    },
+    "stock_agroalim": {
+        "keywords": ["alimentaire","agroalimentaire","dlc","dluo","frais","surgele","epicerie","boisson","conserve"],
+        "fr": """BENCHMARKS STOCK AGROALIMENTAIRE 2026:
+- Taux de service: > 96%
+- FEFO obligatoire (First Expired First Out)
+- Couverture stock frais: < 5 jours
+- Couverture stock sec: < 30 jours
+- Perte / casse cible: < 1,5% du CA""",
+        "en": """FOOD & BEVERAGE STOCK BENCHMARKS 2026:
+- Service level: > 96%
+- FEFO mandatory (First Expired First Out)
+- Fresh stock coverage: < 5 days
+- Dry stock coverage: < 30 days
+- Waste / breakage target: < 1.5% of revenue"""
+    },
+    "stock_btp": {
+        "keywords": ["btp","chantier","construction","materiaux","beton","acier","menuiserie","electricite","plomberie"],
+        "fr": """BENCHMARKS STOCK BTP / CHANTIER 2026:
+- Taux de service cible: > 95%
+- Couverture stock: 2-4 semaines chantier
+- Perte et casse sur chantier: < 3%
+- Gestion FIFO imperativo
+- Stock dormant: alerte si > 4 mois""",
+        "en": """CONSTRUCTION / SITE STOCK BENCHMARKS 2026:
+- Target service level: > 95%
+- Stock coverage: 2-4 weeks per site
+- Site waste and breakage: < 3%
+- FIFO management mandatory
+- Dormant stock: alert if > 4 months"""
+    },
+    "transport_maritime_intl": {
+        "keywords": ["container","conteneur","teu","fcl","lcl","bl","vessel","shipping","freight","port","ocean"],
+        "fr": """BENCHMARKS TRANSPORT MARITIME INTERNATIONAL 2026 (IRU/UNCTAD/Drewry):
+- Taux fret 20' Europe-Asie: 800-2500 USD/TEU
+- Corridors Mediterranee-Afrique Ouest: 1200-2800 USD/TEU
+- Demurrage Marseille/Le Havre: 120-180 EUR/jour/conteneur
+- Ponctualite armateurs 2026: 55-70%
+- Transit Europe-Asie via Suez: 28-35j | Cape: 38-45j""",
+        "en": """INTERNATIONAL MARITIME BENCHMARKS 2026:
+- 20' container Europe-Asia: 800-2500 USD/TEU
+- Mediterranean-West Africa: 1200-2800 USD/TEU
+- Demurrage Marseille/Le Havre: 120-180 EUR/day/container
+- Carrier on-time 2026: 55-70%
+- Europe-Asia via Suez: 28-35d | Cape: 38-45d"""
+    },
+    "transport_aerien_intl": {
+        "keywords": ["airfreight","air cargo","awb","iata","airline","express","dhl","fedex","ups"],
+        "fr": """BENCHMARKS FRET AERIEN INTERNATIONAL 2026 (IATA):
+- Taux Europe-Asie: 2,20-3,80 EUR/kg
+- Europe-Amerique du Nord: 2,80-4,50 EUR/kg
+- Europe-Afrique: 2,50-4,20 EUR/kg
+- Surcharge carburant FSC: 25-40%
+- Marge transitaire aerien: 20-35%""",
+        "en": """INTERNATIONAL AIR FREIGHT BENCHMARKS 2026 (IATA):
+- Europe-Asia: 2.20-3.80 EUR/kg
+- Europe-North America: 2.80-4.50 EUR/kg
+- Europe-Africa: 2.50-4.20 EUR/kg
+- Fuel surcharge FSC: 25-40%
+- Freight forwarder margin: 20-35%"""
+    },
+    "transport_routier_eu": {
+        "keywords": ["international","europe","cross-border","export","import","incoterm","douane"],
+        "fr": """BENCHMARKS TRANSPORT ROUTIER EUROPEEN 2026 (IRU/Eurostat):
+- Taux France-Espagne (FTL 33T): 1800-2400 EUR/trajet
+- Taux France-Allemagne: 1600-2200 EUR/trajet
+- Taux France-Maroc (via ferry): 3200-4500 EUR/trajet
+- Cout/km EU: 1,85-2,30 EUR/km
+- Surcoút EuroVignette/peages: +8-12%""",
+        "en": """EUROPEAN ROAD TRANSPORT BENCHMARKS 2026 (IRU/Eurostat):
+- France-Spain FTL rate: 1800-2400 EUR/trip
+- France-Germany: 1600-2200 EUR/trip
+- France-Morocco (via ferry): 3200-4500 EUR/trip
+- FTL cost/km Europe: 1.85-2.30 EUR/km
+- EuroVignette/tolls surcharge: +8-12%"""
+    },
+    "supply_chain_maghreb": {
+        "keywords": ["maroc","morocco","algerie","tunisie","casablanca","rabat","maghreb"],
+        "fr": """BENCHMARKS SUPPLY CHAIN MAGHREB 2026:
+- LPI Maroc: 3,2/5 (Banque Mondiale)
+- Transport Casablanca-Agadir: 1800-2500 MAD/trajet
+- Taux service PME distribution Maroc: 85-92%
+- Delai dedouanement: 3-7 jours
+- BFR PME marocaine: 60-90 jours de CA""",
+        "en": """MAGHREB SUPPLY CHAIN BENCHMARKS 2026:
+- Morocco LPI: 3.2/5 (World Bank)
+- Transport Casablanca-Agadir: 1800-2500 MAD/trip
+- SME service level Morocco: 85-92%
+- Customs clearance: 3-7 days
+- WCR SME Morocco: 60-90 days revenue"""
+    },
+    "supply_chain_afrique": {
+        "keywords": ["afrique","africa","cote d'ivoire","ivory coast","senegal","abidjan","dakar","ghana","nigeria"],
+        "fr": """BENCHMARKS SUPPLY CHAIN AFRIQUE 2026 (Banque Mondiale/CEDEAO):
+- LPI Cote d'Ivoire: 3,1/5 | Senegal: 2,9/5
+- Transport Abidjan-Bouake: 180000-250000 FCFA
+- Taux service distribution: 75-88%
+- Delai dedouanement: 5-12 jours
+- Taux pertes transit: 2-5%""",
+        "en": """SUB-SAHARAN AFRICA SUPPLY CHAIN BENCHMARKS 2026:
+- Ivory Coast LPI: 3.1/5 | Senegal: 2.9/5
+- Abidjan-Bouake transport: 180000-250000 FCFA
+- Distribution service level: 75-88%
+- Customs clearance: 5-12 days
+- Transit loss rate: 2-5%"""
+    },
+    "generique": {
+        "keywords": [],
+        "fr": """BENCHMARKS GENERIQUES SUPPLY CHAIN 2026:
+- Taux de service B2B minimum: > 93% | B2C: > 96%
+- Cout possession stock: 18-28% valeur/an
+- Rotation stock annuelle saine: > 4 fois/an
+- Stock dormant: alerte si > 10% sans mouvement
+- Marge transport saine: > 6%
+- BFR cible: < 60 jours de CA""",
+        "en": """GENERIC SUPPLY CHAIN BENCHMARKS 2026:
+- B2B service level minimum: > 93% | B2C: > 96%
+- Stock holding cost: 18-28% value/year
+- Healthy annual turns: > 4x/year
+- Dormant stock: alert if > 10% no movement
+- Healthy transport margin: > 6%
+- Target WCR: < 60 days revenue"""
+    }
+}
 
 def detect_sector(df=None, module="stock", mode_detected=None):
     """Detecte le secteur pertinent selon le fichier, le module et le contexte geo."""
@@ -3835,82 +4083,158 @@ elif st.session_state.auth and st.session_state.page=="app":
                     except Exception:
                         pass
 
-            # ══ CAMEMBERT + COURBE côte à côte ════════════════════
+            # ══ VISUALISATIONS ════════════════════════════════════
             import plotly.graph_objects as _go_d2
-            _col_l, _col_r = st.columns(2)
+            _mod_actif = st.session_state.get("module","stock")
+            # Transport → courbe pleine largeur | Stock → camembert + courbe
+            if _mod_actif == "transport":
+                _col_l, _col_r = None, st  # pleine largeur pour transport
+            else:
+                _col_l, _col_r = st.columns(2)
 
-            # ── Camembert (gauche) ─────────────────────────────────
-            with _col_l:
+            # ── Camembert DERNIER audit sauvegardé (stock uniquement) ──
+            _col_l_eff = _col_l if _mod_actif=="stock" and _col_l is not None else None
+            if _col_l_eff is not None:
+              with _col_l_eff:
                 try:
                     _dfs_pie = _df_arch[_df_arch["module"]=="stock"].copy()
                     if not _dfs_pie.empty:
+                        # Trier par date pour prendre LE DERNIER audit
+                        _sort_c = "created_at" if "created_at" in _dfs_pie.columns else "date"
+                        _dfs_pie = _dfs_pie.sort_values(_sort_c, ascending=True)
                         _lp = _dfs_pie.iloc[-1]
-                        _k2p = float(_lp.get("kpi_2",0))
-                        _k3p = float(_lp.get("kpi_3",0))
-                        _l2p = str(_lp.get("kpi_label_2","Service"))
-                        _l3p = str(_lp.get("kpi_label_3","Ruptures"))
-                        _ok  = max(0, 100-_k2p-_k3p*2)
+                        _k1p  = float(_lp.get("kpi_1",0))
+                        _k2p  = float(_lp.get("kpi_2",0))
+                        _k3p  = float(_lp.get("kpi_3",0))
+                        _l1p  = str(_lp.get("kpi_label_1","Capital"))
+                        _l2p  = str(_lp.get("kpi_label_2","Service"))
+                        _l3p  = str(_lp.get("kpi_label_3","Ruptures"))
+                        _date_pie = str(_lp.get("date","") or str(_lp.get("created_at",""))[:10])
+                        # Valeurs normalisées pour le camembert
+                        _ok   = max(0.1, 100 - _k2p - min(_k3p*5, 30))
                         _fig_p = _go_d2.Figure(_go_d2.Pie(
                             labels=[_l2p, _l3p, "Sain"],
-                            values=[_k2p, max(_k3p,0.1), max(_ok,0.1)],
+                            values=[_k2p, max(_k3p, 0.1), max(_ok, 0.1)],
                             hole=0.45,
-                            marker=dict(colors=["#00C896","#E8304A","#E2E8F0"],
-                                        line=dict(color="white",width=2)),
+                            marker=dict(
+                                colors=["#00C896","#E8304A","#E2E8F0"],
+                                line=dict(color="white",width=2)
+                            ),
                             textfont=dict(size=10),
+                            hovertemplate="%{label}: <b>%{value:.1f}%</b><extra></extra>",
                         ))
                         _fig_p.update_layout(
-                            title=dict(text="📦 Stock",font=dict(size=12,color="#0B2545"),x=0),
-                            legend=dict(font=dict(size=9),orientation="h",yanchor="bottom",y=-0.25),
-                            margin=dict(t=36,b=50,l=0,r=0),height=230,paper_bgcolor="white",
+                            title=dict(
+                                text=f"📦 Stock — {_date_pie}",
+                                font=dict(size=12,color="#0B2545"),x=0
+                            ),
+                            legend=dict(font=dict(size=9),orientation="h",
+                                        yanchor="bottom",y=-0.25),
+                            margin=dict(t=36,b=50,l=0,r=0),
+                            height=230,paper_bgcolor="white",
                         )
-                        st.plotly_chart(_fig_p,use_container_width=True,config={"displayModeBar":False})
+                        st.plotly_chart(_fig_p,use_container_width=True,
+                                        config={"displayModeBar":False})
                     else:
-                        st.markdown("<div style='height:230px;display:flex;align-items:center;"
-                                    "justify-content:center;background:white;border-radius:12px;"
-                                    "border:1px solid #E2E8F0;color:#8FA3BC;font-size:12px;'>"
-                                    "Lancez un audit Stock</div>",unsafe_allow_html=True)
+                        st.markdown(
+                            "<div style='height:230px;display:flex;align-items:center;"
+                            "justify-content:center;background:white;border-radius:12px;"
+                            "border:1px solid #E2E8F0;color:#8FA3BC;font-size:12px;'>"
+                            "Lancez un audit Stock pour voir la répartition.</div>",
+                            unsafe_allow_html=True
+                        )
                 except Exception:
                     pass
 
-            # ── Courbe (droite) ────────────────────────────────────
-            with _col_r:
+            # ── Courbe TOUS audits — hover = résumé financier bref ────
+            _col_r_eff = _col_r if _col_r is not None else st
+            with _col_r_eff:
                 try:
                     _plotted_d = False
                     for _mc in ["stock","transport"]:
                         _dfc = _df_arch[_df_arch["module"]==_mc].copy()
                         if len(_dfc) < 2:
                             continue
+                        _sort_c2 = "created_at" if "created_at" in _dfc.columns else "date"
+                        _dfc = _dfc.sort_values(_sort_c2, ascending=True).reset_index(drop=True)
+                        _dfc["kpi_1"] = pd.to_numeric(_dfc["kpi_1"],errors="coerce").fillna(0)
                         _dfc["kpi_2"] = pd.to_numeric(_dfc["kpi_2"],errors="coerce").fillna(0)
+                        _dfc["kpi_3"] = pd.to_numeric(_dfc["kpi_3"],errors="coerce").fillna(0)
                         _l2c = str(_dfc["kpi_label_2"].iloc[-1])
+                        _l1c = str(_dfc["kpi_label_1"].iloc[-1])
+                        _l3c = str(_dfc["kpi_label_3"].iloc[-1])
                         _clr = "#00C896" if _mc=="stock" else "#F39C12"
-                        _dates_c = _dfc["date"].tolist() if "date" in _dfc.columns else list(range(len(_dfc)))
+                        _dates_c = [str(d)[:10] for d in _dfc["date"].tolist()] if "date" in _dfc.columns else [str(i) for i in range(len(_dfc))]
+                        # Construire le texte hover : résumé financier bref par audit
+                        _hovers = []
+                        for _idx_c, _rw_c in _dfc.iterrows():
+                            _res_c  = str(_rw_c.get("resume_ia","")).strip()
+                            # Extraire 1ère phrase significative du résumé
+                            _brief = ""
+                            for _sent in _res_c.replace("\n"," ").split("."):
+                                _s = _sent.strip()
+                                if len(_s) > 20 and not _s.startswith("#") and not _s.startswith("-"):
+                                    _brief = _s[:80] + "…"
+                                    break
+                            if not _brief:
+                                _brief = f"{_l2c}: {float(_rw_c.get('kpi_2',0)):.1f}%"
+                            _hover_txt = (
+                                f"<b>{_dates_c[_idx_c]}</b><br>"
+                                f"{_l1c}: {float(_rw_c.get('kpi_1',0)):.0f}<br>"
+                                f"{_l2c}: <b>{float(_rw_c.get('kpi_2',0)):.1f}%</b><br>"
+                                f"{_l3c}: {float(_rw_c.get('kpi_3',0)):.0f}<br>"
+                                f"<i>{_brief}</i>"
+                            )
+                            _hovers.append(_hover_txt)
                         _fig_c = _go_d2.Figure()
                         _fig_c.add_trace(_go_d2.Scatter(
-                            x=list(range(len(_dfc))),y=_dfc["kpi_2"].tolist(),
+                            x=list(range(len(_dfc))),
+                            y=_dfc["kpi_2"].tolist(),
                             mode="lines+markers",
                             line=dict(color=_clr,width=2.5),
-                            marker=dict(size=8,color=_clr,line=dict(color="white",width=1.5)),
-                            fill="tozeroy",fillcolor=f"rgba{tuple(bytes.fromhex(_clr[1:])+b'\x19')}",
-                            hovertemplate=f"<b>%{{customdata}}</b><br>{_l2c}: <b>%{{y:.1f}}%</b><extra></extra>",
-                            customdata=[str(d)[:5] for d in _dates_c],
+                            marker=dict(size=9,color=_clr,
+                                        line=dict(color="white",width=2)),
+                            fill="tozeroy",
+                            fillcolor="rgba(0,200,150,0.08)" if _mc=="stock" else "rgba(243,156,18,0.08)",
+                            hovertemplate="%{customdata}<extra></extra>",
+                            customdata=_hovers,
                         ))
                         _fig_c.update_layout(
-                            title=dict(text=f"📈 {_l2c}",font=dict(size=12,color="#0B2545"),x=0),
-                            xaxis=dict(tickmode="array",tickvals=list(range(len(_dfc))),
-                                       ticktext=[str(d)[:5] for d in _dates_c],
-                                       tickfont=dict(size=8),showgrid=False),
-                            yaxis=dict(tickfont=dict(size=8),gridcolor="rgba(0,0,0,0.04)"),
+                            title=dict(
+                                text=f"📈 {_l2c} — {len(_dfc)} audits",
+                                font=dict(size=12,color="#0B2545"),x=0
+                            ),
+                            xaxis=dict(
+                                tickmode="array",
+                                tickvals=list(range(len(_dfc))),
+                                ticktext=[d[:5] for d in _dates_c],
+                                tickfont=dict(size=8),showgrid=False
+                            ),
+                            yaxis=dict(
+                                tickfont=dict(size=8),
+                                gridcolor="rgba(0,0,0,0.04)"
+                            ),
+                            hoverlabel=dict(
+                                bgcolor="white",
+                                bordercolor=_clr,
+                                font=dict(size=11,color="#0B2545")
+                            ),
                             plot_bgcolor="white",paper_bgcolor="white",
-                            margin=dict(t=36,b=20,l=30,r=10),height=230,showlegend=False,
+                            margin=dict(t=36,b=20,l=30,r=10),
+                            height=230,showlegend=False,
                         )
-                        st.plotly_chart(_fig_c,use_container_width=True,config={"displayModeBar":False})
+                        st.plotly_chart(_fig_c,use_container_width=True,
+                                        config={"displayModeBar":False})
                         _plotted_d = True
                         break
                     if not _plotted_d:
-                        st.markdown("<div style='height:230px;display:flex;align-items:center;"
-                                    "justify-content:center;background:white;border-radius:12px;"
-                                    "border:1px solid #E2E8F0;color:#8FA3BC;font-size:12px;'>"
-                                    "2 audits minimum pour la courbe</div>",unsafe_allow_html=True)
+                        st.markdown(
+                            "<div style='height:230px;display:flex;align-items:center;"
+                            "justify-content:center;background:white;border-radius:12px;"
+                            "border:1px solid #E2E8F0;color:#8FA3BC;font-size:12px;'>"
+                            "2 audits minimum pour afficher la courbe.</div>",
+                            unsafe_allow_html=True
+                        )
                 except Exception:
                     pass
 
@@ -3929,16 +4253,36 @@ elif st.session_state.auth and st.session_state.page=="app":
 
                 import re as _re_t
                 _tasks = []
+                _in_action = False
                 for _ln in _resume_lr.split("\n"):
                     _ln = _ln.strip()
-                    if not _ln or _ln.lower() in ("none","nan","null","n/a","-"):
+                    if not _ln or _ln.lower() in ("none","nan","null","n/a","-","---"):
                         continue
-                    _ln_c = _ln.replace("**","").strip()
-                    if _re_t.match(r"^[-•*→]\s+.{8,}",_ln_c):
-                        _tasks.append(_ln_c.lstrip("-•*→ "))
-                    elif _re_t.match(r"^\d+\.\s+.{8,}",_ln_c):
-                        _tasks.append(_re_t.sub(r"^\d+\.\s+","",_ln_c))
-                _tasks = [t[:120] for t in _tasks if t and len(t)>8][:8]
+                    # Détecter section actions
+                    if any(k in _ln.upper() for k in ["A FAIRE","PRIORIT","ACTION","RECOMMAND","NEXT STEP","TO DO"]):
+                        if _ln.startswith("#"):
+                            _in_action = True
+                            continue
+                    if _in_action and _ln.startswith("#"):
+                        _in_action = False
+                    _ln_c = _ln.replace("**","").replace("*","").strip()
+                    # Ignorer les lignes purement numériques ou trop courtes
+                    if len(_ln_c) < 15:
+                        continue
+                    if _re_t.match(r"^[-•*→✅]\s+.{15,}", _ln_c):
+                        _t = _ln_c.lstrip("-•*→✅ ").strip()
+                        if _t and not _re_t.match(r"^\d+[\.,]\d+", _t):  # éviter "94,2% de service"
+                            _tasks.append(_t)
+                    elif _in_action and _re_t.match(r"^\d+\.\s+.{15,}", _ln_c):
+                        _t = _re_t.sub(r"^\d+\.\s+","",_ln_c).strip()
+                        if _t:
+                            _tasks.append(_t)
+                # Nettoyer : enlever les tâches qui ne sont que des chiffres ou stats
+                _tasks = [
+                    t[:130] for t in _tasks
+                    if t and len(t)>15
+                    and not _re_t.match(r"^[\d\.,%€\s]+$", t)
+                ][:6]
 
                 _lbl_tasks = f"{_ico_lr} À faire — {_date_lr} · {_l2_lr} : {_k2_lr:.1f}%"
                 if lang_d=="en":
