@@ -163,443 +163,61 @@ def get_sector_news(sector_key, lang="fr"):
     return articles
 
 def render_news_widget(sector_key, lang="fr"):
-    """Affiche les news sectorielles avec aperçu défilant et lien cliquable."""
+    """News sectorielles — format cards défilantes, clic → article original."""
     news = get_sector_news(sector_key, lang)
     if not news:
         return
 
-    _lbl = "Actualités de votre secteur" if lang=="fr" else "Sector News"
+    _lbl = "Actualités sectorielles" if lang=="fr" else "Sector News"
     st.markdown(f"""
     <div style="font-size:11px;font-weight:700;color:#4A6080;
-                letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;
-                margin-top:8px;">
+                letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;margin-top:16px;">
         📰 {_lbl}
     </div>
+    <style>
+    .news-scroll {{
+        display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;
+        scrollbar-width:thin;scrollbar-color:#E2E8F0 transparent;
+    }}
+    .news-scroll::-webkit-scrollbar{{height:4px;}}
+    .news-scroll::-webkit-scrollbar-track{{background:transparent;}}
+    .news-scroll::-webkit-scrollbar-thumb{{background:#E2E8F0;border-radius:99px;}}
+    .news-card {{
+        min-width:220px;max-width:220px;
+        background:white;border:1px solid #E2E8F0;border-radius:12px;
+        padding:14px 16px;cursor:pointer;flex-shrink:0;
+        transition:all 0.2s;text-decoration:none;display:block;
+        border-top:3px solid #00C896;
+    }}
+    .news-card:hover{{border-color:#00C896;box-shadow:0 4px 16px rgba(0,200,150,0.15);
+                      transform:translateY(-2px);}}
+    .news-title{{font-size:12px;font-weight:700;color:#0B2545;line-height:1.4;
+                 margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:3;
+                 -webkit-box-orient:vertical;overflow:hidden;}}
+    .news-meta{{font-size:10px;color:#8FA3BC;}}
+    .news-source{{font-size:10px;color:#00C896;font-weight:600;margin-top:4px;
+                  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
+    </style>
+    <div class="news-scroll">
     """, unsafe_allow_html=True)
 
-    # Construire le HTML avec aperçu cliquable pour chaque article
-    _cards_html = ""
-    for _art in news[:5]:
-        _title  = str(_art.get("title",""))[:80]
+    for _art in news[:6]:
+        _title  = str(_art.get("title",""))[:100]
         _link   = str(_art.get("link",""))
         _date   = str(_art.get("date",""))[:10]
-        _source = _link.split("/")[2] if "/" in _link else ""
-        if not _title or not _link:
+        _source = _link.split("/")[2].replace("www.","") if "/" in _link else ""
+        if not _title.strip() or not _link:
             continue
-        _cards_html += f"""
-        <a href="{_link}" target="_blank" style="text-decoration:none;display:block;">
-          <div style="background:white;border:1px solid #E2E8F0;border-radius:10px;
-                      padding:12px 16px;margin-bottom:8px;cursor:pointer;
-                      transition:all 0.2s ease;"
-               onmouseover="this.style.borderColor='#00C896';this.style.boxShadow='0 2px 12px rgba(0,200,150,0.15)'"
-               onmouseout="this.style.borderColor='#E2E8F0';this.style.boxShadow='none'">
-              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-                  <div style="font-size:13px;font-weight:600;color:#0B2545;
-                              line-height:1.4;flex:1;">{_title}</div>
-                  <div style="font-size:16px;flex-shrink:0;color:#00C896;">→</div>
-              </div>
-              <div style="display:flex;gap:10px;margin-top:6px;">
-                  <div style="font-size:10px;color:#8FA3BC;">{_date}</div>
-                  <div style="font-size:10px;color:#8FA3BC;font-style:italic;">{_source}</div>
-              </div>
-          </div>
-        </a>"""
+        st.markdown(f"""
+        <a href="{_link}" target="_blank" class="news-card">
+            <div class="news-title">{_title}</div>
+            <div class="news-meta">{_date}</div>
+            <div class="news-source">↗ {_source}</div>
+        </a>
+        """, unsafe_allow_html=True)
 
-    if _cards_html:
-        st.markdown(_cards_html, unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-
-SECTORAL_DB = {
-    "transport_routier": {
-        "keywords": ["routier","truck","ftl","ltl","camion","route","km","messagerie","groupage","road","distance"],
-        "fr": """BENCHMARKS TRANSPORT ROUTIER CNR 2026:
-- Cout complet longue distance articule: 1,85-2,10 EUR/km (mediane 1,95)
-- Cout complet regional porteur: 1,40-1,65 EUR/km (mediane 1,52)
-- Messagerie/groupage: 2,20-2,80 EUR/km
-- Carburant: 26-28% du cout total | Personnel: 33-36% | Peages: 6-8%
-- Marge nette PME transport saine: 6-10%
-- SEUILS: alerte <8% | toxique <5% | perte <0%
-- Trajets deficitaires tolerables: <10% du portefeuille
-- Taux de remplissage FTL cible: >85%
-- Seuil survie PME 8-25 camions: marge >5% ET cout/km <2,15 EUR""",
-        "en": """CNR 2026 ROAD TRANSPORT BENCHMARKS:
-- Long-haul full cost: 1.85-2.10 EUR/km (median 1.95)
-- Regional rigid truck: 1.40-1.65 EUR/km (median 1.52)
-- Groupage/LTL: 2.20-2.80 EUR/km
-- Fuel: 26-28% of total cost | Staff: 33-36% | Tolls: 6-8%
-- Healthy SME net margin: 6-10%
-- THRESHOLDS: alert <8% | toxic <5% | loss <0%
-- Acceptable loss routes: <10% of portfolio
-- FTL fill rate target: >85%
-- SME survival: margin >5% AND cost/km <2.15 EUR"""
-    },
-    "transport_maritime": {
-        "keywords": ["maritime","sea","ocean","conteneur","container","teu","fcl","lcl","navire","port","bl","armateur","havre","marseille"],
-        "fr": """BENCHMARKS TRANSPORT MARITIME 2026:
-- Marge brute transitaire maritime: 15-25% sur cout achat
-- Marge nette PME transitaire: 8-14%
-- Remplissage conteneur FCL cible: >90%
-- Demurrage & Detention: 120-180 EUR/jour/conteneur au-dela franchise
-- Transit moyen Europe-Asie: 28-35j | Europe-Ameriques: 12-18j
-- Seuil rentabilite: marge <8% sur flux regulier = restructurer""",
-        "en": """MARITIME TRANSPORT BENCHMARKS 2026:
-- Gross margin freight forwarder: 15-25% on buying rate
-- Net margin SME forwarder: 8-14%
-- FCL fill rate target: >90%
-- Demurrage & Detention: 120-180 EUR/day/container beyond free time
-- Avg transit Europe-Asia: 28-35d | Europe-Americas: 12-18d
-- Profitability threshold: margin <8% on regular flows = restructure"""
-    },
-    "transport_aerien": {
-        "keywords": ["aerien","air","avion","awb","airfreight","chargeable","airline","iata","cdg","ory","lyo","jfk","lhr"],
-        "fr": """BENCHMARKS FRET AERIEN 2026:
-- Marge brute transitaire aerien: 20-35% sur cout achat
-- Marge nette PME fret aerien: 10-18%
-- Cout Europe-USA: 2,80-4,50 EUR/kg | Europe-Asie: 2,20-3,80 EUR/kg
-- Surcharge carburant FSC: 25-40% du tarif de base
-- Seuil d'alerte: marge <10%
-- AWB rentable cible: >500 EUR de marge brute par expedition""",
-        "en": """AIR FREIGHT BENCHMARKS 2026:
-- Gross margin air forwarder: 20-35% on buying rate
-- Net margin SME air freight: 10-18%
-- Cost Europe-USA: 2.80-4.50 EUR/kg | Europe-Asia: 2.20-3.80 EUR/kg
-- Fuel surcharge FSC: 25-40% of base rate
-- Alert threshold: margin <10%
-- Profitable AWB target: >500 EUR gross margin per shipment"""
-    },
-    "stock_industrie": {
-        "keywords": ["industrie","manufacturing","usine","production","piece","composant","matiere","cable","machine","outil"],
-        "fr": """BENCHMARKS STOCK INDUSTRIEL 2026:
-- Couverture saine: 1,5-3 mois selon criticite
-- Taux de service cible: >97% (rupture = arret ligne)
-- Rotation annuelle cible: 4-8 fois
-- Stock dormant (>6 mois): alerte si >5% du capital
-- Capital stock / CA: alerte si >15%
-- Cout de possession: 20-25% de la valeur stock par an
-- Point de commande = conso moy x delai fournisseur x 1,3""",
-        "en": """INDUSTRIAL STOCK BENCHMARKS 2026:
-- Healthy coverage: 1.5-3 months by criticality
-- Target service level: >97% (stockout = line stoppage)
-- Target annual turns: 4-8x
-- Dormant stock (>6 months): alert if >5% of capital
-- Tied-up capital / revenue: alert if >15%
-- Holding cost: 20-25% of stock value per year"""
-    },
-    "stock_distribution": {
-        "keywords": ["distribution","negoce","grossiste","wholesale","article","references","catalogue","produit","stock"],
-        "fr": """BENCHMARKS STOCK DISTRIBUTION 2026:
-- Couverture saine: 1-2 mois
-- Taux de service cible: >95%
-- Rotation annuelle cible: 6-12 fois
-- Stock dormant (>4 mois): alerte si >8% du capital
-- BFR stock cible: 30-45 jours de CA
-- Taux de rupture acceptable B2B: <3%""",
-        "en": """DISTRIBUTION STOCK BENCHMARKS 2026:
-- Healthy coverage: 1-2 months
-- Target service level: >95%
-- Target annual turns: 6-12x
-- Dormant stock (>4 months): alert if >8% of capital
-- Target WCR: 30-45 days revenue
-- Acceptable B2B stockout rate: <3%"""
-    },
-    "stock_pharma": {
-        "keywords": ["pharma","medicament","sante","health","vaccin","clinique","hopital","laboratoire","dispositif","medical"],
-        "fr": """BENCHMARKS STOCK PHARMACEUTIQUE 2026:
-- Taux de service cible: >99,5% (rupture = risque patient)
-- Couverture produits critiques: 3-6 mois minimum
-- FEFO obligatoire DLC/DLUO
-- Taux de peremption acceptable: <0,5% en valeur
-- Cout de possession pharma: 25-30%
-- Tout ecart temperature >2 degres C = quarantaine immediate""",
-        "en": """PHARMACEUTICAL STOCK BENCHMARKS 2026:
-- Target service level: >99.5% (stockout = patient risk)
-- Critical product coverage: 3-6 months minimum
-- FEFO mandatory
-- Acceptable expiry rate: <0.5% in value
-- Holding cost pharma: 25-30%
-- Any temperature deviation >2 degrees C = immediate quarantine"""
-    },
-    "stock_retail": {
-        "keywords": ["retail","ecommerce","boutique","magasin","commande","livraison","b2c","web","shop","vente","mode","textile"],
-        "fr": """BENCHMARKS STOCK RETAIL / E-COMMERCE 2026:
-- Taux de service cible: >98%
-- Couverture cible: 2-4 semaines
-- Rotation annuelle cible: 8-15 fois
-- Stock mort (>90j sans mouvement): alerte si >10% des references
-- Taux retour client B2C: alerte si >8%""",
-        "en": """RETAIL / E-COMMERCE STOCK BENCHMARKS 2026:
-- Target service level: >98%
-- Target coverage: 2-4 weeks
-- Target annual turns: 8-15x
-- Dead stock (>90 days): alert if >10% of references
-- Customer return rate: alert if >8%"""
-    },
-    "stock_agroalim": {
-        "keywords": ["alimentaire","food","agro","epicerie","frais","surgele","boisson","restaurant","cuisine","traiteur","dlc"],
-        "fr": """BENCHMARKS STOCK AGROALIMENTAIRE 2026:
-- Taux de service cible: >96%
-- Couverture produits frais: 3-7 jours max
-- Couverture produits secs: 2-4 semaines
-- FEFO obligatoire DLC/DLUO
-- Taux de pertes acceptable: <2% frais, <0,5% sec
-- Rotation annuelle: 12-52 fois selon categorie""",
-        "en": """FOOD & BEVERAGE STOCK BENCHMARKS 2026:
-- Target service level: >96%
-- Fresh product coverage: 3-7 days max
-- Dry goods coverage: 2-4 weeks
-- FEFO mandatory
-- Acceptable waste: <2% fresh, <0.5% dry
-- Annual turns: 12-52x by category"""
-    },
-    "stock_btp": {
-        "keywords": ["btp","chantier","construction","batiment","materiau","ciment","acier","beton","travaux","site"],
-        "fr": """BENCHMARKS STOCK BTP / CHANTIER 2026:
-- Taux de service cible: >95% (arret chantier = surcout majeur)
-- Couverture consommables: 2-4 semaines
-- Stock securite materiaux longs delais: 6-8 semaines
-- Taux de vol/perte chantier: alerte si >3% en valeur
-- Approvisionnement d'urgence: premium 20-40% sur prix standard""",
-        "en": """CONSTRUCTION / SITE STOCK BENCHMARKS 2026:
-- Target service level: >95% (site stoppage = major cost)
-- Consumables coverage: 2-4 weeks
-- Safety stock long lead-time materials: 6-8 weeks
-- Site theft/loss rate: alert if >3% in value
-- Emergency procurement premium: 20-40% over standard"""
-    },
-    "generique": {
-        "keywords": [],
-        "fr": """BENCHMARKS GENERIQUES SUPPLY CHAIN 2026:
-- Taux de service B2B minimum: >93% | B2C minimum: >96%
-- Cout de possession stock: 18-28% valeur/an (tous secteurs)
-- Rotation stock annuelle saine: >4 fois/an
-- Stock dormant: alerte si >10% des references sans mouvement
-- Marge operationnelle transport saine: >6%
-- BFR cible: <60 jours de CA""",
-        "en": """GENERIC SUPPLY CHAIN BENCHMARKS 2026:
-- Minimum B2B service level: >93% | B2C: >96%
-- Stock holding cost: 18-28% value/year (all sectors)
-- Healthy annual inventory turns: >4x/year
-- Dormant stock: alert if >10% no movement
-- Healthy transport operating margin: >6%
-- Target WCR: <60 days revenue"""
-    },
-
-    # ── TRANSPORT MARITIME INTERNATIONAL ──────────────────────────
-    "transport_maritime_intl": {
-        "keywords": ["container","conteneur","teu","fcl","lcl","bl","vessel","navire",
-                     "freight","fret","port","shipping","maritime","ocean","sea","mer"],
-        "fr": """BENCHMARKS TRANSPORT MARITIME INTERNATIONAL 2026 (IRU/UNCTAD/Drewry):
-- Taux fret conteneur 20' Europe-Asie: 800-2500 USD/TEU (hors pic)
-- Taux fret 40' Europe-Amerique du Nord: 1500-4000 USD/FEU
-- Corridors Mediterranee-Afrique de l'Ouest: 1200-2800 USD/TEU
-- Marge transitaire maritime: 15-25% sur achat
-- Demurrage moyen Marseille/Le Havre: 120-180 EUR/jour/conteneur
-- Taux de ponctualite livraison armateurs 2026: 55-70%
-- Transit Europe-Asie via Suez: 28-35 jours | Via Cap Bonne Esperance: 38-45j
-- Transit Europe-Amerique du Nord: 12-18 jours
-- Transit Europe-Afrique de l'Ouest: 14-21 jours
-- ALERTE DWELL TIME: >5 jours au port = risque surcouts""",
-        "en": """INTERNATIONAL MARITIME TRANSPORT BENCHMARKS 2026 (IRU/UNCTAD/Drewry):
-- 20' container freight rate Europe-Asia: 800-2500 USD/TEU (off-peak)
-- 40' Europe-North America: 1500-4000 USD/FEU
-- Mediterranean-West Africa corridors: 1200-2800 USD/TEU
-- Freight forwarder margin maritime: 15-25% on buying rate
-- Demurrage avg Marseille/Le Havre: 120-180 EUR/day/container
-- Carrier on-time performance 2026: 55-70%
-- Transit Europe-Asia via Suez: 28-35d | Via Cape: 38-45d
-- Transit Europe-North America: 12-18d
-- Transit Europe-West Africa: 14-21d
-- DWELL TIME ALERT: >5 days at port = risk of extra costs"""
-    },
-
-    # ── TRANSPORT AERIEN INTERNATIONAL ────────────────────────────
-    "transport_aerien_intl": {
-        "keywords": ["airfreight","air cargo","cargo","awb","iata","airline","avion",
-                     "aerien","aero","fret aerien","air freight","express","dhl","fedex","ups"],
-        "fr": """BENCHMARKS FRET AERIEN INTERNATIONAL 2026 (IATA/Boeing):
-- Taux fret aerien Europe-Asie: 2,20-3,80 EUR/kg
-- Taux Europe-Amerique du Nord: 2,80-4,50 EUR/kg
-- Taux Europe-Afrique: 2,50-4,20 EUR/kg
-- Surcharge carburant (FSC) 2026: 25-40% du tarif de base
-- Surcharge securite (SSC): 0,15-0,25 EUR/kg
-- Transit express J+1 Europe interne: premium 40-80% vs economique
-- Poids taxable vs poids reel: ratio >1,2 = expedition volumineuse a surveiller
-- Marge transitaire aerien: 20-35% sur achat
-- Taux de remplissage cargo mondial 2026: 58-65%
-- Delai transit Marseille-Abidjan: 1-2 jours | -Casablanca: 1 jour""",
-        "en": """INTERNATIONAL AIR FREIGHT BENCHMARKS 2026 (IATA/Boeing):
-- Air freight rate Europe-Asia: 2.20-3.80 EUR/kg
-- Europe-North America: 2.80-4.50 EUR/kg
-- Europe-Africa: 2.50-4.20 EUR/kg
-- Fuel surcharge (FSC) 2026: 25-40% of base rate
-- Security surcharge (SSC): 0.15-0.25 EUR/kg
-- Same-day/next-day Europe express: 40-80% premium vs economy
-- Chargeable/actual weight ratio >1.2 = bulky shipment to monitor
-- Freight forwarder margin air: 20-35% on buying rate
-- Global cargo load factor 2026: 58-65%
-- Transit Marseille-Abidjan: 1-2 days | -Casablanca: 1 day"""
-    },
-
-    # ── TRANSPORT ROUTIER INTERNATIONAL / EUROPE ──────────────────
-    "transport_routier_eu": {
-        "keywords": ["international","europe","cross-border","transfrontalier","ro-ro",
-                     "douane","customs","export","import","incoterm","fca","dap","ddp"],
-        "fr": """BENCHMARKS TRANSPORT ROUTIER EUROPEEN 2026 (IRU/Eurostat):
-- Taux routier France-Espagne (FTL 33T): 1 800-2 400 EUR/trajet
-- Taux France-Allemagne: 1 600-2 200 EUR/trajet
-- Taux France-Italie nord: 1 400-1 900 EUR/trajet
-- Taux France-Maroc (via ferry): 3 200-4 500 EUR/trajet
-- Cout km FTL Europe : 1,85-2,30 EUR/km (plus eleve qu'interieur France)
-- Temps de transit France-Espagne: 1-2j | France-Allemagne: 1-2j
-- Temps de transit France-Maroc: 4-6j via Algeciras
-- Surcoûts EuroVignette/peages pays: +8-12% sur cout total
-- Indice IRU cout main-d'oeuvre conducteur UE: +4,2% en 2025
-- ALERTE: cabotage limite a 3 operations en 7 jours en UE""",
-        "en": """EUROPEAN ROAD TRANSPORT BENCHMARKS 2026 (IRU/Eurostat):
-- France-Spain FTL rate (33T): 1,800-2,400 EUR/trip
-- France-Germany: 1,600-2,200 EUR/trip
-- France-Italy north: 1,400-1,900 EUR/trip
-- France-Morocco (via ferry): 3,200-4,500 EUR/trip
-- FTL cost/km Europe: 1.85-2.30 EUR/km (higher than domestic France)
-- Transit time France-Spain: 1-2d | France-Germany: 1-2d
-- France-Morocco transit: 4-6d via Algeciras
-- EuroVignette/tolls surcharge: +8-12% on total cost
-- IRU driver labour cost index EU: +4.2% in 2025
-- ALERT: cabotage limited to 3 operations in 7 days in EU"""
-    },
-
-    # ── SUPPLY CHAIN MAGHREB ──────────────────────────────────────
-    "supply_chain_maghreb": {
-        "keywords": ["maroc","morocco","algerie","algeria","tunisie","tunisia",
-                     "casablanca","rabat","alger","tunis","maghreb","afrique du nord"],
-        "fr": """BENCHMARKS SUPPLY CHAIN MAGHREB 2026 (AMTRI/Banque Mondiale):
-- Indice performance logistique Maroc 2026: 3,2/5 (LPI Banque Mondiale)
-- Cout transport routier Casablanca-Agadir (340km): 1 800-2 500 MAD/trajet
-- Cout transport Casablanca-Tanger (340km): 1 600-2 200 MAD/trajet
-- Taux de service PME distribution Maroc: 85-92% (sous la norme EU)
-- Delai dedouanement moyen Maroc: 3-7 jours (ameliore depuis 2023)
-- Stock couverture distribution Maroc: 45-75 jours (vs 30-45j EU)
-- BFR distribution PME marocaine: 60-90 jours de CA
-- Cout possession stock Maroc: 22-28% (financement plus cher qu'EU)
-- Principale inefficacite: pas de WMS dans 70% des PME marocaines
-- Opportunity: digitalisation logistique en acceleration post-COVID""",
-        "en": """MAGHREB SUPPLY CHAIN BENCHMARKS 2026 (AMTRI/World Bank):
-- Morocco Logistics Performance Index 2026: 3.2/5 (World Bank LPI)
-- Road transport cost Casablanca-Agadir (340km): 1,800-2,500 MAD/trip
-- Casablanca-Tangier (340km): 1,600-2,200 MAD/trip
-- SME service level distribution Morocco: 85-92% (below EU standard)
-- Average customs clearance Morocco: 3-7 days (improved since 2023)
-- Distribution stock coverage Morocco: 45-75 days (vs 30-45d EU)
-- WCR distribution SME Morocco: 60-90 days revenue
-- Stock holding cost Morocco: 22-28% (financing more expensive than EU)
-- Main inefficiency: no WMS in 70% of Moroccan SMEs
-- Opportunity: logistics digitalization accelerating post-COVID"""
-    },
-
-    # ── SUPPLY CHAIN AFRIQUE SUBSAHARIENNE ────────────────────────
-    "supply_chain_afrique": {
-        "keywords": ["afrique","africa","cote d'ivoire","ivory coast","senegal",
-                     "abidjan","dakar","accra","ghana","nigeria","lagos","cameroun",
-                     "douala","kenya","nairobi","afrique subsaharienne"],
-        "fr": """BENCHMARKS SUPPLY CHAIN AFRIQUE SUBSAHARIENNE 2026 (Banque Mondiale/CEDEAO):
-- Indice LPI moyen Afrique subsaharienne: 2,6-2,9/5 (Banque Mondiale)
-- LPI Cote d'Ivoire 2026: 3,1/5 | Senegal: 2,9/5 | Ghana: 2,8/5
-- Cout transport routier Abidjan-Bouake (340km): 180 000-250 000 FCFA
-- Cout transport Dakar-Kaolack (200km): 120 000-180 000 FCFA
-- Taux de service distribution Afrique subsaharienne: 75-88%
-- Delai dedouanement moyen: 5-12 jours (variable selon pays)
-- Stock couverture cible: 60-90 jours (chaine d'approvisionnement longue)
-- Principaux risques: routes degradees, coupures electriques, fraudes douanieres
-- Taux de pertes et dommages transit: 2-5% (vs <1% EU)
-- Opportunite marche: 70% du commerce B2B encore non digitalise""",
-        "en": """SUB-SAHARAN AFRICA SUPPLY CHAIN BENCHMARKS 2026 (World Bank/ECOWAS):
-- Average Sub-Saharan LPI: 2.6-2.9/5 (World Bank)
-- Ivory Coast LPI 2026: 3.1/5 | Senegal: 2.9/5 | Ghana: 2.8/5
-- Road transport Abidjan-Bouake (340km): 180,000-250,000 FCFA
-- Dakar-Kaolack (200km): 120,000-180,000 FCFA
-- Service level distribution: 75-88%
-- Average customs clearance: 5-12 days (varies by country)
-- Target stock coverage: 60-90 days (long supply chains)
-- Key risks: poor roads, power cuts, customs fraud
-- Transit loss and damage rate: 2-5% (vs <1% EU)
-- Market opportunity: 70% of B2B commerce still non-digital"""
-    }
-}
-
-
-# ══════════════════════════════════════════════════════════════════
-# GESTION DES PLANS D'ABONNEMENT
-# ══════════════════════════════════════════════════════════════════
-
-# Plans par utilisateur — à migrer dans Supabase user_prefs plus tard
-USERS_PLAN = {
-    "eric":         "expert",
-    "admin":        "expert",
-    "demo_client1": "starter",
-    "demo_client2": "business",
-    "jury":         "expert",
-    "partenaire":   "business",
-    "test":         "starter",
-}
-
-PLAN_LIMITS = {
-    "starter": {
-        "label":          "Starter",
-        "price":          "290€/mois",
-        "color":          "#6D28D9",
-        "bg":             "#F3E8FF",
-        "icon":           "●",
-        "modules":        1,
-        "audits_mois":    5,
-        "profils":        ["MANAGER"],
-        "historique_j":   30,
-        "benchmarks":     False,
-        "prediction":     False,
-        "bfr":            False,
-        "terrain":        False,
-        "scoring_detail": False,
-        "news":           False,
-        "pdf_pages":      2,
-    },
-    "business": {
-        "label":          "Business",
-        "price":          "590€/mois",
-        "color":          "#047857",
-        "bg":             "#D1FAE5",
-        "icon":           "◆",
-        "modules":        2,
-        "audits_mois":    None,
-        "profils":        ["MANAGER","TERRAIN"],
-        "historique_j":   180,
-        "benchmarks":     True,
-        "prediction":     True,
-        "bfr":            True,
-        "terrain":        True,
-        "scoring_detail": True,
-        "news":           True,
-        "pdf_pages":      5,
-    },
-    "expert": {
-        "label":          "Expert",
-        "price":          "Sur devis",
-        "color":          "#B45309",
-        "bg":             "#FDE68A",
-        "icon":           "★",
-        "modules":        99,
-        "audits_mois":    None,
-        "profils":        ["MANAGER","TERRAIN"],
-        "historique_j":   730,
-        "benchmarks":     True,
-        "prediction":     True,
-        "bfr":            True,
-        "terrain":        True,
-        "scoring_detail": True,
-        "news":           True,
-        "pdf_pages":      5,
-        "api":            True,
-        "logo_pdf":       True,
-    }
-}
 
 def get_user_plan(username):
     """Retourne le plan de l'utilisateur (depuis Supabase ou USERS_PLAN)."""
@@ -822,7 +440,7 @@ T = {
         "stock_badge_no_price":"📊 Mode opérationnel — analyse sans prix",
         "stock_badge_conso":"📈 Historique de consommation détecté",
         "stock_badge_no_conso":"⚠️ Pas d'historique — couverture non calculable",
-        "stock_saved":"✅ Sauvegardé !","stock_save_err":"⚠️ Connexion Google Sheets absente.",
+        "stock_saved":"✅ Sauvegardé !","stock_save_err":"⚠️ Connexion Supabase (PostgreSQL) absente.",
         "stock_urgent":"🚨 Priorités immédiates","stock_full":"📋 Stock complet",
         "stock_no_rupture":"✅ Aucun article en rupture.",
         "trans_title":"🚚 Audit de Rentabilité Transport",
@@ -989,9 +607,11 @@ def save_audit_to_sheets(username, module, nb_lignes, kpis, labels,
             "pdf_base64":  pdf_b64,
         }).execute()
         return True
-    except Exception as _e:
-        return _save_audit_sheets_fallback(username, module, nb_lignes,
-                                           kpis, labels, resume_ia, pdf_bytes)
+    except Exception as _e_supa:
+        # Log silencieux — ne pas tomber sur Sheets si Supabase répond mais échoue
+        # Uniquement si Supabase est absent (sb=None), le fallback Sheets est utilisé
+        pass
+    return False
 
 def load_archives_from_sheets(username):
     """Charge les archives depuis Supabase (compatible ancien nom)."""
@@ -1624,10 +1244,10 @@ REGLES ABSOLUES :
 for k,v in {
     "page":"accueil","module":"","auth":False,"current_user":None,
     "language":"fr",
-    "df_stock":None,"df_trans":None,"history_stock":[],"stock_view":"MANAGER",
+    "df_stock_manager":None,"df_stock_terrain":None,"df_trans":None,"history_stock":[],"stock_view":"MANAGER",
     "seuil_bas":15,"seuil_rupture":0,"seuil_km":0,
     "geo_cache":{},"route_cache":{},"trans_mapping":None,"trans_filename":None,
-    "analysis_stock":None,"analysis_trans":None,
+    "analysis_stock_manager":None,"analysis_stock_terrain":None,"analysis_trans":None,
     "last_pdf":None,"last_kpis":[],"last_labels":[],"trans_mode_detected":None,"audit_gratuit_done":False,
 }.items():
     if k not in st.session_state: st.session_state[k]=v
@@ -2048,6 +1668,10 @@ def _score_contenu(series,std):
 
 def smart_ingester_stock_ultime(df,client_ai=None):
     df=df.dropna(how='all').copy()
+    # Supprimer les lignes où la référence est vide, None ou nan
+    if "reference" in df.columns:
+        df = df[df["reference"].astype(str).str.strip().str.lower().isin(
+            ["nan","none","null","","n/a","-"]) == False].copy()
     df=df[df.apply(lambda r:r.astype(str).str.strip().ne('').any(),axis=1)]
     CIBLES=list(SYNONYMES.keys())
     propres={col:nettoyer(col) for col in df.columns}
@@ -3420,11 +3044,7 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
             pdf.cell(card_w-4,12,val_str,align='C')
         pdf.ln(46)
 
-    # Scoring extrait du contenu IA (titre uniquement si stock)
-    if module == "stock":
-        pdf.set_font("Arial","B",13); pdf.set_text_color(11,37,69)
-        sc_title = "Logiflo Scoring" if lang=="en" else "Scoring Logiflo"
-        pdf.cell(0,8,_s(sc_title),ln=True); pdf.ln(2)
+    # Scoring barres (sans titre redondant)
     scoring_lines=[]
     in_sc=False
     for line in content.split('\n'):
@@ -4087,11 +3707,6 @@ elif st.session_state.auth and st.session_state.page=="app":
                 {_plan_ico} {_plan_lbl}
             </div>
         """,unsafe_allow_html=True)
-        # Sélecteur langue dans sidebar
-        lang_sb=st.selectbox("",["🇫🇷 Français","🇬🇧 English"],
-            index=1 if st.session_state.get("language")=="en" else 0,
-            key="lang_sidebar",label_visibility="collapsed")
-        st.session_state.language="en" if "English" in lang_sb else "fr"
         st.markdown("---")
         _is_terrain = (st.session_state.get("stock_view","") == "TERRAIN")
         _nav_items = ([_("nav_workspace"),_("nav_archives"),_("nav_params"),_("nav_legal")]
@@ -4106,443 +3721,219 @@ elif st.session_state.auth and st.session_state.page=="app":
     # ── LEGAL ──
     # ── DASHBOARD ──────────────────────────────────────────────────
     if nav==_("nav_dashboard"):
-        lang_d = st.session_state.get("language","fr")
+        lang_d     = st.session_state.get("language","fr")
         username_d = st.session_state.current_user
-        _df_arch = load_archives_from_sheets(username_d)
-        import datetime as _dt_mod
-        _hour = _dt_mod.datetime.now().hour
-        if lang_d == "en":
-            _greet = "Good morning" if _hour < 12 else ("Good afternoon" if _hour < 18 else "Good evening")
-        else:
-            _greet = "Bonjour" if _hour < 18 else "Bonsoir"
+        _df_arch   = load_archives_from_sheets(username_d)
+
+        # Normaliser colonnes
+        if _df_arch is not None and not _df_arch.empty:
+            if "created_at" in _df_arch.columns and "date" not in _df_arch.columns:
+                _df_arch["date"]  = pd.to_datetime(_df_arch["created_at"],errors="coerce").dt.strftime("%d/%m/%Y")
+                _df_arch["heure"] = pd.to_datetime(_df_arch["created_at"],errors="coerce").dt.strftime("%H:%M")
+            for _c in ["module","date","heure","kpi_1","kpi_2","kpi_3",
+                       "kpi_label_1","kpi_label_2","kpi_label_3","resume_ia"]:
+                if _c not in _df_arch.columns:
+                    _df_arch[_c] = ""
+            for _c in ["kpi_1","kpi_2","kpi_3"]:
+                _df_arch[_c] = pd.to_numeric(_df_arch[_c],errors="coerce").fillna(0)
+
+        # ── Header salutation ─────────────────────────────────────
+        import datetime as _dt_dash
+        _hour_d = _dt_dash.datetime.now().hour
+        _greet  = ("Good morning" if _hour_d<12 else "Good afternoon" if _hour_d<18 else "Good evening") if lang_d=="en" else ("Bonjour" if _hour_d<18 else "Bonsoir")
         st.markdown(f"""
         <div style="background:linear-gradient(135deg,#0B2545 0%,#0f2f5a 100%);
-                    border-radius:16px;padding:28px 32px;margin-bottom:24px;
+                    border-radius:14px;padding:22px 28px;margin-bottom:20px;
                     border-left:4px solid #00C896;">
-            <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:white;margin-bottom:4px;">
+            <div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;
+                        color:white;margin-bottom:3px;">
                 {_greet}, <span style="color:#00C896;">{username_d}</span>
             </div>
-            <div style="font-size:13px;color:rgba(255,255,255,0.5);">
+            <div style="font-size:12px;color:rgba(255,255,255,0.5);">
                 {"Your supply chain at a glance" if lang_d=="en" else "Votre supply chain en un coup d\'oeil"}
             </div>
         </div>
         """, unsafe_allow_html=True)
-        if _df_arch is None or _df_arch.empty:
-            st.info("Aucun audit encore. Lancez votre premier audit pour voir votre tableau de bord." if lang_d=="fr"
-                    else "No audit yet. Launch your first audit to see your dashboard.")
-        else:
-            # Vérification défensive des colonnes
-            for _col in ["kpi_1","kpi_2","kpi_3"]:
-                if _col in _df_arch.columns:
-                    _df_arch[_col] = pd.to_numeric(_df_arch[_col], errors="coerce").fillna(0)
-            for _col_req in ["module","date","heure","kpi_label_1","kpi_label_2","resume_ia"]:
-                if _col_req not in _df_arch.columns:
-                    _df_arch[_col_req] = ""
-            try:
-                _df_arch["_dt"] = pd.to_datetime(_df_arch["date"]+" "+_df_arch["heure"],format="%d/%m/%Y %H:%M",errors="coerce")
-                _df_arch = _df_arch.sort_values("_dt",ascending=True)
-            except Exception: pass
-            # Nettoyer les modules vides
-            _df_arch = _df_arch[_df_arch["module"].astype(str).str.strip().ne("")]
 
-            # Alertes régression
+        if _df_arch is None or _df_arch.empty:
+            st.info("Aucun audit encore. Lancez votre premier audit." if lang_d=="fr"
+                    else "No audit yet. Launch your first audit.")
+        else:
+            # ── Alertes régression ────────────────────────────────
             for _mod_al in _df_arch["module"].unique():
                 _df_al = _df_arch[_df_arch["module"]==_mod_al].tail(2)
                 if len(_df_al) >= 2:
                     try:
                         _dv = float(_df_al.iloc[1]["kpi_2"]) - float(_df_al.iloc[0]["kpi_2"])
-                        _lbl2 = str(_df_al.iloc[1].get("kpi_label_2",""))
-                        _icon_al = "📦" if _mod_al=="stock" else "🚚"
+                        _lbl2_al = str(_df_al.iloc[1].get("kpi_label_2",""))
                         if _dv < -3:
-                            st.warning(f"⚠️ {_icon_al} {_lbl2} : {'baisse de' if lang_d=='fr' else 'dropped by'} **{abs(_dv):.1f} pts** {'depuis le dernier audit' if lang_d=='fr' else 'since last audit'} ({str(_df_al.iloc[1].get('date',''))})")
-                    except Exception: pass
+                            _ico_al = "📦" if _mod_al=="stock" else "🚚"
+                            st.warning(f"⚠️ {_ico_al} {_lbl2_al} : baisse de **{abs(_dv):.1f} pts** depuis le dernier audit ({str(_df_al.iloc[1].get('date',''))})")
+                    except Exception:
+                        pass
 
-            # ── Camembert + Courbe côte à côte ────────────────
-            import plotly.graph_objects as _go_dash2
-            _col_viz1, _col_viz2 = st.columns(2)
+            # ══ CAMEMBERT + COURBE côte à côte ════════════════════
+            import plotly.graph_objects as _go_d2
+            _col_l, _col_r = st.columns(2)
 
-            with _col_viz1:
-                # Camembert répartition dernière analyse stock
+            # ── Camembert (gauche) ─────────────────────────────────
+            with _col_l:
                 try:
                     _dfs_pie = _df_arch[_df_arch["module"]=="stock"].copy()
                     if not _dfs_pie.empty:
-                        _last_pie = _dfs_pie.iloc[-1]
-                        _k2p = float(_last_pie.get("kpi_2",0))
-                        _k3p = float(_last_pie.get("kpi_3",0))
-                        _l2p = str(_last_pie.get("kpi_label_2","Service"))
-                        _l3p = str(_last_pie.get("kpi_label_3","Ruptures"))
-                        _ok_pct = max(0, 100 - _k2p - _k3p*2)
-                        _fig_pie2 = _go_dash2.Figure(_go_dash2.Pie(
+                        _lp = _dfs_pie.iloc[-1]
+                        _k2p = float(_lp.get("kpi_2",0))
+                        _k3p = float(_lp.get("kpi_3",0))
+                        _l2p = str(_lp.get("kpi_label_2","Service"))
+                        _l3p = str(_lp.get("kpi_label_3","Ruptures"))
+                        _ok  = max(0, 100-_k2p-_k3p*2)
+                        _fig_p = _go_d2.Figure(_go_d2.Pie(
                             labels=[_l2p, _l3p, "Sain"],
-                            values=[_k2p, max(_k3p,0.1), max(_ok_pct,0.1)],
+                            values=[_k2p, max(_k3p,0.1), max(_ok,0.1)],
                             hole=0.45,
                             marker=dict(colors=["#00C896","#E8304A","#E2E8F0"],
                                         line=dict(color="white",width=2)),
                             textfont=dict(size=10),
-                            hovertemplate="%{label}: %{value:.1f}%<extra></extra>",
                         ))
-                        _fig_pie2.update_layout(
-                            title=dict(text="📦 Répartition Stock",
-                                       font=dict(size=12,color="#0B2545"),x=0),
-                            legend=dict(font=dict(size=9),orientation="h",
-                                        yanchor="bottom",y=-0.2),
-                            margin=dict(t=36,b=40,l=0,r=0),
-                            height=240,paper_bgcolor="white",
+                        _fig_p.update_layout(
+                            title=dict(text="📦 Stock",font=dict(size=12,color="#0B2545"),x=0),
+                            legend=dict(font=dict(size=9),orientation="h",yanchor="bottom",y=-0.25),
+                            margin=dict(t=36,b=50,l=0,r=0),height=230,paper_bgcolor="white",
                         )
-                        st.plotly_chart(_fig_pie2,use_container_width=True,
-                                        config={"displayModeBar":False})
+                        st.plotly_chart(_fig_p,use_container_width=True,config={"displayModeBar":False})
                     else:
-                        st.markdown("<div style='height:240px;display:flex;align-items:center;"
-                                    "justify-content:center;color:#8FA3BC;font-size:12px;'>"
-                                    "Lancez un audit Stock pour voir la répartition.</div>",
-                                    unsafe_allow_html=True)
+                        st.markdown("<div style='height:230px;display:flex;align-items:center;"
+                                    "justify-content:center;background:white;border-radius:12px;"
+                                    "border:1px solid #E2E8F0;color:#8FA3BC;font-size:12px;'>"
+                                    "Lancez un audit Stock</div>",unsafe_allow_html=True)
                 except Exception:
                     pass
 
-            with _col_viz2:
-                # Courbe évolution KPI principal
+            # ── Courbe (droite) ────────────────────────────────────
+            with _col_r:
                 try:
-                    _plotted = False
-                    for _mc_cv in ["stock","transport"]:
-                        _dfc_cv = _df_arch[_df_arch["module"]==_mc_cv].copy()
-                        if len(_dfc_cv) < 2:
+                    _plotted_d = False
+                    for _mc in ["stock","transport"]:
+                        _dfc = _df_arch[_df_arch["module"]==_mc].copy()
+                        if len(_dfc) < 2:
                             continue
-                        for _c_cv in ["kpi_2"]:
-                            _dfc_cv[_c_cv] = pd.to_numeric(_dfc_cv[_c_cv],errors="coerce").fillna(0)
-                        _l2cv = str(_dfc_cv["kpi_label_2"].iloc[-1])
-                        _clr_cv = "#00C896" if _mc_cv=="stock" else "#F39C12"
-                        _dates_cv = _dfc_cv["date"].tolist() if "date" in _dfc_cv.columns else list(range(len(_dfc_cv)))
-                        _fig_cv2 = _go_dash2.Figure()
-                        _fig_cv2.add_trace(_go_dash2.Scatter(
-                            x=list(range(len(_dfc_cv))),
-                            y=_dfc_cv["kpi_2"].tolist(),
+                        _dfc["kpi_2"] = pd.to_numeric(_dfc["kpi_2"],errors="coerce").fillna(0)
+                        _l2c = str(_dfc["kpi_label_2"].iloc[-1])
+                        _clr = "#00C896" if _mc=="stock" else "#F39C12"
+                        _dates_c = _dfc["date"].tolist() if "date" in _dfc.columns else list(range(len(_dfc)))
+                        _fig_c = _go_d2.Figure()
+                        _fig_c.add_trace(_go_d2.Scatter(
+                            x=list(range(len(_dfc))),y=_dfc["kpi_2"].tolist(),
                             mode="lines+markers",
-                            line=dict(color=_clr_cv,width=2.5),
-                            marker=dict(size=8,color=_clr_cv,
-                                        line=dict(color="white",width=1.5)),
-                            fill="tozeroy",
-                            fillcolor=f"rgba{tuple(list(bytes.fromhex(_clr_cv[1:]))+[25])}",
-                            hovertemplate=f"<b>%{{x}}</b><br>{_l2cv}: <b>%{{y:.1f}}%</b><extra></extra>",
+                            line=dict(color=_clr,width=2.5),
+                            marker=dict(size=8,color=_clr,line=dict(color="white",width=1.5)),
+                            fill="tozeroy",fillcolor=f"rgba{tuple(bytes.fromhex(_clr[1:])+b'\x19')}",
+                            hovertemplate=f"<b>%{{customdata}}</b><br>{_l2c}: <b>%{{y:.1f}}%</b><extra></extra>",
+                            customdata=[str(d)[:5] for d in _dates_c],
                         ))
-                        _fig_cv2.update_layout(
-                            title=dict(text=f"📈 {_l2cv}",
-                                       font=dict(size=12,color="#0B2545"),x=0),
-                            xaxis=dict(tickmode="array",
-                                       tickvals=list(range(len(_dfc_cv))),
-                                       ticktext=[str(d)[:5] for d in _dates_cv],
+                        _fig_c.update_layout(
+                            title=dict(text=f"📈 {_l2c}",font=dict(size=12,color="#0B2545"),x=0),
+                            xaxis=dict(tickmode="array",tickvals=list(range(len(_dfc))),
+                                       ticktext=[str(d)[:5] for d in _dates_c],
                                        tickfont=dict(size=8),showgrid=False),
-                            yaxis=dict(tickfont=dict(size=8),
-                                       gridcolor="rgba(0,0,0,0.04)"),
+                            yaxis=dict(tickfont=dict(size=8),gridcolor="rgba(0,0,0,0.04)"),
                             plot_bgcolor="white",paper_bgcolor="white",
-                            margin=dict(t=36,b=20,l=30,r=10),
-                            height=240,showlegend=False,
+                            margin=dict(t=36,b=20,l=30,r=10),height=230,showlegend=False,
                         )
-                        st.plotly_chart(_fig_cv2,use_container_width=True,
-                                        config={"displayModeBar":False})
-                        _plotted = True
+                        st.plotly_chart(_fig_c,use_container_width=True,config={"displayModeBar":False})
+                        _plotted_d = True
                         break
-                    if not _plotted:
-                        st.markdown("<div style='height:240px;display:flex;align-items:center;"
-                                    "justify-content:center;color:#8FA3BC;font-size:12px;'>"
-                                    "2 audits minimum pour la courbe.</div>",
-                                    unsafe_allow_html=True)
+                    if not _plotted_d:
+                        st.markdown("<div style='height:230px;display:flex;align-items:center;"
+                                    "justify-content:center;background:white;border-radius:12px;"
+                                    "border:1px solid #E2E8F0;color:#8FA3BC;font-size:12px;'>"
+                                    "2 audits minimum pour la courbe</div>",unsafe_allow_html=True)
                 except Exception:
                     pass
 
-            # ── Résumé dernier audit ───────────────────────────
+            # ══ TASKS — extraites du dernier audit ════════════════
+            st.markdown("<br>",unsafe_allow_html=True)
             try:
                 _sort_col = "created_at" if "created_at" in _df_arch.columns else "date"
-                _last_row = _df_arch.sort_values(_sort_col,ascending=False).iloc[0]
-                _resume_txt = str(_last_row.get("resume_ia",""))[:300].strip()
-                _date_txt   = str(_last_row.get("date","") or str(_last_row.get("created_at",""))[:10])
-                _mod_txt    = str(_last_row.get("module",""))
-                _ico_txt    = "📦" if _mod_txt=="stock" else "🚚"
-                _kpi2_txt   = float(_last_row.get("kpi_2",0))
-                _lbl2_txt   = str(_last_row.get("kpi_label_2",""))
-                _clr_txt    = "#00C896" if _kpi2_txt>=90 else ("#F39C12" if _kpi2_txt>=75 else "#E8304A")
-                if _resume_txt:
-                    _lbl_resume = "Dernière analyse" if lang_d=="fr" else "Latest analysis"
-                    st.markdown(f"""
-                    <div style="background:white;border:1px solid #E2E8F0;border-radius:12px;
-                                padding:16px 20px;margin:16px 0;
-                                border-left:4px solid {_clr_txt};">
-                        <div style="display:flex;justify-content:space-between;
-                                    align-items:center;margin-bottom:8px;">
-                            <div style="font-size:10px;font-weight:700;color:#4A6080;
-                                        letter-spacing:1.5px;text-transform:uppercase;">
-                                {_ico_txt} {_lbl_resume} — {_date_txt}
-                            </div>
-                            <div style="font-size:16px;font-weight:800;
-                                        font-family:Syne,sans-serif;color:{_clr_txt};">
-                                {_kpi2_txt:.1f}%
-                                <span style="font-size:10px;color:#4A6080;
-                                             font-weight:400;"> {_lbl2_txt}</span>
-                            </div>
-                        </div>
-                        <div style="font-size:12px;color:#0B2545;line-height:1.6;
-                                    font-style:italic;border-top:1px solid #F0F4F8;
-                                    padding-top:8px;">
-                            {_resume_txt}{"…" if len(str(_last_row.get("resume_ia","")))>300 else ""}
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-            except Exception:
-                pass
+                _lr = _df_arch.sort_values(_sort_col,ascending=False).iloc[0]
+                _resume_lr = str(_lr.get("resume_ia","")).strip()
+                _date_lr   = str(_lr.get("date","") or str(_lr.get("created_at",""))[:10])
+                _mod_lr    = str(_lr.get("module",""))
+                _k2_lr     = float(_lr.get("kpi_2",0))
+                _l2_lr     = str(_lr.get("kpi_label_2",""))
+                _ico_lr    = "📦" if _mod_lr=="stock" else "🚚"
+                _clr_lr    = "#00C896" if _k2_lr>=90 else ("#F39C12" if _k2_lr>=75 else "#E8304A")
 
-            # ── News sectorielles ──────────────────────────────
-            if can_access("news"):
-              try:
-                _sector_dash = "generique"
-                if not _df_arch.empty and "sector_key" in _df_arch.columns:
-                    _sk_s = _df_arch["sector_key"].dropna()
-                    if len(_sk_s) > 0:
-                        _sector_dash = str(_sk_s.iloc[-1])
-                elif not _df_arch.empty and "module" in _df_arch.columns:
-                    _lm = _df_arch["module"].dropna().iloc[-1] if len(_df_arch)>0 else ""
-                    _sector_dash = "transport_routier" if _lm=="transport" else "stock_distribution"
-                render_news_widget(_sector_dash, lang=lang_d)
-              except Exception:
-                pass
-            else:
-              show_lock("news")
+                import re as _re_t
+                _tasks = []
+                for _ln in _resume_lr.split("\n"):
+                    _ln = _ln.strip()
+                    if not _ln or _ln.lower() in ("none","nan","null","n/a","-"):
+                        continue
+                    _ln_c = _ln.replace("**","").strip()
+                    if _re_t.match(r"^[-•*→]\s+.{8,}",_ln_c):
+                        _tasks.append(_ln_c.lstrip("-•*→ "))
+                    elif _re_t.match(r"^\d+\.\s+.{8,}",_ln_c):
+                        _tasks.append(_re_t.sub(r"^\d+\.\s+","",_ln_c))
+                _tasks = [t[:120] for t in _tasks if t and len(t)>8][:8]
 
-            # ── Cards derniers audits ──────────────────────────
-            # ── Cards derniers audits ──────────────────────────
-            _last = _df_arch.groupby("module").last().reset_index()
-            _dcols = st.columns(max(1,len(_last)))
-            for _ci,(_idx,_row) in enumerate(_last.iterrows()):
-                _mn = str(_row.get("module",""))
-                _k2 = float(_row.get("kpi_2",0))
-                _k1 = float(_row.get("kpi_1",0))
-                _l1 = str(_row.get("kpi_label_1",""))
-                _l2 = str(_row.get("kpi_label_2",""))
-                _date_n = str(_row.get("date",""))
-                _clr = "#00C896" if _k2>=90 else ("#F39C12" if _k2>=75 else "#E8304A")
-                _ico = "📦" if _mn=="stock" else "🚚"
-                with _dcols[_ci]:
-                    st.markdown(f"""
-                    <div style="background:white;border:1px solid #E2E8F0;border-radius:14px;
-                                padding:24px 20px;border-top:3px solid {_clr};margin-bottom:16px;">
-                        <div style="font-size:11px;font-weight:700;color:#4A6080;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;">
-                            {_ico} {_mn.upper()} — {_date_n}
-                        </div>
-                        <div style="font-family:Syne,sans-serif;font-size:30px;font-weight:800;color:#0B2545;line-height:1;">
-                            {_k2:.1f}<span style="font-size:14px;font-weight:400;color:#4A6080;">%</span>
-                        </div>
-                        <div style="font-size:12px;color:#4A6080;margin-top:4px;">{_l2}</div>
-                        <div style="margin-top:12px;padding-top:12px;border-top:1px solid #F0F4F8;font-size:12px;color:#4A6080;">
-                            {_l1}: <strong style="color:#0B2545;">{f"{_k1:,.0f}" if _k1>1000 else f"{_k1:.1f}"}</strong>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-            # Courbes par module
-            import plotly.graph_objects as _go_d
-            for _mod_c in _df_arch["module"].unique():
-                _dfc = _df_arch[_df_arch["module"]==_mod_c].copy()
-                if len(_dfc) < 2: continue
-                _ico_c = "📦" if _mod_c=="stock" else "🚚"
-                _l2_c = str(_dfc["kpi_label_2"].iloc[-1])
-                _l1_c = str(_dfc["kpi_label_1"].iloc[-1])
-                _idx_c = list(range(len(_dfc)))
-                _fig_d = _go_d.Figure()
-                _fig_d.add_trace(_go_d.Scatter(
-                    x=_idx_c, y=_dfc["kpi_2"].tolist(),
-                    mode="lines+markers", name=_l2_c,
-                    line=dict(color="#00C896",width=3),
-                    marker=dict(size=10,color="#00C896",line=dict(color="white",width=2)),
-                    fill="tozeroy", fillcolor="rgba(0,200,150,0.08)",
-                    customdata=list(zip(
-                        _dfc["date"].tolist(),_dfc["heure"].tolist(),
-                        _dfc["kpi_1"].tolist(),[_l1_c]*len(_dfc),
-                        _dfc["resume_ia"].fillna("").str[:180].tolist()
-                    )),
-                    hovertemplate=(f"<b>%{{customdata[0]}} %{{customdata[1]}}</b><br>"
-                                   f"{_l2_c}: <b>%{{y:.1f}}%</b><br>"
-                                   f"{_l1_c}: <b>%{{customdata[2]:,.0f}}</b><br>"
-                                   f"<i>%{{customdata[4]}}...</i><extra></extra>")
-                ))
-                _ref_v = 97 if _mod_c=="stock" else 8
-                _ref_l = ("Target >97%" if lang_d=="en" else "Cible >97%") if _mod_c=="stock" else ("Target >8%" if lang_d=="en" else "Cible >8%")
-                _fig_d.add_hline(y=_ref_v,line_dash="dot",line_color="rgba(232,48,74,0.4)",
-                                  line_width=1.5,annotation_text=_ref_l,
-                                  annotation_position="right",annotation_font_size=10,
-                                  annotation_font_color="rgba(232,48,74,0.7)")
-                _fig_d.update_layout(
-                    title=dict(text=f"{_ico_c} {_mod_c.upper()} — {_l2_c}",
-                               font=dict(family="Syne",size=14,color="#0B2545"),x=0),
-                    xaxis=dict(tickmode="array",tickvals=_idx_c,
-                               ticktext=[str(d) for d in _dfc["date"].tolist()],
-                               tickfont=dict(size=10,color="#4A6080"),showgrid=False,zeroline=False),
-                    yaxis=dict(tickfont=dict(size=10,color="#4A6080"),
-                               gridcolor="rgba(0,0,0,0.04)",zeroline=False),
-                    plot_bgcolor="white",paper_bgcolor="white",
-                    margin=dict(t=44,b=32,l=40,r=40),height=260,
-                    showlegend=False,hovermode="x unified"
-                )
-                st.plotly_chart(_fig_d,use_container_width=True,config={"displayModeBar":False})
-
-                # Accès rapide PDF historique
-                _dfc_rev = _dfc.iloc[::-1].head(5)
-                _exp_lbl = "Recent audits" if lang_d=="en" else "Audits récents"
-                with st.expander(f"📂 {_exp_lbl} — {_mod_c.upper()}",expanded=False):
-                    for _ai,(_aidx,_arow) in enumerate(_dfc_rev.iterrows()):
-                        _a_date=str(_arow.get("date",""))
-                        _a_h=str(_arow.get("heure",""))
-                        _a_k2=float(_arow.get("kpi_2",0))
-                        _a_l2=str(_arow.get("kpi_label_2",""))
-                        _a_res=str(_arow.get("resume_ia",""))[:120]
-                        _has_pdf=bool(str(_arow.get("pdf_base64","")).strip())
-                        _ac1,_ac2=st.columns([3,1])
-                        with _ac1:
-                            st.markdown(f"""
-                            <div style="padding:10px 14px;background:#F8FAFC;border-radius:8px;
-                                        border-left:3px solid #00C896;margin-bottom:8px;">
-                                <div style="font-size:12px;font-weight:700;color:#0B2545;">
-                                    {_a_date} {_a_h} — {_a_l2}: {_a_k2:.1f}%
-                                </div>
-                                <div style="font-size:11px;color:#4A6080;margin-top:3px;font-style:italic;">
-                                    {_a_res}{"..." if len(str(_arow.get("resume_ia","")))>120 else ""}
-                                </div>
-                            </div>
-                            """,unsafe_allow_html=True)
-                        with _ac2:
-                            if _has_pdf:
-                                try:
-                                    import base64 as _b64d
-                                    _pdf_b=_b64d.b64decode(str(_arow["pdf_base64"]))
-                                    st.download_button("📥 PDF",_pdf_b,
-                                        f"Logiflo_{_mod_c}_{_a_date.replace('/','')}.pdf",
-                                        key=f"dl_d_{_mod_c}_{_ai}",use_container_width=True)
-                                except Exception: pass
-
-            # Pas de boutons CTA — le dashboard est une vue de lecture pure
-
-            # ── News sectorielles ─────────────────────────────
-            try:
-                _sector_dash = "generique"
-                if not _df_arch.empty and "sector_key" in _df_arch.columns:
-                    _sk_s = _df_arch["sector_key"].dropna()
-                    if len(_sk_s) > 0:
-                        _sector_dash = str(_sk_s.iloc[-1])
-                elif not _df_arch.empty and "module" in _df_arch.columns:
-                    _lm = _df_arch["module"].dropna().iloc[-1] if len(_df_arch)>0 else ""
-                    _sector_dash = "transport_routier" if _lm=="transport" else "stock_distribution"
-                render_news_widget(_sector_dash, lang=lang_d)
-            except Exception:
-                pass
-
-    elif nav==_("nav_legal"):
-        st.title(_("nav_legal"))
-        tab1,tab2,tab3=st.tabs(["📋 Mentions Légales / Legal","🔒 Confidentialité / Privacy","📄 CGUV / Terms"])
-        with tab1:
-            st.markdown("""<div class="legal-text">
-            <h2>Éditeur / Publisher</h2>
-            <div class="legal-box"><p><strong>Logiflo B2B Enterprise</strong> — SASU (en cours d'immatriculation / being incorporated)<br>
-            Marseille, France — contact@logiflo.io<br>
-            App: https://logiflo-io.streamlit.app</p></div>
-            <h2>Hébergement / Hosting</h2>
-            <p>Streamlit Cloud — Snowflake Inc., USA | GitHub Pages — GitHub Inc., USA</p>
-            <h2>Propriété Intellectuelle / Intellectual Property</h2>
-            <p>All elements of LOGIFLO.IO (code, algorithms, Smart Ingester™, AI engines, UI) are the exclusive property of Logiflo B2B Enterprise, protected by intellectual property law.</p>
-            <h2>Limitation de responsabilité / Liability</h2>
-            <p>Analyses are provided for decision support only. Logiflo cannot be held responsible for decisions made on this basis.</p>
-            <p style="color:#4A6080;font-size:13px;"><em>Dernière mise à jour / Last updated: April 2026</em></p>
-            </div>""",unsafe_allow_html=True)
-        with tab2:
-            st.markdown("""<div class="legal-text">
-            <div class="legal-box"><p>Conforme au RGPD / GDPR compliant (EU) 2016/679<br>
-            Contact DPO: contact@logiflo.io</p></div>
-            <h2>Ce que nous stockons / What we store</h2>
-            <div class="legal-box"><p>
-            ✅ Fichiers bruts traites en RAM uniquement — jamais stockes sur nos serveurs<br>
-            ✅ Raw files processed in RAM only — never stored on our servers<br><br>
-            ℹ Pour votre historique d audit, nous conservons dans Google Sheets :<br>
-            ℹ For your audit history, we keep in Google Sheets:<br>
-            &nbsp;&nbsp;— Date et heure de l audit / Audit date and time<br>
-            &nbsp;&nbsp;— Indicateurs KPIs calcules (ex : marge 12%, 3 ruptures) / Calculated KPI metrics<br>
-            &nbsp;&nbsp;— Resume IA tronque (800 caracteres max) / Truncated AI summary (800 chars max)<br>
-            &nbsp;&nbsp;— Rapport PDF genere / Generated PDF report<br><br>
-            ✅ Ces donnees ne sont jamais revendues ni partagees avec des tiers<br>
-            ✅ This data is never sold or shared with third parties<br>
-            ✅ Non utilisees pour entrainer des modeles IA publics / Not used to train public AI models<br>
-            ✅ Suppression sur demande sous 30 jours / Deletion on request within 30 days</p></div>
-            <h2>Sous-traitants / Sub-processors</h2>
-            <ul><li>Streamlit Cloud (Snowflake) — hosting — USA (EU SCCs)</li>
-            <li>OpenAI — AI analysis — USA (GDPR DPA)</li>
-            <li>Google Sheets — archiving — EU/USA</li>
-            <li>OpenRouteService (HeiGIT) — distances — Germany EU</li></ul>
-            <h2>Vos droits / Your rights (GDPR art. 15-22)</h2>
-            <p>Access, rectification, erasure, portability: <strong>contact@logiflo.io</strong> — 30 days response.<br>
-            CNIL complaint: <strong>www.cnil.fr</strong></p>
-            <p style="color:#4A6080;font-size:13px;"><em>April 2026</em></p>
-            </div>""",unsafe_allow_html=True)
-        with tab3:
-            st.markdown("""<div class="legal-text">
-            <p>Full terms (15 articles) available on request: <strong>contact@logiflo.io</strong></p>
-            <h2>Key Points</h2>
-            <div class="legal-box"><p>⚠️ Audits are provided as <strong>decision support only</strong>.
-            They do not constitute financial, legal or accounting advice. The Client remains the sole decision-maker.</p></div>
-            <h2>Data ownership</h2>
-            <p>The Client retains full ownership of their data. Generated reports belong to the Client.</p>
-            <h2>Liability</h2><p>Limited to amounts paid over the last 12 months.</p>
-            <h2>Governing law</h2><p>French law — Commercial Courts of Marseille.</p>
-            <p style="color:#4A6080;font-size:13px;"><em>Version 1.0 — April 2026</em></p>
-            </div>""",unsafe_allow_html=True)
-
-    # ── ARCHIVES ──
-    elif nav==_("nav_archives"):
-        st.title(_("arch_title"))
-        st.markdown(f"**{st.session_state.current_user}**")
-        st.markdown("---")
-        with st.spinner("Loading..."):
-            df_arch=load_archives_from_sheets(st.session_state.current_user)
-        if df_arch is None:
-            st.warning("⚠️ Connexion indisponible.")
-        elif df_arch is not None and (df_arch.empty if hasattr(df_arch,"empty") else True):
-            st.info(_("arch_empty"))
-        else:
-            # Normaliser les colonnes Supabase → colonnes attendues
-            if "created_at" in df_arch.columns and "date" not in df_arch.columns:
-                df_arch["date"]  = pd.to_datetime(df_arch["created_at"],errors="coerce").dt.strftime("%d/%m/%Y")
-                df_arch["heure"] = pd.to_datetime(df_arch["created_at"],errors="coerce").dt.strftime("%H:%M")
-            for _col_n in ["module","date","heure","kpi_1","kpi_2","kpi_3",
-                           "kpi_label_1","kpi_label_2","kpi_label_3","resume_ia","nb_lignes"]:
-                if _col_n not in df_arch.columns:
-                    df_arch[_col_n] = ""
-            for _col_n in ["kpi_1","kpi_2","kpi_3"]:
-                df_arch[_col_n] = pd.to_numeric(df_arch[_col_n], errors="coerce").fillna(0)
-
-            cf1,cf2=st.columns(2)
-            mf=cf1.selectbox(_("arch_filter"),[_("arch_filter_all"),"stock","transport"])
-            nb=cf2.slider("",5,50,10,label_visibility="collapsed")
-            ds=df_arch.copy()
-            if mf!=_("arch_filter_all") and "module" in ds.columns:
-                ds=ds[ds["module"].astype(str)==mf]
-            ds=ds.iloc[::-1].head(nb)
-            st.markdown(f"**{len(ds)} {_('arch_show')}**")
-            st.markdown("<br>",unsafe_allow_html=True)
-            for _idx,row in ds.iterrows():
-                icon="📦" if row.get("module")=="stock" else "🚚"
-                st.markdown(f"""<div class="archive-card">
-                    <h4>{icon} {str(row.get('module','')).upper()} — {row.get('date','')} {row.get('heure','')}</h4>
-                    <div style="font-size:12px;color:#4A6080;margin-bottom:8px;">{row.get('nb_lignes','')} rows</div>
-                    <span class="archive-kpi">{row.get('kpi_label_1','')}: {row.get('kpi_1','')}</span>
-                    <span class="archive-kpi">{row.get('kpi_label_2','')}: {row.get('kpi_2','')}</span>
-                    <span class="archive-kpi">{row.get('kpi_label_3','')}: {row.get('kpi_3','')}</span>
+                _lbl_tasks = f"{_ico_lr} À faire — {_date_lr} · {_l2_lr} : {_k2_lr:.1f}%"
+                if lang_d=="en":
+                    _lbl_tasks = f"{_ico_lr} To do — {_date_lr} · {_l2_lr}: {_k2_lr:.1f}%"
+                st.markdown(f"""
+                <div style="font-size:11px;font-weight:700;color:#4A6080;
+                            letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;">
+                    ✅ {_lbl_tasks}
                 </div>""",unsafe_allow_html=True)
-                with st.expander(_("arch_resume")):
-                    resume=row.get("resume_ia","")
-                    if resume: st.markdown(render_report(str(resume),"manager"),unsafe_allow_html=True)
-                    else: st.info("N/A")
-                pdf_b64=row.get("pdf_base64","")
-                if pdf_b64:
-                    try:
-                        st.download_button(_("arch_dl"),base64.b64decode(str(pdf_b64)),
-                            f"Logiflo_{row.get('date','').replace('/','_')}_{row.get('module','')}.pdf",
-                            key=f"dl_{row.get('date','')}_{row.get('heure','')}",use_container_width=True)
-                    except: pass
 
+                if _tasks:
+                    _tk = f"tasks_{username_d}_{_date_lr}"
+                    if _tk not in st.session_state:
+                        st.session_state[_tk] = [False]*len(_tasks)
+                    while len(st.session_state[_tk]) < len(_tasks):
+                        st.session_state[_tk].append(False)
+
+                    _done = sum(st.session_state[_tk])
+                    _pct  = int((_done/len(_tasks))*100)
+                    st.markdown(f"""
+                    <div style="background:white;border:1px solid #E2E8F0;border-radius:10px;
+                                padding:12px 16px;margin-bottom:8px;">
+                        <div style="display:flex;justify-content:space-between;
+                                    font-size:11px;margin-bottom:6px;">
+                            <span style="color:#4A6080;">{_done}/{len(_tasks)} {"terminée" if lang_d=="fr" else "done"}{"s" if _done>1 else ""}</span>
+                            <span style="color:{_clr_lr};font-weight:700;">{_pct}%</span>
+                        </div>
+                        <div style="height:4px;background:#F0F4F8;border-radius:99px;overflow:hidden;">
+                            <div style="height:100%;width:{_pct}%;background:{_clr_lr};border-radius:99px;"></div>
+                        </div>
+                    </div>""",unsafe_allow_html=True)
+
+                    for _ti, _tt in enumerate(_tasks):
+                        _chk = st.session_state[_tk][_ti]
+                        _new = st.checkbox(_tt, value=_chk, key=f"task_{_tk}_{_ti}")
+                        if _new != _chk:
+                            st.session_state[_tk][_ti] = _new
+                            st.rerun()
+                else:
+                    st.info("Lancez une analyse pour générer vos tâches." if lang_d=="fr"
+                            else "Run an analysis to generate your tasks.")
+            except Exception:
+                pass
+
+            # ══ NEWS sectorielles ══════════════════════════════════
+            if can_access("news"):
+                try:
+                    _sec = "generique"
+                    if "module" in _df_arch.columns:
+                        _lm2 = _df_arch["module"].dropna().iloc[-1] if len(_df_arch)>0 else ""
+                        _sec = "transport_routier" if str(_lm2)=="transport" else "stock_distribution"
+                        if st.session_state.get("module","") == "transport":
+                            _sec = "transport_routier"
+                    render_news_widget(_sec, lang=lang_d)
+                except Exception:
+                    pass
+            else:
+                show_lock("news")
 
     # ── MON COMPTE ──────────────────────────────────────────────
     elif nav==_("nav_compte"):
@@ -4840,7 +4231,7 @@ elif st.session_state.auth and st.session_state.page=="app":
                 if not st.session_state.history_stock or st.session_state.history_stock[-1].get("valeur")!=val_totale:
                     st.session_state.history_stock.append({"date":datetime.datetime.now().strftime("%H:%M:%S"),"valeur":val_totale})
 
-                if st.session_state.stock_view=="MANAGER":
+                if st.session_state.stock_view=="MANAGER":  # ── MANAGER UNIQUEMENT
                     c1,c2,c3=st.columns(3)
                     kpi1_label=_("stock_kpi_capital") if not sans_prix else _("stock_kpi_articles")
                     kpi1_val=f"{val_totale:,.0f} €" if not sans_prix else str(len(df))
@@ -4877,7 +4268,7 @@ elif st.session_state.auth and st.session_state.page=="app":
                             label1=_("stock_kpi_capital") if not sans_prix else _("stock_kpi_articles")
                             ok=save_audit_to_sheets(st.session_state.current_user,"stock",len(df),
                                 [kpi1,tx_serv,len(ruptures)],[label1,_("stock_kpi_service"),_("stock_kpi_rupture")],
-                                st.session_state.analysis_stock or "",st.session_state.last_pdf or b"")
+                                st.session_state.analysis_stock_manager or "",st.session_state.last_pdf or b"")
                             if ok: st.success(_("stock_saved"))
                             else: st.warning(_("stock_save_err"))
 
@@ -4904,7 +4295,7 @@ elif st.session_state.auth and st.session_state.page=="app":
                                                       current_kpis=_kpis_curr_s,current_labels=_labels_curr_s)
                         _hist_txt_s=format_historique_pour_prompt(_hist_s,"stock",st.session_state.get("language","fr"))
                         _sector_s = detect_sector(df=df, module="stock")
-                        st.session_state.analysis_stock=generate_ai_analysis(
+                        st.session_state.analysis_stock_manager=generate_ai_analysis(
                             f"Items: {len(df)}. Service level: {tx_serv:.1f}%. Stock-outs: {len(ruptures)}. "
                             f"Top dormant: {top_str}. Top stock-outs: {rupt_l}.{prix_info}{med_info} "
                             f"Prices: {'No' if sans_prix else 'Yes'}. Consumption history: {'Yes' if has_conso else 'No'}.",
@@ -4954,16 +4345,16 @@ elif st.session_state.auth and st.session_state.page=="app":
                         figs_pdf=[fig_pie]
                         if has_conso: figs_pdf.append(fig_conso)
                         if fig_hist_pdf is not None: figs_pdf.append(fig_hist_pdf)
-                        st.session_state.last_pdf=generate_expert_pdf(_("pdf_title_stock"),st.session_state.analysis_stock,figs_pdf,kpis=_kpis_final,labels=_labels_final,module="stock")
+                        st.session_state.last_pdf=generate_expert_pdf(_("pdf_title_stock"),st.session_state.analysis_stock_manager,figs_pdf,kpis=_kpis_final,labels=_labels_final,module="stock")
                         pg2.done()
 
-                    if st.session_state.analysis_stock:
-                        st.markdown(render_report(st.session_state.analysis_stock,"manager"),unsafe_allow_html=True)
+                    if st.session_state.analysis_stock_manager:
+                        st.markdown(render_report(st.session_state.analysis_stock_manager,"manager"),unsafe_allow_html=True)
                         st.markdown("<br>",unsafe_allow_html=True)
                         if st.session_state.last_pdf:
                             st.download_button(_("stock_btn_dl"),st.session_state.last_pdf,"Audit_Stock_Logiflo.pdf",use_container_width=True)
 
-                elif st.session_state.stock_view=="TERRAIN":
+                elif st.session_state.stock_view=="TERRAIN":  # ── TERRAIN UNIQUEMENT
                     c1,c2=st.columns(2)
                     c1.markdown(f"<div class='kpi-card'><h4>{_('stock_kpi_rupture')}</h4><h2 style='color:#E8304A;'>{len(ruptures)}</h2></div>",unsafe_allow_html=True)
                     c2.markdown(f"<div class='kpi-card'><h4>{_('stock_kpi_service')}</h4><h2 style='color:#00C896;'>{tx_serv:.1f} %</h2></div>",unsafe_allow_html=True)
@@ -4990,7 +4381,7 @@ elif st.session_state.auth and st.session_state.page=="app":
                                                         current_kpis=_kpis_curr_t,current_labels=_labels_curr_t)
                         _hist_txt_t = format_historique_pour_prompt(_hist_t,"terrain",st.session_state.get("language","fr"))
                         _sector_t = detect_sector(df=df, module="stock")
-                        st.session_state.analysis_stock=generate_ai_analysis(
+                        st.session_state.analysis_stock_terrain=generate_ai_analysis(
                             f"Field stock: {len(df)} refs. Stock-outs: {len(ruptures)}. "
                             f"Lowest stocks: {top_s}. Dormant: {dorm_s}. "
                             f"Prices: {'No' if sans_prix else 'Yes'}.",
@@ -4998,8 +4389,8 @@ elif st.session_state.auth and st.session_state.page=="app":
                             df_raw=df,
                             sector_key=_sector_t)
                         pg3.done()
-                    if st.session_state.analysis_stock:
-                        st.markdown(render_report(st.session_state.analysis_stock,"terrain"),unsafe_allow_html=True)
+                    if st.session_state.analysis_stock_terrain:
+                        st.markdown(render_report(st.session_state.analysis_stock_terrain,"terrain"),unsafe_allow_html=True)
                         st.markdown(f"### {_('stock_full')}")
                         cols_s=["reference","quantite","Statut"]
                         if has_conso: cols_s.append("_conso_moy")
@@ -5020,6 +4411,12 @@ elif st.session_state.auth and st.session_state.page=="app":
                     try: df_t=pd.read_excel(up_t) if up_t.name.endswith("xlsx") else pd.read_csv(up_t,encoding="utf-8")
                     except UnicodeDecodeError:
                         up_t.seek(0);df_t=pd.read_csv(up_t,encoding="latin-1")
+                    # Supprimer lignes totalement vides ou avec client None/nan
+                    df_t = df_t.dropna(how="all")
+                    for _chk_col in df_t.columns[:3]:
+                        _bad = df_t[_chk_col].astype(str).str.strip().str.lower().isin(["nan","none","null","","n/a","-"])
+                        df_t = df_t[~_bad].copy()
+                        break
                     mapping=auto_map_columns_with_ai(df_t)
                     dep_c_tmp=mapping.get("dep") if mapping.get("dep") in df_t.columns else None
                     arr_c_tmp=mapping.get("arr") if mapping.get("arr") in df_t.columns else None
