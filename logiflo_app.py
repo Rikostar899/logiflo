@@ -892,6 +892,7 @@ def save_audit_to_sheets(username, module, nb_lignes, kpis, labels,
     try:
         now = datetime.datetime.now()
         pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8") if pdf_bytes else ""
+        _profil_save = st.session_state.get("stock_view","MANAGER").lower()
         sb.table("audits").insert({
             "user_id":     username,
             "created_at":  now.isoformat(),
@@ -905,6 +906,7 @@ def save_audit_to_sheets(username, module, nb_lignes, kpis, labels,
             "kpi_label_3": labels[2] if len(labels)>2 else "",
             "resume_ia":   (resume_ia or "")[:800],
             "pdf_base64":  pdf_b64,
+            "profil":      _profil_save,
         }).execute()
         return True
     except Exception as _e_supa:
@@ -2491,35 +2493,35 @@ class PDFReport(FPDF):
         self.multi_cell(0,4,_s(footer_text),align="C")
 
 def _s(text):
-    """
-    Safe string pour fpdf — garantit 100% compatibilité latin-1.
-    Remplace explicitement les caractères courants avant normalisation.
-    """
+    """Safe string pour fpdf — latin-1 strict."""
     if text is None: return ""
     text = str(text)
-    replacements = {
-        "’":"'","‘":"'","“":'"',"”":'"',
-        "–":"-","—":"-","…":"...","°":"deg",
-        "€":"EUR","£":"GBP","©":"(c)","®":"(R)",
-        "™":"TM","•":"-","‣":"-","●":"-",
-        "→":"->","←":"<-","⇒":"=>","✓":"OK",
-        "✔":"OK","✗":"X","✘":"X",
-        "±":"+/-","×":"x","÷":"/",
-        "≈":"~","≠":"!=","≤":"<=","≥":">=",
-        "🔴":"[!]","🟠":"[!]","🟢":"[ok]",
-        "📊":"","📈":"","📉":"",
-        "⚠":"[!]","ℹ":"[i]","★":"*","☆":"*",
+    # Table de remplacement caractères hors latin-1 fréquents
+    REPL = {
+        "\u2019":"'", "\u2018":"'", "\u201c":'"', "\u201d":'"',
+        "\u2013":"-", "\u2014":"-", "\u2026":"...", "\u20ac":"EUR",
+        "\u00a9":"(c)", "\u00ae":"(R)", "\u2122":"TM", "\u2022":"-",
+        "\u25cf":"-", "\u2192":"->", "\u2190":"<-", "\u21d2":"=>",
+        "\u2713":"OK", "\u2717":"X", "\u00b0":"deg", "\u00b1":"+/-",
+        "\u00d7":"x", "\u00f7":"/", "\u2248":"~", "\u2260":"!=",
+        "\u2264":"<=", "\u2265":">=", "\u26a0":"[!]", "\u2139":"[i]",
+        "\u2605":"*", "\u2606":"*",
     }
-    for char,repl in replacements.items():
-        text = text.replace(char,repl)
-    text = unicodedata.normalize('NFKD',text).encode('ASCII','ignore').decode('utf-8')
-    try:
-        text.encode('latin-1')
-        return text
-    except UnicodeEncodeError:
-        return text.encode('latin-1',errors='ignore').decode('latin-1')
+    for ch, rep in REPL.items():
+        text = text.replace(ch, rep)
+    # Supprimer emojis (>U+FFFF) et autres hors latin-1 caractère par caractère
+    result = []
+    for c in text:
+        if ord(c) > 255:
+            try:
+                asc = c.encode('ascii', errors='strict').decode('ascii')
+                result.append(asc)
+            except Exception:
+                result.append('?')
+        else:
+            result.append(c)
+    return ''.join(result)
 
-# Alias pour compatibilité
 def _asc(text): return _s(text)
 
 def _clean_pdf(text):
@@ -3621,10 +3623,16 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
         pdf.cell(0,9,_s(txt),ln=True,align='C')
 
     # Encodage sécurisé : remplace tout caractère non latin-1 avant output
-    raw = pdf.output(dest='S')
-    if isinstance(raw, str):
+    try:
+        raw = pdf.output(dest='S')
+        if isinstance(raw, bytes):
+            return raw
         return raw.encode('latin-1', errors='replace')
-    return raw
+    except (UnicodeEncodeError, Exception) as _pdf_err:
+        try:
+            return pdf.output(dest='S').encode('ascii', errors='replace')
+        except Exception:
+            return b""
 
 
 # =========================================
@@ -4601,22 +4609,41 @@ elif st.session_state.auth and st.session_state.page=="app":
 
     elif nav==_("nav_archives"):
         _lang_arc = st.session_state.get("language","fr")
+        _view_arc  = st.session_state.get("stock_view","MANAGER")
         st.title(_("arch_title"))
+        # Manager voit ses audits manager, Terrain voit ses audits terrain
+        # On utilise un préfixe dans le champ module pour distinguer
         with st.spinner("Chargement..." if _lang_arc=="fr" else "Loading..."):
             _dfa = load_archives_from_sheets(st.session_state.current_user)
         if _dfa is None or _dfa.empty:
             st.info(_("arch_empty"))
         else:
+            # Normaliser colonnes
             if "created_at" in _dfa.columns and "date" not in _dfa.columns:
                 _dfa["date"]  = pd.to_datetime(_dfa["created_at"],errors="coerce").dt.strftime("%d/%m/%Y")
                 _dfa["heure"] = pd.to_datetime(_dfa["created_at"],errors="coerce").dt.strftime("%H:%M")
-            for _cn in ["module","date","heure","kpi_1","kpi_2","kpi_3","kpi_label_1","kpi_label_2","kpi_label_3","resume_ia"]:
+            for _cn in ["module","date","heure","kpi_1","kpi_2","kpi_3",
+                         "kpi_label_1","kpi_label_2","kpi_label_3","resume_ia","profil"]:
                 if _cn not in _dfa.columns:
                     _dfa[_cn] = ""
             for _cn in ["kpi_1","kpi_2","kpi_3"]:
                 _dfa[_cn] = pd.to_numeric(_dfa[_cn],errors="coerce").fillna(0)
+
+            # Filtrer selon le profil actif :
+            # TERRAIN voit uniquement ses propres audits terrain
+            # MANAGER voit uniquement ses audits manager (pas le terrain)
+            if _view_arc == "TERRAIN":
+                _dfa_view = _dfa[_dfa["profil"].astype(str).str.lower()=="terrain"].copy()
+                if _dfa_view.empty:
+                    # Compatibilité ascendante : afficher tous si pas de champ profil
+                    _dfa_view = _dfa.copy()
+            else:
+                _dfa_view = _dfa[_dfa["profil"].astype(str).str.lower() != "terrain"].copy()
+                if _dfa_view.empty:
+                    _dfa_view = _dfa.copy()
+
             mf = st.selectbox(_("arch_filter"),[_("arch_filter_all"),"stock","transport"])
-            ds = _dfa.copy()
+            ds = _dfa_view.copy()
             if mf != _("arch_filter_all"):
                 ds = ds[ds["module"].astype(str)==mf]
             ds = ds.iloc[::-1].head(50)
@@ -4634,7 +4661,7 @@ elif st.session_state.auth and st.session_state.page=="app":
                     f"""<div class="archive-card">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                         <h4 style="margin:0;">{_ico_a} {_mod_a.upper()}</h4>
-                        <span style="font-size:11px;color:#4A6080;font-weight:600;">📅 {_date_a} {_h_a}</span>
+                        <span style="font-size:12px;color:#0B2545;font-weight:600;">{_date_a} {_h_a}</span>
                     </div>
                     <span class="archive-kpi">{_row_a.get("kpi_label_1","")}: {float(_row_a.get("kpi_1",0)):.0f}</span>
                     <span class="archive-kpi" style="color:{_clr_a};">{_l2_a}: {_k2_a:.1f}%</span>
@@ -4645,21 +4672,24 @@ elif st.session_state.auth and st.session_state.page=="app":
                 with st.expander(_("arch_resume")):
                     _res_a = _row_a.get("resume_ia","")
                     if _res_a:
-                        st.markdown(render_report(str(_res_a),"manager"),unsafe_allow_html=True)
+                        _render_mode = "terrain" if _view_arc=="TERRAIN" else "manager"
+                        st.markdown(render_report(str(_res_a), _render_mode),unsafe_allow_html=True)
                     else:
                         st.info("N/A")
-                _pdf_b = _row_a.get("pdf_base64","")
-                if _pdf_b:
-                    try:
-                        st.download_button(
-                            _("arch_dl"),
-                            base64.b64decode(str(_pdf_b)),
-                            f"Logiflo_{_date_a.replace('/','_')}_{_mod_a}.pdf",
-                            key=f"dl_arch_{_i_a}",
-                            use_container_width=True
-                        )
-                    except Exception:
-                        pass
+                # PDF uniquement pour les audits manager (pas terrain)
+                if _view_arc != "TERRAIN":
+                    _pdf_b = _row_a.get("pdf_base64","")
+                    if _pdf_b:
+                        try:
+                            st.download_button(
+                                _("arch_dl"),
+                                base64.b64decode(str(_pdf_b)),
+                                f"Logiflo_{_date_a.replace('/','_')}_{_mod_a}.pdf",
+                                key=f"dl_arch_{_i_a}",
+                                use_container_width=True
+                            )
+                        except Exception:
+                            pass
 
     elif nav==_("nav_legal"):
         st.title(_("nav_legal"))
