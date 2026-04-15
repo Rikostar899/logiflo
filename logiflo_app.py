@@ -3594,24 +3594,34 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
         if not line:
             pdf.ln(2); continue
         if line.startswith('### '):
-            if pdf.get_y()>255: pdf.add_page(); pdf.ln(5)
+            # Toujours laisser au moins 30mm après un titre (pour le contenu suivant)
+            if pdf.get_y() > 250:
+                pdf.add_page(); pdf.ln(4)
             t=_asc(line[4:])
-            pdf.ln(4)
-            pdf.set_fill_color(240,244,248); pdf.rect(10,pdf.get_y(),190,10,'F')
-            pdf.set_fill_color(0,200,150); pdf.rect(10,pdf.get_y(),3,10,'F')
+            pdf.ln(5)
+            _yh = pdf.get_y()
+            pdf.set_fill_color(240,244,248); pdf.rect(10,_yh,190,10,'F')
+            pdf.set_fill_color(0,200,150); pdf.rect(10,_yh,3,10,'F')
             pdf.set_font("Arial","B",10); pdf.set_text_color(11,37,69)
-            pdf.set_x(16); pdf.cell(184,10,_s(t).upper(),ln=True); pdf.ln(3)
+            pdf.set_x(16); pdf.cell(184,10,_s(t).upper(),ln=True); pdf.ln(4)
         elif line.startswith(('- ','* ')):
-            if pdf.get_y()>272: pdf.add_page(); pdf.ln(5)
+            _bt_text = _s(line[2:].replace("**",""))
+            _bt_lines = max(1, len(_bt_text) // 42 + 1)
+            if pdf.get_y() + _bt_lines * 6 + 2 > 272:
+                pdf.add_page(); pdf.ln(4)
             pdf.set_font("Arial","",10); pdf.set_text_color(40,40,40)
-            bt=_s(line[2:].replace("**",""))
             pdf.set_x(14); pdf.cell(5,6,"-"); pdf.set_x(19)
-            pdf.multi_cell(181,6,bt)
+            pdf.multi_cell(181,6,_bt_text)
         else:
-            if pdf.get_y()>272: pdf.add_page(); pdf.ln(5)
+            _line_h = 6
+            # Estimer la hauteur nécessaire (approx 45 chars par ligne)
+            _est_lines = max(1, len(line) // 45 + 1)
+            _needed = _est_lines * _line_h + 4
+            if pdf.get_y() + _needed > 272:
+                pdf.add_page(); pdf.ln(4)
             pdf.set_font("Arial","",10); pdf.set_text_color(40,40,40)
             cleaned=_s(line.replace("**",""))
-            pdf.set_x(10); pdf.multi_cell(190,6,cleaned)
+            pdf.set_x(10); pdf.multi_cell(190,_line_h,cleaned)
 
     # ── PAGE 5 : CALL TO ACTION ───────────────────────────────────
     pdf.add_page()
@@ -4148,109 +4158,155 @@ elif st.session_state.auth and st.session_state.page=="app":
                     except Exception: pass
 
             # ── Camembert + Courbe côte à côte ────────────────
-            _col_pie, _col_curve = st.columns(2)
+            import plotly.graph_objects as _go_dash2
+            _col_viz1, _col_viz2 = st.columns(2)
 
-            # Camembert : répartition des statuts du dernier audit stock
-            with _col_pie:
+            with _col_viz1:
+                # Camembert répartition dernière analyse stock
                 try:
-                    _last_stock = _df_arch[_df_arch["module"]=="stock"]
-                    if not _last_stock.empty:
-                        _last_s_row = _last_stock.iloc[-1]
-                        _k1_s = float(_last_s_row.get("kpi_1",0))
-                        _k2_s = float(_last_s_row.get("kpi_2",0))
-                        _k3_s = float(_last_s_row.get("kpi_3",0))
-                        _l1_s = str(_last_s_row.get("kpi_label_1","Articles"))
-                        _l2_s = str(_last_s_row.get("kpi_label_2","Taux service"))
-                        _l3_s = str(_last_s_row.get("kpi_label_3","Ruptures"))
-                        import plotly.graph_objects as _go_pie_d
-                        _fig_pie_d = _go_pie_d.Figure(_go_pie_d.Pie(
-                            labels=[_l2_s, _l3_s, "Autres"],
-                            values=[_k2_s, max(_k3_s,0.1), max(100-_k2_s-max(_k3_s,0),0)],
+                    _dfs_pie = _df_arch[_df_arch["module"]=="stock"].copy()
+                    if not _dfs_pie.empty:
+                        _last_pie = _dfs_pie.iloc[-1]
+                        _k2p = float(_last_pie.get("kpi_2",0))
+                        _k3p = float(_last_pie.get("kpi_3",0))
+                        _l2p = str(_last_pie.get("kpi_label_2","Service"))
+                        _l3p = str(_last_pie.get("kpi_label_3","Ruptures"))
+                        _ok_pct = max(0, 100 - _k2p - _k3p*2)
+                        _fig_pie2 = _go_dash2.Figure(_go_dash2.Pie(
+                            labels=[_l2p, _l3p, "Sain"],
+                            values=[_k2p, max(_k3p,0.1), max(_ok_pct,0.1)],
                             hole=0.45,
-                            marker_colors=["#00C896","#E8304A","#E2E8F0"],
+                            marker=dict(colors=["#00C896","#E8304A","#E2E8F0"],
+                                        line=dict(color="white",width=2)),
+                            textfont=dict(size=10),
+                            hovertemplate="%{label}: %{value:.1f}%<extra></extra>",
                         ))
-                        _fig_pie_d.update_layout(
-                            title=dict(text="📦 Stock — Répartition",
-                                      font=dict(size=12,color="#0B2545"),x=0),
-                            showlegend=True,
-                            legend=dict(font=dict(size=10)),
-                            margin=dict(t=36,b=10,l=0,r=0),
-                            height=220,
-                            paper_bgcolor="white",
+                        _fig_pie2.update_layout(
+                            title=dict(text="📦 Répartition Stock",
+                                       font=dict(size=12,color="#0B2545"),x=0),
+                            legend=dict(font=dict(size=9),orientation="h",
+                                        yanchor="bottom",y=-0.2),
+                            margin=dict(t=36,b=40,l=0,r=0),
+                            height=240,paper_bgcolor="white",
                         )
-                        st.plotly_chart(_fig_pie_d, use_container_width=True,
+                        st.plotly_chart(_fig_pie2,use_container_width=True,
                                         config={"displayModeBar":False})
-                except Exception:
-                    st.markdown("<div style='height:220px'></div>", unsafe_allow_html=True)
-
-            # Courbe évolution KPI2 (taux de service / marge)
-            with _col_curve:
-                try:
-                    import plotly.graph_objects as _go_cv
-                    for _mc in ["stock","transport"]:
-                        _dfc_v = _df_arch[_df_arch["module"]==_mc].copy()
-                        if len(_dfc_v) < 2:
-                            continue
-                        _l2v = str(_dfc_v["kpi_label_2"].iloc[-1])
-                        _fig_cv = _go_cv.Figure()
-                        _fig_cv.add_trace(_go_cv.Scatter(
-                            x=list(range(len(_dfc_v))),
-                            y=_dfc_v["kpi_2"].tolist(),
-                            mode="lines+markers",
-                            name=_mc,
-                            line=dict(color="#00C896" if _mc=="stock" else "#F39C12",width=2),
-                            marker=dict(size=7),
-                            fill="tozeroy",
-                            fillcolor="rgba(0,200,150,0.08)" if _mc=="stock" else "rgba(243,156,18,0.08)",
-                        ))
-                        _fig_cv.update_layout(
-                            title=dict(text=f"📈 {_l2v}",
-                                      font=dict(size=12,color="#0B2545"),x=0),
-                            xaxis=dict(tickmode="array",
-                                      tickvals=list(range(len(_dfc_v))),
-                                      ticktext=[str(d) for d in _dfc_v["date"].tolist()],
-                                      tickfont=dict(size=8),showgrid=False),
-                            yaxis=dict(tickfont=dict(size=8),
-                                      gridcolor="rgba(0,0,0,0.04)"),
-                            plot_bgcolor="white",paper_bgcolor="white",
-                            margin=dict(t=36,b=20,l=30,r=10),
-                            height=220,showlegend=False,
-                        )
-                        st.plotly_chart(_fig_cv, use_container_width=True,
-                                        config={"displayModeBar":False})
-                        break  # un seul graphique
+                    else:
+                        st.markdown("<div style='height:240px;display:flex;align-items:center;"
+                                    "justify-content:center;color:#8FA3BC;font-size:12px;'>"
+                                    "Lancez un audit Stock pour voir la répartition.</div>",
+                                    unsafe_allow_html=True)
                 except Exception:
                     pass
 
-            st.markdown("<br>", unsafe_allow_html=True)
+            with _col_viz2:
+                # Courbe évolution KPI principal
+                try:
+                    _plotted = False
+                    for _mc_cv in ["stock","transport"]:
+                        _dfc_cv = _df_arch[_df_arch["module"]==_mc_cv].copy()
+                        if len(_dfc_cv) < 2:
+                            continue
+                        for _c_cv in ["kpi_2"]:
+                            _dfc_cv[_c_cv] = pd.to_numeric(_dfc_cv[_c_cv],errors="coerce").fillna(0)
+                        _l2cv = str(_dfc_cv["kpi_label_2"].iloc[-1])
+                        _clr_cv = "#00C896" if _mc_cv=="stock" else "#F39C12"
+                        _dates_cv = _dfc_cv["date"].tolist() if "date" in _dfc_cv.columns else list(range(len(_dfc_cv)))
+                        _fig_cv2 = _go_dash2.Figure()
+                        _fig_cv2.add_trace(_go_dash2.Scatter(
+                            x=list(range(len(_dfc_cv))),
+                            y=_dfc_cv["kpi_2"].tolist(),
+                            mode="lines+markers",
+                            line=dict(color=_clr_cv,width=2.5),
+                            marker=dict(size=8,color=_clr_cv,
+                                        line=dict(color="white",width=1.5)),
+                            fill="tozeroy",
+                            fillcolor=f"rgba{tuple(list(bytes.fromhex(_clr_cv[1:]))+[25])}",
+                            hovertemplate=f"<b>%{{x}}</b><br>{_l2cv}: <b>%{{y:.1f}}%</b><extra></extra>",
+                        ))
+                        _fig_cv2.update_layout(
+                            title=dict(text=f"📈 {_l2cv}",
+                                       font=dict(size=12,color="#0B2545"),x=0),
+                            xaxis=dict(tickmode="array",
+                                       tickvals=list(range(len(_dfc_cv))),
+                                       ticktext=[str(d)[:5] for d in _dates_cv],
+                                       tickfont=dict(size=8),showgrid=False),
+                            yaxis=dict(tickfont=dict(size=8),
+                                       gridcolor="rgba(0,0,0,0.04)"),
+                            plot_bgcolor="white",paper_bgcolor="white",
+                            margin=dict(t=36,b=20,l=30,r=10),
+                            height=240,showlegend=False,
+                        )
+                        st.plotly_chart(_fig_cv2,use_container_width=True,
+                                        config={"displayModeBar":False})
+                        _plotted = True
+                        break
+                    if not _plotted:
+                        st.markdown("<div style='height:240px;display:flex;align-items:center;"
+                                    "justify-content:center;color:#8FA3BC;font-size:12px;'>"
+                                    "2 audits minimum pour la courbe.</div>",
+                                    unsafe_allow_html=True)
+                except Exception:
+                    pass
 
-            # ── Résumé du dernier audit ────────────────────────
+            # ── Résumé dernier audit ───────────────────────────
             try:
-                _last_any = _df_arch.sort_values(
-                    "created_at" if "created_at" in _df_arch.columns else "date",
-                    ascending=False
-                ).iloc[0]
-                _resume_d = str(_last_any.get("resume_ia",""))[:300]
-                _mod_d    = str(_last_any.get("module",""))
-                _date_d   = str(_last_any.get("date",""))
-                _ico_d    = "📦" if _mod_d=="stock" else "🚚"
-                if _resume_d.strip():
+                _sort_col = "created_at" if "created_at" in _df_arch.columns else "date"
+                _last_row = _df_arch.sort_values(_sort_col,ascending=False).iloc[0]
+                _resume_txt = str(_last_row.get("resume_ia",""))[:300].strip()
+                _date_txt   = str(_last_row.get("date","") or str(_last_row.get("created_at",""))[:10])
+                _mod_txt    = str(_last_row.get("module",""))
+                _ico_txt    = "📦" if _mod_txt=="stock" else "🚚"
+                _kpi2_txt   = float(_last_row.get("kpi_2",0))
+                _lbl2_txt   = str(_last_row.get("kpi_label_2",""))
+                _clr_txt    = "#00C896" if _kpi2_txt>=90 else ("#F39C12" if _kpi2_txt>=75 else "#E8304A")
+                if _resume_txt:
+                    _lbl_resume = "Dernière analyse" if lang_d=="fr" else "Latest analysis"
                     st.markdown(f"""
                     <div style="background:white;border:1px solid #E2E8F0;border-radius:12px;
-                                padding:14px 18px;margin-bottom:16px;
-                                border-left:4px solid #00C896;">
-                        <div style="font-size:10px;font-weight:700;color:#4A6080;
-                                    letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">
-                            {_ico_d} Dernière analyse — {_date_d}
+                                padding:16px 20px;margin:16px 0;
+                                border-left:4px solid {_clr_txt};">
+                        <div style="display:flex;justify-content:space-between;
+                                    align-items:center;margin-bottom:8px;">
+                            <div style="font-size:10px;font-weight:700;color:#4A6080;
+                                        letter-spacing:1.5px;text-transform:uppercase;">
+                                {_ico_txt} {_lbl_resume} — {_date_txt}
+                            </div>
+                            <div style="font-size:16px;font-weight:800;
+                                        font-family:Syne,sans-serif;color:{_clr_txt};">
+                                {_kpi2_txt:.1f}%
+                                <span style="font-size:10px;color:#4A6080;
+                                             font-weight:400;"> {_lbl2_txt}</span>
+                            </div>
                         </div>
-                        <div style="font-size:12px;color:#0B2545;line-height:1.5;font-style:italic;">
-                            {_resume_d}{"..." if len(str(_last_any.get("resume_ia","")))>300 else ""}
+                        <div style="font-size:12px;color:#0B2545;line-height:1.6;
+                                    font-style:italic;border-top:1px solid #F0F4F8;
+                                    padding-top:8px;">
+                            {_resume_txt}{"…" if len(str(_last_row.get("resume_ia","")))>300 else ""}
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
             except Exception:
                 pass
 
+            # ── News sectorielles ──────────────────────────────
+            if can_access("news"):
+              try:
+                _sector_dash = "generique"
+                if not _df_arch.empty and "sector_key" in _df_arch.columns:
+                    _sk_s = _df_arch["sector_key"].dropna()
+                    if len(_sk_s) > 0:
+                        _sector_dash = str(_sk_s.iloc[-1])
+                elif not _df_arch.empty and "module" in _df_arch.columns:
+                    _lm = _df_arch["module"].dropna().iloc[-1] if len(_df_arch)>0 else ""
+                    _sector_dash = "transport_routier" if _lm=="transport" else "stock_distribution"
+                render_news_widget(_sector_dash, lang=lang_d)
+              except Exception:
+                pass
+            else:
+              show_lock("news")
+
+            # ── Cards derniers audits ──────────────────────────
             # ── Cards derniers audits ──────────────────────────
             _last = _df_arch.groupby("module").last().reset_index()
             _dcols = st.columns(max(1,len(_last)))
@@ -4442,15 +4498,27 @@ elif st.session_state.auth and st.session_state.page=="app":
         with st.spinner("Loading..."):
             df_arch=load_archives_from_sheets(st.session_state.current_user)
         if df_arch is None:
-            st.warning("⚠️ Google Sheets connection unavailable.")
-        elif df_arch.empty:
+            st.warning("⚠️ Connexion indisponible.")
+        elif df_arch is not None and (df_arch.empty if hasattr(df_arch,"empty") else True):
             st.info(_("arch_empty"))
         else:
+            # Normaliser les colonnes Supabase → colonnes attendues
+            if "created_at" in df_arch.columns and "date" not in df_arch.columns:
+                df_arch["date"]  = pd.to_datetime(df_arch["created_at"],errors="coerce").dt.strftime("%d/%m/%Y")
+                df_arch["heure"] = pd.to_datetime(df_arch["created_at"],errors="coerce").dt.strftime("%H:%M")
+            for _col_n in ["module","date","heure","kpi_1","kpi_2","kpi_3",
+                           "kpi_label_1","kpi_label_2","kpi_label_3","resume_ia","nb_lignes"]:
+                if _col_n not in df_arch.columns:
+                    df_arch[_col_n] = ""
+            for _col_n in ["kpi_1","kpi_2","kpi_3"]:
+                df_arch[_col_n] = pd.to_numeric(df_arch[_col_n], errors="coerce").fillna(0)
+
             cf1,cf2=st.columns(2)
             mf=cf1.selectbox(_("arch_filter"),[_("arch_filter_all"),"stock","transport"])
             nb=cf2.slider("",5,50,10,label_visibility="collapsed")
             ds=df_arch.copy()
-            if mf!=_("arch_filter_all"): ds=ds[ds["module"]==mf]
+            if mf!=_("arch_filter_all") and "module" in ds.columns:
+                ds=ds[ds["module"].astype(str)==mf]
             ds=ds.iloc[::-1].head(nb)
             st.markdown(f"**{len(ds)} {_('arch_show')}**")
             st.markdown("<br>",unsafe_allow_html=True)
@@ -4692,22 +4760,28 @@ elif st.session_state.auth and st.session_state.page=="app":
                         "are in **My Account**.")
         st.info(_compte_lbl)
 
-    elif nav==_("nav_workspace"):
-        # ── Fichier exemple téléchargeable ─────────────────────
-        _lang_ws = st.session_state.get("language","fr")
+        st.markdown("<br>", unsafe_allow_html=True)
+        # ── Fichier exemple
+        st.markdown("**📋 Fichier modèle**" if _lang_p=="fr" else "**📋 Sample file**")
         try:
-            _ex_bytes = generate_exemple_excel()
-            if _ex_bytes:
-                _ex_lbl = "📥 Fichier exemple (Stock & Transport)" if _lang_ws=="fr" else "📥 Sample file (Stock & Transport)"
+            _ex_bytes_p = generate_exemple_excel()
+            if _ex_bytes_p:
+                _ex_lbl_p = "📥 Télécharger le fichier exemple" if _lang_p=="fr" else "📥 Download sample file"
                 st.download_button(
-                    _ex_lbl, _ex_bytes,
+                    _ex_lbl_p, _ex_bytes_p,
                     "logiflo_modele.xlsx",
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=False,
-                    key="dl_exemple_workspace"
+                    use_container_width=True,
+                    key="dl_exemple_params"
                 )
+                _hint = ("Importez ce fichier dans l'Espace de Travail pour voir Logiflo en action."
+                         if _lang_p=="fr" else
+                         "Import this file in the Workspace to see Logiflo in action.")
+                st.caption(_hint)
         except Exception:
             pass
+
+    elif nav==_("nav_workspace"):
 
         # ══ MODULE STOCK ══
         if st.session_state.module=="stock":
