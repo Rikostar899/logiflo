@@ -4110,14 +4110,13 @@ elif st.session_state.auth and st.session_state.page=="app":
             _mod_actif = st.session_state.get("module","stock")
             # Transport → courbe pleine largeur | Stock → camembert + courbe
             if _mod_actif == "transport":
-                _col_l, _col_r = None, st  # pleine largeur pour transport
+                _col_l, _col_r = None, st.container()
             else:
                 _col_l, _col_r = st.columns(2)
 
             # ── Camembert DERNIER audit sauvegardé (stock uniquement) ──
-            _col_l_eff = _col_l if _mod_actif=="stock" and _col_l is not None else None
-            if _col_l_eff is not None:
-              with _col_l_eff:
+            if _mod_actif == "stock" and _col_l is not None:
+              with _col_l:
                 try:
                     _dfs_pie = _df_arch[_df_arch["module"]=="stock"].copy()
                     if not _dfs_pie.empty:
@@ -4169,8 +4168,7 @@ elif st.session_state.auth and st.session_state.page=="app":
                     pass
 
             # ── Courbe TOUS audits — hover = résumé financier bref ────
-            _col_r_eff = _col_r if _col_r is not None else st
-            with _col_r_eff:
+            with _col_r:
                 try:
                     _plotted_d = False
                     for _mc in ["stock","transport"]:
@@ -4601,6 +4599,104 @@ elif st.session_state.auth and st.session_state.page=="app":
         except Exception:
             pass
 
+    elif nav==_("nav_archives"):
+        _lang_arc = st.session_state.get("language","fr")
+        st.title(_("arch_title"))
+        with st.spinner("Chargement..." if _lang_arc=="fr" else "Loading..."):
+            _dfa = load_archives_from_sheets(st.session_state.current_user)
+        if _dfa is None or _dfa.empty:
+            st.info(_("arch_empty"))
+        else:
+            if "created_at" in _dfa.columns and "date" not in _dfa.columns:
+                _dfa["date"]  = pd.to_datetime(_dfa["created_at"],errors="coerce").dt.strftime("%d/%m/%Y")
+                _dfa["heure"] = pd.to_datetime(_dfa["created_at"],errors="coerce").dt.strftime("%H:%M")
+            for _cn in ["module","date","heure","kpi_1","kpi_2","kpi_3","kpi_label_1","kpi_label_2","kpi_label_3","resume_ia"]:
+                if _cn not in _dfa.columns:
+                    _dfa[_cn] = ""
+            for _cn in ["kpi_1","kpi_2","kpi_3"]:
+                _dfa[_cn] = pd.to_numeric(_dfa[_cn],errors="coerce").fillna(0)
+            mf = st.selectbox(_("arch_filter"),[_("arch_filter_all"),"stock","transport"])
+            ds = _dfa.copy()
+            if mf != _("arch_filter_all"):
+                ds = ds[ds["module"].astype(str)==mf]
+            ds = ds.iloc[::-1].head(50)
+            st.markdown(f"**{len(ds)} {_('arch_show')}**")
+            st.markdown("<br>",unsafe_allow_html=True)
+            for _i_a, _row_a in ds.iterrows():
+                _mod_a  = str(_row_a.get("module",""))
+                _date_a = str(_row_a.get("date","") or str(_row_a.get("created_at",""))[:10])
+                _h_a    = str(_row_a.get("heure","") or str(_row_a.get("created_at",""))[11:16])
+                _ico_a  = "📦" if _mod_a=="stock" else "🚚"
+                _k2_a   = float(_row_a.get("kpi_2",0) or 0)
+                _l2_a   = str(_row_a.get("kpi_label_2",""))
+                _clr_a  = "#00C896" if _k2_a>=90 else ("#F39C12" if _k2_a>=75 else "#E8304A")
+                st.markdown(
+                    f"""<div class="archive-card">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <h4 style="margin:0;">{_ico_a} {_mod_a.upper()}</h4>
+                        <span style="font-size:11px;color:#4A6080;font-weight:600;">📅 {_date_a} {_h_a}</span>
+                    </div>
+                    <span class="archive-kpi">{_row_a.get("kpi_label_1","")}: {float(_row_a.get("kpi_1",0)):.0f}</span>
+                    <span class="archive-kpi" style="color:{_clr_a};">{_l2_a}: {_k2_a:.1f}%</span>
+                    <span class="archive-kpi">{_row_a.get("kpi_label_3","")}: {float(_row_a.get("kpi_3",0)):.0f}</span>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+                with st.expander(_("arch_resume")):
+                    _res_a = _row_a.get("resume_ia","")
+                    if _res_a:
+                        st.markdown(render_report(str(_res_a),"manager"),unsafe_allow_html=True)
+                    else:
+                        st.info("N/A")
+                _pdf_b = _row_a.get("pdf_base64","")
+                if _pdf_b:
+                    try:
+                        st.download_button(
+                            _("arch_dl"),
+                            base64.b64decode(str(_pdf_b)),
+                            f"Logiflo_{_date_a.replace('/','_')}_{_mod_a}.pdf",
+                            key=f"dl_arch_{_i_a}",
+                            use_container_width=True
+                        )
+                    except Exception:
+                        pass
+
+    elif nav==_("nav_legal"):
+        st.title(_("nav_legal"))
+        _tab1, _tab2, _tab3 = st.tabs(["📋 Mentions Légales","🔒 RGPD","📄 CGU"])
+        with _tab1:
+            st.markdown("""<div class="legal-text">
+            <h2>Éditeur</h2>
+            <p><strong>Logiflo B2B Enterprise</strong> — SASU (en cours d'immatriculation)<br>
+            Marseille, France — contact@logiflo.io | https://logiflo-io.streamlit.app</p>
+            <h2>Hébergement</h2>
+            <p>Streamlit Cloud (Snowflake Inc., USA) | GitHub Pages (GitHub Inc., USA)</p>
+            <h2>Propriété Intellectuelle</h2>
+            <p>Tous les éléments de LOGIFLO.IO sont la propriété exclusive de Logiflo B2B Enterprise.</p>
+            <p style="color:#4A6080;font-size:13px;"><em>Version 2.0 — Avril 2026</em></p>
+            </div>""",unsafe_allow_html=True)
+        with _tab2:
+            st.markdown("""<div class="legal-text">
+            <h2>Conformité RGPD (UE) 2016/679</h2><p>DPO : contact@logiflo.io</p>
+            <h2>Ce que nous stockons</h2>
+            <p>✅ Fichiers traités en RAM uniquement — jamais stockés sur nos serveurs<br>
+            ℹ Historique dans <strong>Supabase (PostgreSQL)</strong> : date/heure, KPIs, résumé IA, PDF, préférences<br>
+            ✅ Chiffrement TLS + AES-256 | Données non revendues | Suppression sous 30 j sur demande</p>
+            <h2>Sous-traitants</h2>
+            <p>Streamlit Cloud · Supabase Inc. · OpenAI · Google Gemini · NewsAPI · OpenRouteService</p>
+            <h2>Vos droits</h2><p>contact@logiflo.io — www.cnil.fr</p>
+            </div>""",unsafe_allow_html=True)
+        with _tab3:
+            st.markdown("""<div class="legal-text">
+            <h2>Offres</h2>
+            <p><strong>Starter</strong> 290 EUR/mois | <strong>Business</strong> 590 EUR/mois | <strong>Expert</strong> Sur devis</p>
+            <h2>Engagement</h2>
+            <p>Analyses fournies à titre d'aide à la décision uniquement — pas de conseil financier ou juridique.</p>
+            <h2>Responsabilité</h2><p>Limitée aux 12 derniers mois de facturation.</p>
+            <h2>Droit applicable</h2><p>Droit français — Tribunal de commerce de Marseille.</p>
+            <p style="color:#4A6080;font-size:13px;"><em>Version 2.0 — Avril 2026</em></p>
+            </div>""",unsafe_allow_html=True)
+
     elif nav==_("nav_workspace"):
 
         # ══ MODULE STOCK ══
@@ -4705,19 +4801,19 @@ elif st.session_state.auth and st.session_state.page=="app":
                     with cp:
                         fig_pie=px.pie(df,names="Statut",hole=0.4,color="Statut",color_discrete_map=cmap)
                         fig_pie.update_layout(paper_bgcolor="rgba(0,0,0,0)",font=dict(family="DM Sans"))
-                        st.plotly_chart(fig_pie,use_container_width=True)
+                        st.plotly_chart(fig_pie,use_container_width=True,key='pie_stock_main')
                     with cl2:
                         if has_conso:
                             top15=df.nlargest(15,"_conso_moy")[["reference","_conso_moy","quantite"]].copy()
                             fig_conso=px.bar(top15,x="reference",y=["quantite","_conso_moy"],barmode="group",
                                 color_discrete_map={"quantite":"#0B2545","_conso_moy":"#00C896"})
                             fig_conso.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)")
-                            st.plotly_chart(fig_conso,use_container_width=True)
+                            st.plotly_chart(fig_conso,use_container_width=True,key='bar_conso_main')
                         else:
                             fig_line=px.line(pd.DataFrame(st.session_state.history_stock),x="date",y="valeur")
                             fig_line.update_traces(line_color="#00C896")
                             fig_line.update_layout(paper_bgcolor="rgba(0,0,0,0)")
-                            st.plotly_chart(fig_line,use_container_width=True)
+                            st.plotly_chart(fig_line,use_container_width=True,key='line_hist_main')
 
                     col_audit,col_save=st.columns([3,1])
                     with col_audit: run_ia=st.button(_("stock_btn_ia"),use_container_width=True)
@@ -5020,7 +5116,7 @@ elif st.session_state.auth and st.session_state.page=="app":
                         yaxis=dict(title="",tickfont=dict(size=11)),
                         font=dict(family="DM Sans",size=12,color="#0B2545"),
                         title=dict(font=dict(family="Syne",size=14,color="#0B2545")))
-                    st.plotly_chart(fig_top,use_container_width=True)
+                    st.plotly_chart(fig_top,use_container_width=True,key='bar_top_trans')
                     # Tableau détail
                     st.markdown(f"**{_('trans_detail')}**")
                     cols_show=[tour_c,"_CA","_CO","Marge_Nette","Rentabilité_%","Statut"]
@@ -5073,7 +5169,7 @@ elif st.session_state.auth and st.session_state.page=="app":
                         font=dict(family="DM Sans",size=12,color="#0B2545"),
                         title=dict(font=dict(family="Syne",size=14,color="#0B2545")),
                         legend=dict(title="",orientation="h",yanchor="bottom",y=1.02))
-                    st.plotly_chart(fig_scatter,use_container_width=True)
+                    st.plotly_chart(fig_scatter,use_container_width=True,key='scatter_trans')
                     n_loss=len(df_plot[df_plot["Statut"]=="🔴 Loss / Perte"])
                     n_alert=len(df_plot[df_plot["Statut"]=="🟠 Alert / Alerte"])
                     n_ok=len(df_plot[df_plot["Statut"]=="🟢 Healthy / Sain"])
@@ -5100,7 +5196,10 @@ elif st.session_state.auth and st.session_state.page=="app":
                         _mode_k = st.session_state.trans_mode_detected[0] if st.session_state.get("trans_mode_detected") else "routier"
                         _sector_tr = detect_sector(df=df_t, module="transport", mode_detected=_mode_k)
                         st.session_state.analysis_trans=generate_ai_analysis(
-                            f"Routes: {len(df_t)}. Total margin: {marge_tot:.0f} EUR. Rate: {taux:.1f}%. "
+                            f"Routes: {len(df_t)} (period analyzed). Total margin: {marge_tot:.0f} EUR. Rate: {taux:.1f}%. "
+        f"Avg margin per route: {marge_tot/len(df_t):.0f} EUR/route. "
+        f"Monthly estimate (x4.3 weeks): {marge_tot*4.3:.0f} EUR/month. "
+        f"Annual estimate: {marge_tot*52:.0f} EUR/year. "
                             f"Loss routes: {traj_def}. Top 3 worst: {pires_s}. Avg cost/km: {cout_km:.2f} EUR.{poids_info}{mode_info}",
                             historique_txt=_hist_txt_tr,
                             df_raw=df_t,
