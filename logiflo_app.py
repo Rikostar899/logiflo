@@ -31,6 +31,27 @@ from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="LOGIFLO.IO | Control Tower", layout="wide", page_icon="🏢")
 
+# ── Plans définis en haut pour ne jamais être perdus ──────────────
+USERS_PLAN = {
+    "eric":"expert","admin":"expert","demo_client1":"starter",
+    "demo_client2":"business","jury":"expert","partenaire":"business","test":"starter",
+}
+PLAN_LIMITS = {
+    "starter":  {"label":"Starter","price":"290€/mois","color":"#6D28D9","bg":"#F3E8FF","icon":"●",
+                 "modules":1,"audits_mois":5,"historique_j":30,
+                 "benchmarks":False,"prediction":False,"bfr":False,"terrain":False,
+                 "scoring_detail":False,"news":False,"pdf_pages":2},
+    "business": {"label":"Business","price":"590€/mois","color":"#047857","bg":"#D1FAE5","icon":"◆",
+                 "modules":2,"audits_mois":None,"historique_j":180,
+                 "benchmarks":True,"prediction":True,"bfr":True,"terrain":True,
+                 "scoring_detail":True,"news":True,"pdf_pages":5},
+    "expert":   {"label":"Expert","price":"Sur devis","color":"#B45309","bg":"#FDE68A","icon":"★",
+                 "modules":99,"audits_mois":None,"historique_j":730,
+                 "benchmarks":True,"prediction":True,"bfr":True,"terrain":True,
+                 "scoring_detail":True,"news":True,"pdf_pages":5,"api":True,"logo_pdf":True},
+}
+
+
 # =========================================
 # 0. INIT
 # =========================================
@@ -263,6 +284,7 @@ def render_news_widget(sector_key, lang="fr"):
     }})();
     </script>
     """, unsafe_allow_html=True)
+
 
 
 
