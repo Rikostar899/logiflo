@@ -184,107 +184,94 @@ def get_sector_news(sector_key, lang="fr"):
     return articles
 
 def render_news_widget(sector_key, lang="fr"):
-    """News horizontales défilantes toutes les 5 secondes, clic vers article original."""
+    """
+    News sectorielles — slide unique pleine largeur, défilement auto 5s.
+    Chaque card : source, titre complet, aperçu 2 lignes, date, bouton Lire.
+    Clic n'importe où → article original dans nouvel onglet.
+    """
     news = get_sector_news(sector_key, lang)
-    if not news:
-        return
-
-    _lbl = "Actualités sectorielles" if lang=="fr" else "Sector News"
-    st.markdown(f"""
-    <div style="font-size:11px;font-weight:700;color:#4A6080;
-                letter-spacing:2px;text-transform:uppercase;
-                margin-bottom:10px;margin-top:16px;">
-        📰 {_lbl}
-    </div>""", unsafe_allow_html=True)
-
-    _articles = [a for a in news[:6] if a.get("title","").strip() and a.get("link","")]
-
+    _articles = [a for a in (news or []) if str(a.get("title","")).strip() and a.get("link","")]
     if not _articles:
         return
 
-    # Construire les cards en HTML — défilement automatique JS toutes les 5s
+    _lbl  = "Actualités sectorielles" if lang=="fr" else "Sector News"
+    _read = "Lire l'article" if lang=="fr" else "Read article"
+    _uid  = abs(hash(sector_key + lang)) % 99999
+
     _cards_html = ""
-    for _art in _articles:
-        _title  = str(_art.get("title",""))[:90].replace("'","&#39;").replace('"','&quot;')
-        _link   = str(_art.get("link",""))
-        _date   = str(_art.get("date",""))[:10]
-        _src    = _link.split("/")[2].replace("www.","") if "/" in _link else ""
-        # Aperçu = les 60 premiers caractères du titre reformulés comme accroche
-        _apercu = _title[:60] + "…" if len(_title)>60 else _title
+    for _art in _articles[:6]:
+        _title = str(_art.get("title",""))[:120].replace("'","&#39;").replace('"','&quot;')
+        _link  = str(_art.get("link",""))
+        _date  = str(_art.get("date",""))[:10]
+        _src   = _link.split("/")[2].replace("www.","") if "://" in _link else ""
+        # Aperçu = titre reformulé sur 2 lignes (les 140 premiers caractères)
+        _ap = (_title[:140] + "…") if len(_title) > 140 else _title
         _cards_html += f"""
-        <div class="nw-card">
-            <a href="{_link}" target="_blank" style="text-decoration:none;display:block;height:100%;">
-                <div class="nw-cat">📰 {_src}</div>
-                <div class="nw-title">{_title}</div>
-                <div class="nw-apercu">{_apercu}</div>
-                <div class="nw-footer">
-                    <span class="nw-date">{_date}</span>
-                    <span class="nw-arrow">Lire →</span>
-                </div>
-            </a>
-        </div>"""
+        <a href="{_link}" target="_blank" style="text-decoration:none;display:block;">
+        <div class="nwc">
+            <div class="nwc-src">📰 {_src}</div>
+            <div class="nwc-title">{_title}</div>
+            <div class="nwc-ap">{_ap}</div>
+            <div class="nwc-foot">
+                <span class="nwc-date">{_date}</span>
+                <span class="nwc-btn">{_read} →</span>
+            </div>
+        </div>
+        </a>"""
 
-    _uid = abs(hash(sector_key)) % 99999
     st.markdown(f"""
-    <style>
-    #nwrap_{_uid} {{
-        position:relative;overflow:hidden;border-radius:12px;
-        background:#F8FAFC;border:1px solid #E2E8F0;
-    }}
-    #ntrack_{_uid} {{
-        display:flex;transition:transform 0.6s cubic-bezier(.4,0,.2,1);
-        will-change:transform;
-    }}
-    .nw-card {{
-        min-width:100%;box-sizing:border-box;
-        padding:18px 20px;
-        background:white;border-radius:12px;
-        border-top:3px solid #00C896;
-        cursor:pointer;
-    }}
-    .nw-card:hover {{ background:#F0FDF9; }}
-    .nw-cat {{font-size:10px;font-weight:700;color:#00C896;text-transform:uppercase;
-               letter-spacing:1px;margin-bottom:6px;}}
-    .nw-title {{font-size:14px;font-weight:700;color:#0B2545;line-height:1.4;margin-bottom:6px;}}
-    .nw-apercu {{font-size:12px;color:#4A6080;line-height:1.5;margin-bottom:10px;
-                  display:-webkit-box;-webkit-line-clamp:2;
-                  -webkit-box-orient:vertical;overflow:hidden;}}
-    .nw-footer {{display:flex;justify-content:space-between;align-items:center;
-                  border-top:1px solid #F0F4F8;padding-top:8px;}}
-    .nw-date {{font-size:10px;color:#8FA3BC;}}
-    .nw-arrow {{font-size:11px;font-weight:700;color:#00C896;}}
-    .nw-dots {{display:flex;gap:5px;justify-content:center;padding:8px 0 4px;}}
-    .nw-dot {{width:6px;height:6px;border-radius:50%;background:#E2E8F0;
-               transition:background 0.3s;cursor:pointer;}}
-    .nw-dot.active {{background:#00C896;}}
-    </style>
-    <div id="nwrap_{_uid}">
-        <div id="ntrack_{_uid}">{_cards_html}</div>
-    </div>
-    <div class="nw-dots" id="ndots_{_uid}">
-        {"".join(f'<div class="nw-dot{" active" if i==0 else ""}" onclick="nwGo_{_uid}({i})"></div>' for i in range(len(_articles)))}
-    </div>
-    <script>
-    (function(){{
-        var cur_{_uid} = 0;
-        var n_{_uid}   = {len(_articles)};
-        var track_{_uid} = document.getElementById("ntrack_{_uid}");
-        var dots_{_uid}  = document.querySelectorAll("#ndots_{_uid} .nw-dot");
-        function nwSet_{_uid}(i){{
-            cur_{_uid} = i;
-            track_{_uid}.style.transform = "translateX(-" + (i*100) + "%)";
-            dots_{_uid}.forEach(function(d,j){{
-                d.classList.toggle("active", j===i);
-            }});
-        }}
-        window["nwGo_{_uid}"] = function(i){{ nwSet_{_uid}(i); }};
-        setInterval(function(){{
-            nwSet_{_uid}((cur_{_uid}+1) % n_{_uid});
-        }}, 5000);
-    }})();
-    </script>
-    """, unsafe_allow_html=True)
-
+<div style="font-size:11px;font-weight:700;color:#4A6080;
+            letter-spacing:2px;text-transform:uppercase;
+            margin-bottom:12px;margin-top:20px;">
+    📰 {_lbl}
+</div>
+<style>
+#nw{_uid}{{overflow:hidden;border-radius:14px;box-shadow:0 2px 16px rgba(11,37,69,0.08);}}
+#ntr{_uid}{{display:flex;transition:transform 0.55s cubic-bezier(.4,0,.2,1);will-change:transform;}}
+.nwc{{
+    min-width:100%;box-sizing:border-box;padding:22px 24px;
+    background:white;border-top:4px solid #00C896;
+    cursor:pointer;
+}}
+.nwc:hover{{background:#F0FDF9;}}
+.nwc-src{{font-size:10px;font-weight:700;color:#00C896;text-transform:uppercase;
+           letter-spacing:1.5px;margin-bottom:8px;}}
+.nwc-title{{font-size:16px;font-weight:800;color:#0B2545;line-height:1.4;
+             margin-bottom:10px;font-family:Syne,sans-serif;}}
+.nwc-ap{{font-size:13px;color:#4A6080;line-height:1.6;margin-bottom:14px;
+          display:-webkit-box;-webkit-line-clamp:2;
+          -webkit-box-orient:vertical;overflow:hidden;}}
+.nwc-foot{{display:flex;justify-content:space-between;align-items:center;
+            border-top:1px solid #F0F4F8;padding-top:12px;}}
+.nwc-date{{font-size:11px;color:#8FA3BC;}}
+.nwc-btn{{font-size:12px;font-weight:700;color:white;background:#00C896;
+           padding:5px 14px;border-radius:20px;}}
+#ndots{_uid}{{display:flex;gap:6px;justify-content:center;padding:10px 0 2px;}}
+.nwd{{width:7px;height:7px;border-radius:50%;background:#E2E8F0;
+       transition:background 0.3s;cursor:pointer;border:none;padding:0;}}
+.nwd.act{{background:#00C896;width:20px;border-radius:4px;}}
+</style>
+<div id="nw{_uid}">
+  <div id="ntr{_uid}">{_cards_html}</div>
+</div>
+<div id="ndots{_uid}">
+  {"".join(f'<button class="nwd{" act" if i==0 else ""}" onclick="nwG{_uid}({i})"></button>' for i in range(len(_articles)))}
+</div>
+<script>
+(function(){{
+  var c={0},n={len(_articles)};
+  var tr=document.getElementById("ntr{_uid}");
+  var ds=document.querySelectorAll("#ndots{_uid} .nwd");
+  function go(i){{
+    c=i;
+    tr.style.transform="translateX(-"+i*100+"%)";
+    ds.forEach(function(d,j){{d.classList.toggle("act",j===i);}});
+  }}
+  window["nwG{_uid}"]=go;
+  setInterval(function(){{go((c+1)%n);}},5000);
+}})();
+</script>
+""", unsafe_allow_html=True)
 
 
 
