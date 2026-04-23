@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import datetime
 import base64
+import traceback
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -16,64 +17,100 @@ except Exception:
     SHEET_ID = ""
 
 
+def _debug_supabase(msg, err=None):
+    """Log interne visible dans les logs Streamlit Cloud (onglet Manage app -> Logs)."""
+    try:
+        if err:
+            print(f"[SUPABASE] {msg} -- {type(err).__name__}: {err}", flush=True)
+        else:
+            print(f"[SUPABASE] {msg}", flush=True)
+    except Exception:
+        pass
+
+
 def get_supabase():
+    """Retourne un client Supabase ou None. Log explicite si échec."""
+    if _supa_create is None:
+        _debug_supabase("Package 'supabase' non importé — vérifier requirements.txt")
+        return None
     try:
         url = st.secrets.get("SUPABASE_URL", "")
         key = st.secrets.get("SUPABASE_KEY", "")
-        if url and key and _supa_create:
-            return _supa_create(url, key)
-    except Exception:
-        pass
-    return None
+        if not url:
+            _debug_supabase("SUPABASE_URL manquant dans st.secrets")
+            return None
+        if not key:
+            _debug_supabase("SUPABASE_KEY manquant dans st.secrets")
+            return None
+        if not url.startswith("https://"):
+            _debug_supabase(f"SUPABASE_URL mal formée : {url[:30]}...")
+            return None
+        client = _supa_create(url, key)
+        return client
+    except Exception as e:
+        _debug_supabase("Erreur création client Supabase", e)
+        return None
 
 
 def save_audit_to_sheets(username, module, nb_lignes, kpis, labels, resume_ia, pdf_bytes):
     sb = get_supabase()
     if not sb:
+        _debug_supabase("save_audit -> pas de client Supabase, fallback Sheets")
         return _save_audit_sheets_fallback(username, module, nb_lignes, kpis, labels, resume_ia, pdf_bytes)
     try:
         now = datetime.datetime.now()
         pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8") if pdf_bytes else ""
         _profil = st.session_state.get("stock_view", "MANAGER").lower()
-        sb.table("audits").insert({
-            "user_id":     username,
+        payload = {
+            "user_id":     str(username),
             "created_at":  now.isoformat(),
-            "module":      module,
-            "nb_lignes":   int(nb_lignes),
+            "module":      str(module),
+            "nb_lignes":   int(nb_lignes) if nb_lignes else 0,
             "kpi_1":       round(float(kpis[0]), 2) if len(kpis) > 0 else 0,
             "kpi_2":       round(float(kpis[1]), 2) if len(kpis) > 1 else 0,
             "kpi_3":       round(float(kpis[2]), 2) if len(kpis) > 2 else 0,
-            "kpi_label_1": labels[0] if len(labels) > 0 else "",
-            "kpi_label_2": labels[1] if len(labels) > 1 else "",
-            "kpi_label_3": labels[2] if len(labels) > 2 else "",
-            "resume_ia":   (resume_ia or "")[:800],
+            "kpi_label_1": str(labels[0]) if len(labels) > 0 else "",
+            "kpi_label_2": str(labels[1]) if len(labels) > 1 else "",
+            "kpi_label_3": str(labels[2]) if len(labels) > 2 else "",
+            "resume_ia":   str(resume_ia or "")[:2000],
             "pdf_base64":  pdf_b64,
             "profil":      _profil,
-        }).execute()
-        return True
-    except Exception:
-        pass
-    return False
+        }
+        response = sb.table("audits").insert(payload).execute()
+        if response and hasattr(response, 'data') and response.data:
+            _debug_supabase(f"save_audit OK -> user={username} module={module}")
+            return True
+        else:
+            _debug_supabase(f"save_audit response vide -> {response}")
+            return False
+    except Exception as e:
+        _debug_supabase("save_audit EXCEPTION", e)
+        _debug_supabase(traceback.format_exc())
+        return False
 
 
 def load_archives_from_sheets(username):
     sb = get_supabase()
     if not sb:
+        _debug_supabase("load_archives -> pas de client Supabase, fallback Sheets")
         return _load_archives_sheets_fallback(username)
     try:
         resp = (sb.table("audits")
                   .select("*")
-                  .eq("user_id", username)
+                  .eq("user_id", str(username))
                   .order("created_at", desc=False)
                   .execute())
-        if not resp.data:
+        if not resp or not hasattr(resp, 'data') or not resp.data:
+            _debug_supabase(f"load_archives vide pour user={username}")
             return pd.DataFrame()
         df = pd.DataFrame(resp.data)
         if "created_at" in df.columns:
             df["date"]  = pd.to_datetime(df["created_at"]).dt.strftime("%d/%m/%Y")
             df["heure"] = pd.to_datetime(df["created_at"]).dt.strftime("%H:%M")
+        _debug_supabase(f"load_archives OK -> {len(df)} lignes pour user={username}")
         return df
-    except Exception:
+    except Exception as e:
+        _debug_supabase("load_archives EXCEPTION", e)
         return _load_archives_sheets_fallback(username)
 
 
@@ -84,12 +121,13 @@ def load_user_prefs(username):
     try:
         resp = (sb.table("user_prefs")
                   .select("*")
-                  .eq("user_id", username)
+                  .eq("user_id", str(username))
                   .execute())
-        if resp.data:
+        if resp and hasattr(resp, 'data') and resp.data:
             return resp.data[0]
         return {}
-    except Exception:
+    except Exception as e:
+        _debug_supabase("load_user_prefs EXCEPTION", e)
         return {}
 
 
@@ -98,11 +136,12 @@ def save_user_prefs(username, prefs_dict):
     if not sb:
         return False
     try:
-        prefs_dict["user_id"] = username
+        prefs_dict["user_id"] = str(username)
         prefs_dict["updated_at"] = datetime.datetime.now().isoformat()
         sb.table("user_prefs").upsert(prefs_dict).execute()
         return True
-    except Exception:
+    except Exception as e:
+        _debug_supabase("save_user_prefs EXCEPTION", e)
         return False
 
 
