@@ -34,8 +34,14 @@ def get_supabase():
         _debug_supabase("Package 'supabase' non importé — vérifier requirements.txt")
         return None
     try:
-        url = st.secrets.get("SUPABASE_URL", "")
-        key = st.secrets.get("SUPABASE_KEY", "")
+            url = st.secrets["SUPABASE_URL"]
+    except (KeyError, FileNotFoundError):
+            url = ""
+    try:
+            key = st.secrets["SUPABASE_KEY"]
+    except (KeyError, FileNotFoundError):
+            key = ""
+            
         if not url:
             _debug_supabase("SUPABASE_URL manquant dans st.secrets")
             return None
