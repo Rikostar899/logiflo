@@ -654,17 +654,10 @@ elif st.session_state.auth and st.session_state.page == "app":
                             ok = save_audit_to_sheets(st.session_state.current_user,"stock",len(df),
                                 [kpi1,tx_serv,len(ruptures)],[label1,_("stock_kpi_service"),_("stock_kpi_rupture")],
                                 st.session_state.analysis_stock_manager or "", st.session_state.last_pdf or b"")
-                            col_audit2, col_save2 = st.columns([3, 1])
-                with col_audit2: run_ia_t = st.button(_("trans_btn_ia"), use_container_width=True)
-                with col_save2:
-                    if st.button(_("trans_btn_save"), use_container_width=True, key="save_trans_early"):
-                        ok = save_audit_to_sheets(st.session_state.current_user,"transport",len(df_t),
-                            [marge_tot,taux,nb_tox],[_("trans_kpi_marge"),_("trans_kpi_taux"),"Toxic"],
-                            st.session_state.analysis_trans or "", st.session_state.last_pdf or b"")
-                        if ok:
-                            st.success(_("stock_saved"))
-                        else:
-                            st.warning(_("stock_save_err"))
+                            if ok:
+                                st.success(_("stock_saved"))
+                            else:
+                                st.warning(_("stock_save_err"))
 
 
                     if can_access("prediction"):
