@@ -31,30 +31,34 @@ def _debug_supabase(msg, err=None):
 def get_supabase():
     """Retourne un client Supabase ou None. Log explicite si échec."""
     if _supa_create is None:
-        _debug_supabase("Package 'supabase' non importé — vérifier requirements.txt")
+        _debug_supabase("Package 'supabase' non importe - verifier requirements.txt")
         return None
     try:
+        # Essai 1 : accès direct (format recommandé Streamlit)
+        try:
             url = st.secrets["SUPABASE_URL"]
-    except (KeyError, FileNotFoundError):
-            url = ""
-    try:
             key = st.secrets["SUPABASE_KEY"]
-    except (KeyError, FileNotFoundError):
-            key = ""
-            
+        except KeyError:
+            # Essai 2 : section [supabase] dans secrets.toml
+            try:
+                url = st.secrets["supabase"]["url"]
+                key = st.secrets["supabase"]["key"]
+            except (KeyError, TypeError):
+                url = ""
+                key = ""
         if not url:
-            _debug_supabase("SUPABASE_URL manquant dans st.secrets")
+            _debug_supabase(f"SUPABASE_URL vide. Secrets disponibles: {list(st.secrets.keys())}")
             return None
         if not key:
-            _debug_supabase("SUPABASE_KEY manquant dans st.secrets")
+            _debug_supabase("SUPABASE_KEY vide")
             return None
-        if not url.startswith("https://"):
-            _debug_supabase(f"SUPABASE_URL mal formée : {url[:30]}...")
-            return None
+        _debug_supabase(f"Connexion Supabase -> {url[:40]}...")
         client = _supa_create(url, key)
+        _debug_supabase("Client Supabase cree OK")
         return client
     except Exception as e:
-        _debug_supabase("Erreur création client Supabase", e)
+        _debug_supabase("Erreur creation client Supabase", e)
+        _debug_supabase(traceback.format_exc())
         return None
 
 
