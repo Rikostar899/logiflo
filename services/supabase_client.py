@@ -65,7 +65,6 @@ def get_supabase():
 def save_audit_to_sheets(username, module, nb_lignes, kpis, labels, resume_ia, pdf_bytes):
     sb = get_supabase()
     if not sb:
-        _debug_supabase("save_audit -> pas de client Supabase, fallback Sheets")
         return _save_audit_sheets_fallback(username, module, nb_lignes, kpis, labels, resume_ia, pdf_bytes)
     try:
         now = datetime.datetime.now()
@@ -102,7 +101,6 @@ def save_audit_to_sheets(username, module, nb_lignes, kpis, labels, resume_ia, p
 def load_archives_from_sheets(username):
     sb = get_supabase()
     if not sb:
-        _debug_supabase("load_archives -> pas de client Supabase, fallback Sheets")
         return _load_archives_sheets_fallback(username)
     try:
         resp = (sb.table("audits")
