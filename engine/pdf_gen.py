@@ -82,13 +82,22 @@ def format_predictions_pour_prompt(alertes, lang="fr"):
     if lang == "en":
         lines.append("=== STOCKOUT PREDICTIONS (next 4 weeks) ===")
         for a in alertes:
-            lines.append(f"  {a['urgence'].upper()} -- {a['reference']}: {a['stock']:.0f} units, consumption {a['conso_hebdo']:.1f}/week, stockout in ~{a['semaines']:.1f} weeks")
+            sem = a['semaines']
+            if sem < 2:
+                delai = f"{max(1, round(sem * 7))} days"
+            else:
+                delai = f"{round(sem)} weeks"
+            lines.append(f"  {a['urgence'].upper()} -- {a['reference']}: {a['stock']:.0f} units, consumption {a['conso_hebdo']:.1f}/week, stockout in ~{delai}")
     else:
         lines.append("=== PREDICTIONS RUPTURE (4 prochaines semaines) ===")
         for a in alertes:
-            lines.append(f"  {a['urgence'].upper()} -- {a['reference']}: {a['stock']:.0f} unites, conso {a['conso_hebdo']:.1f}/semaine, rupture dans ~{a['semaines']:.1f} semaines")
+            sem = a['semaines']
+            if sem < 2:
+                delai = f"{max(1, round(sem * 7))} jours"
+            else:
+                delai = f"{round(sem)} semaines"
+            lines.append(f"  {a['urgence'].upper()} -- {a['reference']}: {a['stock']:.0f} unites, conso {a['conso_hebdo']:.1f}/semaine, rupture dans ~{delai}")
     return "\n".join(lines)
-
 
 def compute_alerte_bfr(df, ca_annuel_estime=None, lang="fr"):
     result = {"available": False, "texte": "", "capital_liberatable": 0}
@@ -138,13 +147,18 @@ def render_prediction_rupture(df, lang="fr"):
     _lbl = "Predictions de rupture -- 4 semaines" if lang=="fr" else "Stockout Predictions -- 4 weeks"
     st.markdown(f'<div style="font-size:11px;font-weight:700;color:#4A6080;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;margin-top:20px;">⚠️ {_lbl}</div>', unsafe_allow_html=True)
     for a in alertes:
+        sem = a["semaines"]
+        if sem < 2:
+            delai = f"{max(1, round(sem * 7))} {'jours' if lang=='fr' else 'days'}"
+        else:
+            delai = f"{round(sem)} {'semaines' if lang=='fr' else 'weeks'}"
         _clr  = "#E8304A" if a["urgence"]=="critique" else ("#F39C12" if a["urgence"]=="urgent" else "#F59E0B")
         _bg   = "#FFF1F2" if a["urgence"]=="critique" else ("#FFFBEB" if a["urgence"]=="urgent" else "#FEFCE8")
         _icon = "🔴" if a["urgence"]=="critique" else ("🟠" if a["urgence"]=="urgent" else "🟡")
         if lang == "en":
-            _msg = f"<strong>{a['reference']}</strong> -- {a['stock']:.0f} units -- consumption {a['conso_hebdo']:.1f}/week -- <strong>stockout in ~{a['semaines']:.1f} weeks</strong>"
+            _msg = f"<strong>{a['reference']}</strong> -- {a['stock']:.0f} units -- consumption {a['conso_hebdo']:.1f}/week -- <strong>stockout in ~{delai}</strong>"
         else:
-            _msg = f"<strong>{a['reference']}</strong> -- {a['stock']:.0f} unites -- conso {a['conso_hebdo']:.1f}/sem -- <strong>rupture dans ~{a['semaines']:.1f} semaines</strong>"
+            _msg = f"<strong>{a['reference']}</strong> -- {a['stock']:.0f} unites -- conso {a['conso_hebdo']:.1f}/sem -- <strong>rupture dans ~{delai}</strong>"
         st.markdown(f'<div style="background:{_bg};border-left:4px solid {_clr};border-radius:8px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px;"><span style="font-size:18px;">{_icon}</span><div style="flex:1;font-size:12px;color:#0B2545;">{_msg}</div><div style="font-size:10px;font-weight:700;color:{_clr};text-transform:uppercase;">{a["urgence"]}</div></div>', unsafe_allow_html=True)
 
 
