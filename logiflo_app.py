@@ -382,6 +382,44 @@ elif st.session_state.auth and st.session_state.page == "app":
                 except Exception:
                     pass
 
+            # ── RECAP DERNIER AUDIT ──
+            try:
+                _sort_recap = "created_at" if "created_at" in _df_arch.columns else "date"
+                _last_recap = _df_arch.sort_values(_sort_recap, ascending=False).iloc[0]
+                _mod_recap = str(_last_recap.get("module", ""))
+                _date_recap = str(_last_recap.get("date", "") or str(_last_recap.get("created_at", ""))[:10])
+                _ico_recap = "📦" if _mod_recap == "stock" else "🚚"
+                _k1_r = float(_last_recap.get("kpi_1", 0) or 0)
+                _k2_r = float(_last_recap.get("kpi_2", 0) or 0)
+                _k3_r = float(_last_recap.get("kpi_3", 0) or 0)
+                _l1_r = str(_last_recap.get("kpi_label_1", ""))
+                _l2_r = str(_last_recap.get("kpi_label_2", ""))
+                _l3_r = str(_last_recap.get("kpi_label_3", ""))
+                _res_recap = str(_last_recap.get("resume_ia", "")).strip()
+                _clr_k2 = "#00C896" if _k2_r >= 90 else ("#F39C12" if _k2_r >= 75 else "#E8304A")
+                st.markdown(f"""<div style="background:white;border:1px solid #E2E8F0;border-radius:14px;padding:18px 22px;margin:16px 0;">
+                <div style="font-size:11px;font-weight:700;color:#4A6080;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;">{_ico_recap} Recap de l'audit de votre import — {_date_recap}</div>
+                <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+                    <div style="flex:1;min-width:120px;background:#F0F4F8;border-radius:8px;padding:10px 14px;text-align:center;">
+                        <div style="font-size:10px;color:#4A6080;text-transform:uppercase;">{_l1_r}</div>
+                        <div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:#0B2545;">{_k1_r:,.0f}</div>
+                    </div>
+                    <div style="flex:1;min-width:120px;background:#F0F4F8;border-radius:8px;padding:10px 14px;text-align:center;">
+                        <div style="font-size:10px;color:#4A6080;text-transform:uppercase;">{_l2_r}</div>
+                        <div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:{_clr_k2};">{_k2_r:.1f}%</div>
+                    </div>
+                    <div style="flex:1;min-width:120px;background:#F0F4F8;border-radius:8px;padding:10px 14px;text-align:center;">
+                        <div style="font-size:10px;color:#4A6080;text-transform:uppercase;">{_l3_r}</div>
+                        <div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:#0B2545;">{_k3_r:,.0f}</div>
+                    </div>
+                </div>""", unsafe_allow_html=True)
+                if _res_recap and _res_recap not in ("","nan","None","N/A"):
+                    _preview = _res_recap[:300].replace("\n"," ").replace("**","").replace("###","").strip()
+                    st.markdown(f'<div style="font-size:12px;color:#4A6080;line-height:1.6;padding:8px 0;">{_preview}...</div>', unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
+            except Exception:
+                pass
+                
             st.markdown("<br>", unsafe_allow_html=True)
             try:
                 _sort_col = "created_at" if "created_at" in _df_arch.columns else "date"
@@ -696,6 +734,7 @@ elif st.session_state.auth and st.session_state.page == "app":
                         pg2.done()
 
                     if st.session_state.analysis_stock_manager:
+                        st.markdown(render_report(st.session_state.analysis_stock_manager, "manager"), unsafe_allow_html=True)
                         try:
                             _score_ui = compute_logiflo_score(module="stock", df=df,
                                 kpis=st.session_state.last_kpis, labels=st.session_state.last_labels,
@@ -715,7 +754,6 @@ elif st.session_state.auth and st.session_state.page == "app":
                             st.markdown("</div>", unsafe_allow_html=True)
                         except Exception:
                             pass
-                        st.markdown(render_report(st.session_state.analysis_stock_manager, "manager"), unsafe_allow_html=True)
                         if st.session_state.last_pdf:
                             st.download_button(_("stock_btn_dl"), st.session_state.last_pdf, "Audit_Stock_Logiflo.pdf", use_container_width=True)
 
