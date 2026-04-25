@@ -484,18 +484,7 @@ elif st.session_state.auth and st.session_state.page == "app":
         if _df_arch is None or _df_arch.empty:
             st.info("Aucun audit encore. Lancez votre premier audit." if lang_d == "fr" else "No audit yet. Launch your first audit.")
         else:
-            for _mod_al in _df_arch["module"].unique():
-                _df_al = _df_arch[_df_arch["module"] == _mod_al].tail(2)
-                if len(_df_al) >= 2:
-                    try:
-                        _dv = float(_df_al.iloc[1]["kpi_2"]) - float(_df_al.iloc[0]["kpi_2"])
-                        _lbl2_al = str(_df_al.iloc[1].get("kpi_label_2", ""))
-                        if _dv < -3:
-                            _ico_al = "📦" if _mod_al == "stock" else "🚚"
-                            st.warning(f"⚠️ {_ico_al} {_lbl2_al} : baisse de **{abs(_dv):.1f} pts** depuis le dernier audit")
-                    except Exception:
-                        pass
-
+            
             _col_l, _col_r = st.columns(2)
             _mod_actif = st.session_state.get("module", "stock")
 
