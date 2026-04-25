@@ -165,20 +165,37 @@ elif st.session_state.page == "contact":
 
 elif st.session_state.page == "audit_gratuit":
     lang_ag = st.session_state.get("language", "fr")
-    st.markdown("<h1 style='text-align:center;color:#0B2545;font-family:Syne,sans-serif;font-weight:800;'>" + ("Free Audit" if lang_ag == "en" else "Audit Gratuit") + "</h1>", unsafe_allow_html=True)
+    st.markdown(f"""<div style="text-align:center;margin-bottom:8px;">
+    <span style="font-family:Syne,sans-serif;font-weight:800;font-size:2rem;color:#0B2545;">LOGI<span style="color:#00C896;">FLO</span>.IO</span>
+    </div>
+    <h2 style="text-align:center;color:#0B2545;font-family:Syne,sans-serif;font-weight:800;margin-bottom:4px;">{"Free Audit" if lang_ag=="en" else "Audit Gratuit"}</h2>
+    <p style="text-align:center;color:#4A6080;font-size:0.9rem;margin-bottom:24px;">{"Upload your file and get an instant diagnosis — no account required." if lang_ag=="en" else "Deposez votre fichier et obtenez un diagnostic instantane — sans compte, sans engagement."}</p>""", unsafe_allow_html=True)
+
     if st.session_state.get("audit_gratuit_done"):
-        st.warning("You have already used your free audit." if lang_ag == "en" else "Vous avez deja utilise votre audit gratuit.")
-        if st.button("Back" if lang_ag == "en" else "Retour", use_container_width=True):
+        st.markdown(f"""<div style="background:white;border:1px solid #E2E8F0;border-radius:14px;padding:24px;text-align:center;margin:20px 0;">
+        <div style="font-size:2.5rem;margin-bottom:12px;">✅</div>
+        <div style="font-family:Syne,sans-serif;font-weight:700;font-size:1.1rem;color:#0B2545;margin-bottom:8px;">{"Audit completed" if lang_ag=="en" else "Audit termine"}</div>
+        <p style="color:#4A6080;font-size:0.85rem;margin-bottom:20px;">{"You have used your free audit. Subscribe to unlock the full analysis, PDF export, and historical tracking." if lang_ag=="en" else "Vous avez utilise votre audit gratuit. Souscrivez pour debloquer l analyse complete, l export PDF et le suivi historique."}</p>
+        </div>""", unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+        _c1, _cc, _c2 = st.columns([1, 2, 1])
+        if _cc.button("Voir les offres" if lang_ag=="fr" else "See plans", use_container_width=True, key="goto_plans_done"):
+            st.session_state.page = "plans"; st.rerun()
+        if _cc.button("Retour" if lang_ag=="fr" else "Back", use_container_width=True, key="back_free_done"):
             st.session_state.page = "accueil"; st.rerun()
     else:
-        _fmc = st.radio("", ["Stock", "Transport"], horizontal=True, label_visibility="collapsed")
-        _fmod = "stock" if "Stock" in _fmc else "transport"
-        _upf = st.file_uploader("Fichier Excel ou CSV" if lang_ag == "fr" else "Excel or CSV file", type=["csv", "xlsx"])
+        _c1, _fc, _c2 = st.columns([1, 2.5, 1])
+        with _fc:
+            _fmc = st.radio("", ["📦 Stock", "🚚 Transport"], horizontal=True, label_visibility="collapsed")
+            _fmod = "stock" if "Stock" in _fmc else "transport"
+            _upf = st.file_uploader("Fichier Excel ou CSV" if lang_ag=="fr" else "Excel or CSV file", type=["csv","xlsx"], key="free_upload")
+
         if _upf:
             try:
                 _dff = pd.read_excel(_upf) if _upf.name.endswith("xlsx") else pd.read_csv(_upf, encoding="utf-8")
             except Exception:
                 _upf.seek(0); _dff = pd.read_csv(_upf, encoding="latin-1")
+
             if _fmod == "stock":
                 _dfok, _st2 = smart_ingester_stock_ultime(_dff, client_ai=client)
                 if _dfok is None:
@@ -191,25 +208,42 @@ elif st.session_state.page == "audit_gratuit":
                     _txf = (1 - len(_rf) / max(len(_dfok), 1)) * 100
                     _fkpis = [_vt if not _sp else float(len(_dfok)), _txf, float(len(_rf))]
                     _flbl = ["Capital EUR" if not _sp else "Articles", "Service %", "Ruptures"]
-                    with st.spinner("Analyse IA..." if lang_ag == "fr" else "AI Analysis..."):
-                        _fsum = generate_ai_analysis(f"Items:{len(_dfok)}. Service:{_txf:.1f}%. Stockouts:{len(_rf)}.")
+
+                    st.markdown("<br>", unsafe_allow_html=True)
                     a1, a2, a3 = st.columns(3)
-                    a1.metric("Capital" if not _sp else "Articles", f"{_fkpis[0]:,.0f}")
-                    a2.metric("Service", f"{_txf:.1f}%")
-                    a3.metric("Ruptures", str(len(_rf)))
-                    st.markdown(render_report(_fsum, "manager"), unsafe_allow_html=True)
-                    _fpdf = generate_free_pdf("stock", _fsum, _fkpis, _flbl)
-                    st.download_button("Telecharger (PDF)" if lang_ag == "fr" else "Download (PDF)", _fpdf, "Audit_Gratuit_Logiflo.pdf", use_container_width=True)
+                    a1.markdown(f"<div class='kpi-card'><h4>{'Capital' if not _sp else 'Articles'}</h4><h2 style='color:#0B2545;'>{_fkpis[0]:,.0f}</h2></div>", unsafe_allow_html=True)
+                    a2.markdown(f"<div class='kpi-card'><h4>Service</h4><h2 style='color:#00C896;'>{_txf:.1f}%</h2></div>", unsafe_allow_html=True)
+                    a3.markdown(f"<div class='kpi-card'><h4>Ruptures</h4><h2 style='color:#E8304A;'>{len(_rf)}</h2></div>", unsafe_allow_html=True)
+
+                    with st.spinner("Analyse IA en cours..." if lang_ag=="fr" else "AI Analysis in progress..."):
+                        _fsum = generate_ai_analysis(f"Items:{len(_dfok)}. Service:{_txf:.1f}%. Stockouts:{len(_rf)}.")
+
+                    # Tronquer le texte à 30%
+                    _lines_full = _fsum.strip().split('\n')
+                    _cut = max(5, len(_lines_full) * 30 // 100)
+                    _fsum_tronque = '\n'.join(_lines_full[:_cut])
+
+                    st.markdown(render_report(_fsum_tronque, "manager"), unsafe_allow_html=True)
+
+                    # Masque flou sur le reste
+                    st.markdown(f"""<div style="position:relative;overflow:hidden;max-height:120px;">
+                    <div style="filter:blur(5px);opacity:0.4;font-size:13px;color:#4A6080;line-height:1.8;padding:12px;">
+                    {'... '.join(_lines_full[_cut:_cut+6])}
+                    </div>
+                    <div style="position:absolute;bottom:0;left:0;right:0;height:100%;background:linear-gradient(transparent,#F7F9FB 70%);"></div>
+                    </div>""", unsafe_allow_html=True)
+
                     st.session_state.audit_gratuit_done = True
+
             else:
                 _mapf = auto_map_columns_with_ai(_dff, client_ai=client)
                 def _colf(k): return _mapf.get(k) if _mapf.get(k) in _dff.columns else None
                 _caf = _colf("ca"); _cof = _colf("co")
                 if not _cof:
-                    for _cc in _dff.columns:
-                        if any(k in str(_cc).lower() for k in ["cout", "cost", "achat"]): _cof = _cc; break
+                    for _cc2 in _dff.columns:
+                        if any(k in str(_cc2).lower() for k in ["cout","cost","achat"]): _cof = _cc2; break
                 if not _cof:
-                    st.error("Colonne cout introuvable." if lang_ag == "fr" else "Cost column not found.")
+                    st.error("Colonne cout introuvable." if lang_ag=="fr" else "Cost column not found.")
                 else:
                     _dff["_CO"] = _dff[_cof].apply(super_clean)
                     _dff["_CA"] = _dff[_caf].apply(super_clean) if _caf else _dff["_CO"] / 0.85
@@ -217,18 +251,158 @@ elif st.session_state.page == "audit_gratuit":
                     _mgt = _dff["_MG"].sum(); _cat = _dff["_CA"].sum()
                     _txt = (_mgt / _cat * 100) if _cat > 0 else 0
                     _toxt = len(_dff[_dff["_MG"] < 0])
-                    _fkpis = [_mgt, _txt, float(_toxt)]
-                    _flbl = ["Marge EUR", "Taux %", "Deficitaires"]
-                    with st.spinner("Analyse IA..." if lang_ag == "fr" else "AI Analysis..."):
-                        _fsum = generate_ai_analysis(f"Routes:{len(_dff)}. Margin:{_mgt:.0f} EUR. Rate:{_txt:.1f}%.")
+
+                    st.markdown("<br>", unsafe_allow_html=True)
                     a1, a2, a3 = st.columns(3)
-                    a1.metric("Marge", f"{_mgt:,.0f} EUR"); a2.metric("Taux", f"{_txt:.1f}%"); a3.metric("Deficitaires", str(_toxt))
-                    st.markdown(render_report(_fsum, "manager"), unsafe_allow_html=True)
-                    _fpdf = generate_free_pdf("transport", _fsum, _fkpis, _flbl)
-                    st.download_button("Telecharger (PDF)" if lang_ag == "fr" else "Download (PDF)", _fpdf, "Audit_Gratuit_Transport.pdf", use_container_width=True)
+                    a1.markdown(f"<div class='kpi-card'><h4>Marge</h4><h2 style='color:#0B2545;'>{_mgt:,.0f} EUR</h2></div>", unsafe_allow_html=True)
+                    a2.markdown(f"<div class='kpi-card'><h4>Taux</h4><h2 style='color:#00C896;'>{_txt:.1f}%</h2></div>", unsafe_allow_html=True)
+                    a3.markdown(f"<div class='kpi-card'><h4>{'Loss routes' if lang_ag=='en' else 'Deficitaires'}</h4><h2 style='color:#E8304A;'>{_toxt}</h2></div>", unsafe_allow_html=True)
+
+                    with st.spinner("Analyse IA en cours..." if lang_ag=="fr" else "AI Analysis in progress..."):
+                        _fsum = generate_ai_analysis(f"Routes:{len(_dff)}. Margin:{_mgt:.0f} EUR. Rate:{_txt:.1f}%.")
+
+                    _lines_full = _fsum.strip().split('\n')
+                    _cut = max(5, len(_lines_full) * 30 // 100)
+                    _fsum_tronque = '\n'.join(_lines_full[:_cut])
+
+                    st.markdown(render_report(_fsum_tronque, "manager"), unsafe_allow_html=True)
+
+                    st.markdown(f"""<div style="position:relative;overflow:hidden;max-height:120px;">
+                    <div style="filter:blur(5px);opacity:0.4;font-size:13px;color:#4A6080;line-height:1.8;padding:12px;">
+                    {'... '.join(_lines_full[_cut:_cut+6])}
+                    </div>
+                    <div style="position:absolute;bottom:0;left:0;right:0;height:100%;background:linear-gradient(transparent,#F7F9FB 70%);"></div>
+                    </div>""", unsafe_allow_html=True)
+
                     st.session_state.audit_gratuit_done = True
-        if st.button("Retour" if lang_ag == "fr" else "Back", use_container_width=True, key="back_free"):
+
+        # CTA
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown(f"""<div style="background:linear-gradient(135deg,#0B2545,#0f2f5a);border-radius:14px;padding:28px 24px;text-align:center;margin:8px 0;">
+        <div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.3rem;color:white;margin-bottom:8px;">{"Unlock the full audit" if lang_ag=="en" else "Debloquez l audit complet"}</div>
+        <p style="color:#A8C8E8;font-size:0.85rem;margin-bottom:4px;">{"Full AI analysis, PDF export, historical tracking, sectoral scoring" if lang_ag=="en" else "Analyse IA complete, export PDF, suivi historique, scoring sectoriel"}</p>
+        <p style="color:#00C896;font-size:0.9rem;font-weight:700;">{"Starting at 290 EUR/month" if lang_ag=="en" else "A partir de 290 EUR/mois"}</p>
+        </div>""", unsafe_allow_html=True)
+
+        _c1, _cc, _c2 = st.columns([1, 2, 1])
+        if _cc.button("Choisir mon plan" if lang_ag=="fr" else "Choose my plan", use_container_width=True, type="primary", key="goto_plans_free"):
+            st.session_state.page = "plans"; st.rerun()
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        _c1b, _ccb, _c2b = st.columns([1, 2, 1])
+        if _ccb.button("Retour" if lang_ag=="fr" else "Back", use_container_width=True, key="back_free"):
             st.session_state.page = "accueil"; st.rerun()
+
+elif st.session_state.page == "plans":
+    lang_pl = st.session_state.get("language", "fr")
+    st.markdown(f"""<div style="text-align:center;margin-bottom:8px;">
+    <span style="font-family:Syne,sans-serif;font-weight:800;font-size:2rem;color:#0B2545;">LOGI<span style="color:#00C896;">FLO</span>.IO</span>
+    </div>
+    <h2 style="text-align:center;color:#0B2545;font-family:Syne,sans-serif;font-weight:800;">{"Choose your plan" if lang_pl=="en" else "Choisissez votre offre"}</h2>
+    <p style="text-align:center;color:#4A6080;font-size:0.9rem;margin-bottom:28px;">{"All plans include AI analysis and sectoral benchmarks." if lang_pl=="en" else "Tous les plans incluent l analyse IA et les benchmarks sectoriels."}</p>""", unsafe_allow_html=True)
+
+    _plans_data = [
+        {"name":"Gratuit","price":"0 EUR","period":"","color":"#4A6080","bg":"#F0F4F8",
+         "features":["1 audit / semaine" if lang_pl=="fr" else "1 audit / week",
+                      "Sans compte" if lang_pl=="fr" else "No account",
+                      "Rapport tronque (30%)" if lang_pl=="fr" else "Truncated report (30%)",
+                      "Pas d export PDF" if lang_pl=="fr" else "No PDF export"],
+         "cta":"Deja actif" if lang_pl=="fr" else "Already active","disabled":True},
+        {"name":"Starter","price":"290","period":"/mois" if lang_pl=="fr" else "/month","color":"#6D28D9","bg":"#F3E8FF",
+         "features":["3 audits / mois" if lang_pl=="fr" else "3 audits / month",
+                      "1 module (Stock ou Transport)" if lang_pl=="fr" else "1 module (Stock or Transport)",
+                      "1 login Manager",
+                      "Export PDF complet" if lang_pl=="fr" else "Full PDF export"],
+         "cta":"Souscrire" if lang_pl=="fr" else "Subscribe","disabled":False},
+        {"name":"Business","price":"490","period":"/mois" if lang_pl=="fr" else "/month","color":"#047857","bg":"#D1FAE5",
+         "features":["Audits illimites" if lang_pl=="fr" else "Unlimited audits",
+                      "2 modules" if lang_pl=="fr" else "2 modules",
+                      "3 profils (DAF / Resp / Terrain)" if lang_pl=="fr" else "3 profiles (CFO / Mgr / Field)",
+                      "Historique 6 mois" if lang_pl=="fr" else "6-month history",
+                      "Benchmarks sectoriels" if lang_pl=="fr" else "Sectoral benchmarks"],
+         "cta":"Souscrire" if lang_pl=="fr" else "Subscribe","disabled":False},
+        {"name":"Expert","price":"Sur devis" if lang_pl=="fr" else "Custom","period":"","color":"#B45309","bg":"#FDE68A",
+         "features":["Multi-sites" if lang_pl=="fr" else "Multi-site",
+                      "API dedicee" if lang_pl=="fr" else "Dedicated API",
+                      "4 niveaux hierarchiques" if lang_pl=="fr" else "4 hierarchy levels",
+                      "SMLA certifie" if lang_pl=="fr" else "Certified SMLA",
+                      "En developpement" if lang_pl=="fr" else "In development"],
+         "cta":"Nous contacter" if lang_pl=="fr" else "Contact us","disabled":False},
+    ]
+
+    cols_pl = st.columns(4)
+    for i, plan in enumerate(_plans_data):
+        with cols_pl[i]:
+            _feats_html = "".join([f'<div style="display:flex;gap:6px;align-items:flex-start;margin-bottom:6px;"><span style="color:{plan["color"]};font-size:12px;">✓</span><span style="font-size:12px;color:#4A6080;">{f}</span></div>' for f in plan["features"]])
+            _price_display = f'<span style="font-size:2rem;">{plan["price"]}</span><span style="font-size:0.9rem;color:#4A6080;">{plan["period"]}</span>' if plan["price"] not in ("Sur devis","Custom") else f'<span style="font-size:1.4rem;">{plan["price"]}</span>'
+
+            st.markdown(f"""<div style="background:white;border:1px solid #E2E8F0;border-radius:14px;padding:20px 18px;text-align:center;border-top:4px solid {plan['color']};height:100%;">
+            <div style="display:inline-block;padding:3px 12px;border-radius:99px;background:{plan['bg']};color:{plan['color']};font-family:Syne,sans-serif;font-size:0.72rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;">{plan['name']}</div>
+            <div style="font-family:Syne,sans-serif;font-weight:800;color:#0B2545;margin-bottom:16px;line-height:1;">{_price_display}</div>
+            <div style="text-align:left;margin-bottom:16px;">{_feats_html}</div>
+            </div>""", unsafe_allow_html=True)
+
+            if plan["disabled"]:
+                st.button(plan["cta"], use_container_width=True, disabled=True, key=f"plan_btn_{i}")
+            elif plan["name"] == "Expert":
+                if st.button(plan["cta"], use_container_width=True, key=f"plan_btn_{i}"):
+                    st.session_state.page = "contact"; st.rerun()
+            else:
+                if st.button(plan["cta"], use_container_width=True, type="primary", key=f"plan_btn_{i}"):
+                    st.session_state._selected_plan = plan["name"]
+                    st.session_state.page = "checkout"; st.rerun()
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    _c1, _cc, _c2 = st.columns([1, 2, 1])
+    if _cc.button("Retour" if lang_pl=="fr" else "Back", use_container_width=True, key="back_plans"):
+        st.session_state.page = "accueil"; st.rerun()
+
+elif st.session_state.page == "checkout":
+    lang_ck = st.session_state.get("language", "fr")
+    _plan_selected = st.session_state.get("_selected_plan", "Starter")
+    _prix_map = {"Starter":"290","Business":"490"}
+    _prix = _prix_map.get(_plan_selected, "290")
+
+    st.markdown(f"""<div style="text-align:center;margin-bottom:8px;">
+    <span style="font-family:Syne,sans-serif;font-weight:800;font-size:2rem;color:#0B2545;">LOGI<span style="color:#00C896;">FLO</span>.IO</span>
+    </div>
+    <h2 style="text-align:center;color:#0B2545;font-family:Syne,sans-serif;font-weight:800;">{"Subscription" if lang_ck=="en" else "Souscription"} — {_plan_selected}</h2>""", unsafe_allow_html=True)
+
+    _c1, _fc, _c2 = st.columns([1, 1.8, 1])
+    with _fc:
+        st.markdown(f"""<div style="background:white;border:1px solid #E2E8F0;border-radius:14px;padding:24px;margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #F0F4F8;">
+            <span style="font-family:Syne,sans-serif;font-weight:700;color:#0B2545;">Plan {_plan_selected}</span>
+            <span style="font-family:Syne,sans-serif;font-weight:800;font-size:1.3rem;color:#00C896;">{_prix} EUR<span style="font-size:0.8rem;color:#4A6080;">/{"mois" if lang_ck=="fr" else "month"}</span></span>
+        </div>""", unsafe_allow_html=True)
+
+        with st.form("checkout_form"):
+            st.text_input("Nom complet" if lang_ck=="fr" else "Full name")
+            st.text_input("Email professionnel" if lang_ck=="fr" else "Professional email")
+            st.text_input("Entreprise" if lang_ck=="fr" else "Company")
+            st.text_input("Telephone" if lang_ck=="fr" else "Phone", placeholder="+33...")
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            st.markdown(f"""<div style="background:#F0F4F8;border-radius:10px;padding:14px 16px;margin-bottom:12px;">
+            <div style="font-size:11px;color:#4A6080;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">{"Payment details" if lang_ck=="en" else "Informations de paiement"}</div>
+            <div style="font-size:12px;color:#0B2545;">💳 {"Secure payment — Stripe integration coming soon" if lang_ck=="en" else "Paiement securise — integration Stripe a venir"}</div>
+            </div>""", unsafe_allow_html=True)
+
+            _submitted = st.form_submit_button(
+                f"{'Subscribe' if lang_ck=='en' else 'Souscrire'} — {_prix} EUR/{'month' if lang_ck=='en' else 'mois'}",
+                use_container_width=True, type="primary")
+            if _submitted:
+                st.markdown(f"""<div style="background:#D1FAE5;border:1px solid #00C896;border-radius:10px;padding:16px;text-align:center;margin-top:12px;">
+                <div style="font-size:1.5rem;margin-bottom:8px;">✅</div>
+                <div style="font-family:Syne,sans-serif;font-weight:700;color:#047857;">{"Request received!" if lang_ck=="en" else "Demande recue !"}</div>
+                <p style="color:#4A6080;font-size:0.82rem;margin-top:6px;">{"Our team will contact you within 24 hours to activate your account." if lang_ck=="en" else "Notre equipe vous contactera sous 24h pour activer votre compte."}</p>
+                </div>""", unsafe_allow_html=True)
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    _c1b, _ccb, _c2b = st.columns([1, 1.8, 1])
+    if _ccb.button("Retour aux offres" if lang_ck=="fr" else "Back to plans", use_container_width=True, key="back_checkout"):
+        st.session_state.page = "plans"; st.rerun()
 
 elif st.session_state.page == "choix_profil_stock":
     st.markdown(f"<h2 style='text-align:center;color:#0B2545;font-family:Syne,sans-serif;'>{_('profile_title')}</h2>", unsafe_allow_html=True)
