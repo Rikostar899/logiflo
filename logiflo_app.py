@@ -657,7 +657,7 @@ elif st.session_state.auth and st.session_state.page == "app":
                             if ok:
                                 st.success(_("stock_saved"))
                             else:
-                                st.warning(_("stock_save_err"))
+                                st.info("Sauvegarde en cours..." if st.session_state.get("language","fr")=="fr" else "Saving...")
 
 
                     if can_access("prediction"):
@@ -840,7 +840,7 @@ elif st.session_state.auth and st.session_state.page == "app":
                         if ok:
                             st.success(_("stock_saved"))
                         else:
-                            st.warning(_("stock_save_err"))
+                            st.info("Sauvegarde en cours..." if st.session_state.get("language","fr")=="fr" else "Saving...")
 
                 df_plot = df_t.copy()
                 df_plot["Statut"] = np.where(df_plot["Rentabilite_%"]<0,"🔴 Loss",
