@@ -467,10 +467,14 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
     _in_scoring = False
     for line in content_r.split('\n'):
         line = line.strip()
-        if 'SCORING' in line.upper() and line.startswith('###'):
+        if line.startswith('###') and 'SCORING' in line.upper():
             _in_scoring = True
-        if _in_scoring and not line.startswith('###'):
             continue
+        if _in_scoring:
+            if line.startswith('###') and 'SCORING' not in line.upper():
+                _in_scoring = False
+            else:
+                continue
         if _in_scoring and line.startswith('###') and 'SCORING' not in line.upper():
             _in_scoring = False
         if not line:
