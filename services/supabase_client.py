@@ -202,7 +202,22 @@ def _load_archives_sheets_fallback(username):
         except Exception:
             return pd.DataFrame()
         records = ws.get_all_records()
-        return pd.DataFrame(records) if records else pd.DataFrame()
+        if not records:
+            return pd.DataFrame()
+        df = pd.DataFrame(records)
+        # Assurer que les colonnes date/heure existent
+        cols = list(df.columns)
+        if len(cols) >= 2 and "date" not in df.columns:
+            df.rename(columns={cols[0]: "date", cols[1]: "heure"}, inplace=True)
+        if len(cols) >= 3 and "module" not in df.columns:
+            df.rename(columns={cols[2]: "module"}, inplace=True)
+        if len(cols) >= 4 and "nb_lignes" not in df.columns:
+            df.rename(columns={cols[3]: "nb_lignes"}, inplace=True)
+        col_map = {4:"kpi_1",5:"kpi_2",6:"kpi_3",7:"kpi_label_1",8:"kpi_label_2",9:"kpi_label_3",10:"resume_ia",11:"pdf_base64"}
+        for idx, name in col_map.items():
+            if len(cols) > idx and name not in df.columns:
+                df.rename(columns={cols[idx]: name}, inplace=True)
+        return df
     except Exception:
         return None
 
