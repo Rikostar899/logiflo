@@ -228,6 +228,11 @@ def get_historique_audits(username, module, n=6, current_kpis=None, current_labe
         if df is None or df.empty:
             return None
         df = df[df["module"] == module].copy()
+        # Filtrer par secteur si disponible pour ne pas mélanger les contextes
+        if "sector_key" in df.columns:
+            last_sector = df["sector_key"].dropna().iloc[-1] if len(df["sector_key"].dropna()) > 0 else None
+            if last_sector:
+                df = df[df["sector_key"] == last_sector].copy()
         if len(df) < 2:
             return None
         for col in ["kpi_1", "kpi_2", "kpi_3"]:
