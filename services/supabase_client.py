@@ -84,6 +84,7 @@ def save_audit_to_sheets(username, module, nb_lignes, kpis, labels, resume_ia, p
             "resume_ia":   str(resume_ia or "")[:2000],
             "pdf_base64":  pdf_b64,
             "profil":      _profil,
+            "sector_key":  str(st.session_state.get("_last_sector_key", "generique")),
         }
         response = sb.table("audits").insert(payload).execute()
         if response and hasattr(response, 'data') and response.data:
