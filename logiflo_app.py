@@ -1089,7 +1089,6 @@ elif st.session_state.auth and st.session_state.page == "app":
                         _hist_txt_tr = format_historique_pour_prompt(_hist_tr,"transport",st.session_state.get("language","fr"))
                         _mode_k = st.session_state.trans_mode_detected[0] if st.session_state.get("trans_mode_detected") else "routier"
                         _sector_tr = detect_sector(df=df_t, module="transport", mode_detected=_mode_k)
-                        st.session_state["_last_sector_key"] = _sector_s
                         st.session_state.analysis_trans = generate_ai_analysis(
                             f"Routes: {len(df_t)}. Total margin: {marge_tot:.0f} EUR. Rate: {taux:.1f}%. Loss routes: {len(df_t[df_t['Marge_Nette']<0])}. Top 3 worst: {pires_s}. Avg cost/km: {cout_km:.2f} EUR.",
                             historique_txt=_hist_txt_tr, df_raw=df_t, sector_key=_sector_tr, mode_detected=_mode_k)
