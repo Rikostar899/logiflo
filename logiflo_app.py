@@ -57,6 +57,7 @@ for k, v in {
     "analysis_stock_manager": None, "analysis_stock_terrain": None, "analysis_trans": None,
     "last_pdf": None, "last_kpis": [], "last_labels": [],
     "trans_mode_detected": None, "audit_gratuit_done": False,
+    "rgpd_ok": False,
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
@@ -124,6 +125,61 @@ class StepProgress:
 
 
 # ══ PAGES ════════════════════════════════════════════════════════
+# ──────────────── CONSENTEMENT RGPD ────────────────
+_pages_publiques = ("accueil", "audit_gratuit", "plans", "checkout", "contact", "login_stock", "login_transport", "choix_profil_stock", "infos_legales")
+if not st.session_state.rgpd_ok and st.session_state.get("current_user"):
+    _lang_rgpd = st.session_state.get("language", "fr")
+    st.markdown(f"""<div style="text-align:center;margin-bottom:8px;">
+    <span style="font-family:Syne,sans-serif;font-weight:800;font-size:2rem;color:#0B2545;">LOGI<span style="color:#00C896;">FLO</span>.IO</span>
+    </div>
+    <h2 style="text-align:center;color:#0B2545;font-family:Syne,sans-serif;font-weight:800;margin-bottom:20px;">{"Data Processing Consent" if _lang_rgpd=="en" else "Consentement au traitement des donnees"}</h2>""", unsafe_allow_html=True)
+
+    _c1, _fc, _c2 = st.columns([1, 2.5, 1])
+    with _fc:
+        if _lang_rgpd == "en":
+            _txt = """
+            <div style="background:white;border:1px solid #E2E8F0;border-radius:14px;padding:24px;margin-bottom:18px;line-height:1.7;color:#4A6080;font-size:0.85rem;">
+            <div style="font-family:Syne,sans-serif;font-weight:700;color:#0B2545;font-size:1rem;margin-bottom:14px;">📋 What we do with your data</div>
+            <div style="margin-bottom:10px;"><strong style="color:#0B2545;">✓ Processing in session</strong> — Files you upload are processed in memory to generate your audit. Files are never stored on disk.</div>
+            <div style="margin-bottom:10px;"><strong style="color:#0B2545;">✓ AI Analysis</strong> — A summary of your data is sent to OpenAI (USA, GDPR-compliant DPA) and Google Gemini (fallback) for the audit. Your data is not used to train models.</div>
+            <div style="margin-bottom:10px;"><strong style="color:#0B2545;">✓ Archiving (EU)</strong> — Your audit results (KPIs + summary + PDF) are stored in our Supabase database hosted in Paris (AWS eu-west-3).</div>
+            <div style="margin-bottom:10px;"><strong style="color:#0B2545;">✓ Your rights</strong> — Right to access, rectify, delete and port your data at any time. Contact: contact@logiflo.io</div>
+            <div style="margin-bottom:0;"><strong style="color:#0B2545;">✓ No resale</strong> — Your data is never sold, rented or shared with third parties for marketing purposes.</div>
+            </div>
+            """
+            _check_lbl = "I have read and accept the processing of my data as described above."
+            _btn_lbl = "Continue"
+            _read_lbl = "Read full GDPR policy"
+        else:
+            _txt = """
+            <div style="background:white;border:1px solid #E2E8F0;border-radius:14px;padding:24px;margin-bottom:18px;line-height:1.7;color:#4A6080;font-size:0.85rem;">
+            <div style="font-family:Syne,sans-serif;font-weight:700;color:#0B2545;font-size:1rem;margin-bottom:14px;">📋 Ce que nous faisons de vos donnees</div>
+            <div style="margin-bottom:10px;"><strong style="color:#0B2545;">✓ Traitement en session</strong> — Les fichiers que vous deposez sont traites en memoire pour generer votre audit. Aucun fichier n'est stocke sur disque.</div>
+            <div style="margin-bottom:10px;"><strong style="color:#0B2545;">✓ Analyse IA</strong> — Un resume de vos donnees est envoye a OpenAI (USA, accord RGPD signe) et Google Gemini (fallback) pour generer l'audit. Vos donnees ne sont pas utilisees pour entrainer les modeles.</div>
+            <div style="margin-bottom:10px;"><strong style="color:#0B2545;">✓ Archivage (UE)</strong> — Les resultats de vos audits (KPIs + resume + PDF) sont stockes dans notre base Supabase hebergee a Paris (AWS eu-west-3).</div>
+            <div style="margin-bottom:10px;"><strong style="color:#0B2545;">✓ Vos droits</strong> — Droit d'acces, de rectification, de suppression et de portabilite de vos donnees a tout moment. Contact : contact@logiflo.io</div>
+            <div style="margin-bottom:0;"><strong style="color:#0B2545;">✓ Pas de revente</strong> — Vos donnees ne sont jamais vendues, louees ou partagees avec des tiers a des fins commerciales.</div>
+            </div>
+            """
+            _check_lbl = "J'ai lu et j'accepte le traitement de mes donnees tel que decrit ci-dessus."
+            _btn_lbl = "Continuer"
+            _read_lbl = "Lire la politique RGPD complete"
+
+        st.markdown(_txt, unsafe_allow_html=True)
+        _accept = st.checkbox(_check_lbl, key="rgpd_accept_cb")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button(_btn_lbl, use_container_width=True, type="primary", disabled=not _accept, key="rgpd_continue"):
+            st.session_state.rgpd_ok = True
+            st.rerun()
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button(_read_lbl, use_container_width=True, key="rgpd_read_full"):
+            st.session_state.page = "infos_legales"
+            st.rerun()
+
+    st.stop()
+# ──────────────── FIN CONSENTEMENT RGPD ────────────────
 if st.session_state.page == "accueil":
     st.markdown(f"<h1 style='text-align:center;color:#0B2545;font-family:Syne,sans-serif;font-weight:800;'>{_('home_title')}</h1>", unsafe_allow_html=True)
     st.markdown(f"<p style='text-align:center;font-size:1.1em;color:#4A6080;'>{_('home_sub')}</p><br>", unsafe_allow_html=True)
