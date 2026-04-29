@@ -125,6 +125,15 @@ class StepProgress:
 
 
 # ══ PAGES ════════════════════════════════════════════════════════
+# ══ LECTURE PARAMÈTRES URL ══════════════════════════════════════
+try:
+    _qp = st.query_params
+    _page_param = _qp.get("page", "")
+    _allowed_pages = ("audit_gratuit", "plans", "checkout", "contact", "infos_legales")
+    if _page_param in _allowed_pages and st.session_state.page == "accueil":
+        st.session_state.page = _page_param
+except Exception:
+    pass
 # ──────────────── CONSENTEMENT RGPD ────────────────
 _pages_publiques = ("accueil", "audit_gratuit", "plans", "checkout", "contact", "login_stock", "login_transport", "choix_profil_stock", "infos_legales")
 if not st.session_state.rgpd_ok and st.session_state.get("current_user"):
