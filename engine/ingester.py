@@ -345,7 +345,7 @@ def detect_transport_mode(df, dep_col=None, arr_col=None, mode_col=None):
     PORTS = ["havre","marseille","dunkerque","bordeaux","hamburg","rotterdam","antwerp","anvers","barcelona","barcelone","genova","genes","tanger","tangermed","casablanca","dakar","abidjan","shanghai","ningbo","shenzhen","hongkong","singapore","singapour","dubai","jeddah","mumbai"]
     AIRPORT_CODES = {"cdg","ory","lyo","mrs","nce","tls","bod","jfk","lax","lhr","fra","muc","ams","bru","mad","fco","mxp","dxb","auh","doh","bom","del","hkg","nrt","sin"}
     ROAD_CITIES = {"paris","lyon","toulouse","bordeaux","lille","marseille","nantes","strasbourg","rennes","nice","grenoble","montpellier","tours","dijon","metz","nancy","reims","rouen","amiens","clermont","limoges","bruxelles","amsterdam","berlin","munich","madrid","rome","milan","geneve","zurich","rotterdam","hamburg"}
-    KW_AIR  = ["aerien","aerien","air freight","airfreight","awb","air waybill","fret aerien","airline cargo","avion"]
+    KW_AIR  = ["aerien","air freight","airfreight","awb","air waybill","fret aerien","airline cargo","avion"]
     KW_SEA  = ["maritime","seafreight","sea freight","ocean freight","bateau","navire","conteneur","container","teu","fcl","lcl","armateur","roro","reefer","vrac","bulk","mer","ocean"]
     KW_RAIL = ["ferroviaire","rail","train","sncf","wagon","fret ferroviaire","railway"]
     KW_ROAD = ["routier","road","camion","truck","ftl","ltl","vl","tir","messagerie","groupage","express","fret routier","road freight","haulage","trucking"]
@@ -382,14 +382,19 @@ def detect_transport_mode(df, dep_col=None, arr_col=None, mode_col=None):
     if any("distancekm" in h or "km" in h for h in hdrs): scores["routier"] += 4
     if any("wagon" in h or "sncf" in h for h in hdrs): scores["ferroviaire"] += 6
 
-    dominant = max(scores, key=scores.get)
     total = sum(scores.values())
-    if total == 0 or scores[dominant] < 2:
-        return "routier", "🚛 Road (default)", "🚛"
-
+    dominant = max(scores, key=scores.get)
     top_val = scores[dominant]
+
+    # SCORE INSUFFISANT → on retourne "unknown" pour demander à l'user
+    SCORE_MIN = 4
+    if total < 2 or top_val < SCORE_MIN:
+        return "unknown", "?", "?"
+
+    # ÉGALITÉ entre 2 modes ou plus → unknown
     rivals = [k for k, v in scores.items() if v == top_val and k != dominant]
-    if rivals: dominant = "routier"
+    if rivals:
+        return "unknown", "?", "?"
 
     lang = st.session_state.get("language", "fr")
     labels_fr = {"aerien":("✈️ Mode Aerien detecte","✈️"),"maritime":("⚓ Mode Maritime detecte","⚓"),"ferroviaire":("🚂 Mode Ferroviaire detecte","🚂"),"routier":("🚛 Mode Routier detecte","🚛")}
