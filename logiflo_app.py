@@ -1107,9 +1107,78 @@ elif st.session_state.auth and st.session_state.page == "app":
                     st.session_state.df_trans = df_t
                     st.session_state.trans_filename = up_t.name
                     st.session_state.trans_mode_detected = (mode_det, mode_label, mode_emoji)
-                    if dep_c_tmp and arr_c_tmp:
-                        df_t = smart_multimodal_router(df_t, dep_c_tmp, arr_c_tmp, mode_c_tmp)
-                        st.session_state.df_trans = df_t
+
+            # ── Si mode INDETECTABLE → vérifier la préférence utilisateur ──
+            if (st.session_state.df_trans is not None
+                and st.session_state.trans_mode_detected
+                and st.session_state.trans_mode_detected[0] == "unknown"):
+                _user_pref_mode = None
+                try:
+                    _prefs_u = load_user_prefs(st.session_state.current_user)
+                    if _prefs_u and _prefs_u.get("transport_mode_default"):
+                        _user_pref_mode = _prefs_u.get("transport_mode_default")
+                except Exception:
+                    pass
+                if _user_pref_mode:
+                    # Préférence enregistrée → on l'applique direct
+                    _lbl_map = {"routier": ("🚛 Mode Routier (votre choix)", "🚛"),
+                                "maritime": ("⚓ Mode Maritime (votre choix)", "⚓"),
+                                "aerien": ("✈️ Mode Aerien (votre choix)", "✈️"),
+                                "ferroviaire": ("🚂 Mode Ferroviaire (votre choix)", "🚂")}
+                    if _user_pref_mode in _lbl_map:
+                        st.session_state.trans_mode_detected = (_user_pref_mode,) + _lbl_map[_user_pref_mode]
+                else:
+                    # Pas de préférence → demander
+                    st.warning("Mode de transport indetectable automatiquement. Selectionnez le mode principal de vos trajets :"
+                               if st.session_state.get("language","fr") == "fr"
+                               else "Transport mode could not be detected automatically. Select your main transport mode:")
+                    _mode_choice = st.radio(
+                        "Mode de transport" if st.session_state.get("language","fr") == "fr" else "Transport mode",
+                        ["🚛 Routier", "⚓ Maritime", "✈️ Aerien", "🚂 Ferroviaire"],
+                        horizontal=True,
+                        key="ask_transport_mode",
+                        label_visibility="collapsed"
+                    )
+                    _save_pref = st.checkbox(
+                        "Memoriser ce choix pour mes prochains audits"
+                        if st.session_state.get("language","fr") == "fr"
+                        else "Remember this choice for my future audits",
+                        value=True,
+                        key="ask_save_mode"
+                    )
+                    if st.button("Valider le mode" if st.session_state.get("language","fr") == "fr" else "Confirm mode",
+                                  type="primary", use_container_width=True, key="confirm_mode_btn"):
+                        _mode_map = {"🚛 Routier": "routier", "⚓ Maritime": "maritime",
+                                     "✈️ Aerien": "aerien", "🚂 Ferroviaire": "ferroviaire"}
+                        _mode_chosen = _mode_map.get(_mode_choice, "routier")
+                        _lbl_map_v = {"routier": ("🚛 Mode Routier", "🚛"),
+                                      "maritime": ("⚓ Mode Maritime", "⚓"),
+                                      "aerien": ("✈️ Mode Aerien", "✈️"),
+                                      "ferroviaire": ("🚂 Mode Ferroviaire", "🚂")}
+                        st.session_state.trans_mode_detected = (_mode_chosen,) + _lbl_map_v[_mode_chosen]
+                        if _save_pref:
+                            try:
+                                save_user_prefs(st.session_state.current_user, {"transport_mode_default": _mode_chosen})
+                            except Exception:
+                                pass
+                        st.rerun()
+                    st.stop()
+
+            # ── Calcul des distances après que le mode soit connu ──
+            if (st.session_state.df_trans is not None
+                and st.session_state.trans_mode_detected
+                and st.session_state.trans_mode_detected[0] != "unknown"
+                and "_DIST_CALCULEE" not in st.session_state.df_trans.columns):
+                _df_t_calc = st.session_state.df_trans.copy()
+                _mapping_calc = st.session_state.trans_mapping or {}
+                _dep_calc  = _mapping_calc.get("dep") if _mapping_calc.get("dep") in _df_t_calc.columns else None
+                _arr_calc  = _mapping_calc.get("arr") if _mapping_calc.get("arr") in _df_t_calc.columns else None
+                _mode_calc = _mapping_calc.get("mode") if _mapping_calc.get("mode") in _df_t_calc.columns else None
+                _mode_force = st.session_state.trans_mode_detected[0]
+                if _dep_calc and _arr_calc:
+                    with st.spinner("Calcul des distances..." if st.session_state.get("language","fr")=="fr" else "Computing distances..."):
+                        _df_t_calc = smart_multimodal_router(_df_t_calc, _dep_calc, _arr_calc, _mode_calc, mode_force=_mode_force)
+                        st.session_state.df_trans = _df_t_calc
 
             if st.session_state.df_trans is not None:
                 df_t = st.session_state.df_trans
