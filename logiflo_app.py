@@ -36,6 +36,7 @@ from engine.pdf_gen import PDFReport, _s, _asc, predict_ruptures, format_predict
 from engine.routing import calculate_haversine, fetch_geo, geocode_cities_mapbox, _ors_distance, fetch_route, smart_multimodal_router
 
 st.set_page_config(page_title="LOGIFLO.IO | Control Tower", layout="wide", page_icon="🏢")
+st.markdown(<meta name="google-site-verification" content="D5U_aBZdyclEv17U6jiOt8LbAjRbvQe5TA4eJjN6XPc" />, unsafe_allow_html=True)
 
 try:
     client = OpenAI(api_key=st.secrets.get("OPENAI_API_KEY", ""))
