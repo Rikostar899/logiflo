@@ -348,12 +348,14 @@ def _strip_scoring_and_outro(texte, lang="fr"):
 def generate_ai_analysis(data_summary, historique_txt="", df_raw=None,
                           sector_key=None, mode_detected=None):
     from openai import OpenAI
+    import os
     lang   = st.session_state.get("language", "fr")
     module = st.session_state.get("module", "stock")
     view   = st.session_state.get("stock_view", "MANAGER")
 
     try:
-        client = OpenAI(api_key=st.secrets.get("OPENAI_API_KEY", ""))
+        _key_oai = os.environ.get("OPENAI_API_KEY", "") or st.secrets.get("OPENAI_API_KEY", "")
+        client = OpenAI(api_key=_key_oai)
     except Exception:
         client = None
 
@@ -442,7 +444,8 @@ def generate_ai_analysis(data_summary, historique_txt="", df_raw=None,
 
     try:
         import google.generativeai as _genai
-        _genai.configure(api_key=st.secrets.get("GEMINI_API_KEY", ""))
+        _key_gem = os.environ.get("GEMINI_API_KEY", "") or st.secrets.get("GEMINI_API_KEY", "")
+        _genai.configure(api_key=_key_gem)
         _gem = _genai.GenerativeModel("gemini-1.5-flash")
         _resp = _gem.generate_content(
             f"{sys_prompt}\n\n{user_msg}",
