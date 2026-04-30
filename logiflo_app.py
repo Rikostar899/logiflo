@@ -96,16 +96,65 @@ div.stButton>button{border-radius:8px;font-family:'Syne',sans-serif;font-weight:
 def render_report(texte, mode="manager"):
     css = "report-terrain" if mode == "terrain" else "report-text"
     lines = []
-    for line in texte.split('\n'):
-        line = line.strip()
-        if not line: continue
+    in_list = False
+
+    for raw in texte.split('\n'):
+        line = raw.strip()
+        if not line:
+            if in_list:
+                lines.append("</ul>")
+                in_list = False
+            continue
+
+        # Titres ### TITRE
         if line.startswith('### '):
-            lines.append(f"<h3>{line[4:].strip()}</h3>")
-        else:
-            line = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', line)
-            prefix = "• " if (line.startswith('- ') or line.startswith('* ')) else ""
-            body = line[2:] if prefix else line
-            lines.append(f"<p>{prefix}{body}</p>")
+            if in_list:
+                lines.append("</ul>")
+                in_list = False
+            title = line[4:].strip()
+            lines.append(f"<h3>{title}</h3>")
+            continue
+
+        # Conversion **gras**
+        line = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', line)
+
+        # Puces "- xxx" ou "• xxx" ou "* xxx"
+        if re.match(r'^[-•*]\s+', line):
+            if not in_list:
+                lines.append('<ul style="margin:8px 0 12px 0;padding-left:22px;">')
+                in_list = True
+            content = re.sub(r'^[-•*]\s+', '', line)
+            lines.append(f'<li style="margin-bottom:6px;line-height:1.6;">{content}</li>')
+            continue
+
+        # Recommandation numérotée "1. ..."
+        if re.match(r'^\d+\.\s+', line):
+            if in_list:
+                lines.append("</ul>")
+                in_list = False
+            num_match = re.match(r'^(\d+)\.\s+(.+)$', line)
+            if num_match:
+                num = num_match.group(1)
+                content = num_match.group(2)
+                lines.append(
+                    f'<div style="background:white;border-left:3px solid #00C896;border-radius:6px;'
+                    f'padding:12px 16px;margin:10px 0;display:flex;gap:12px;align-items:flex-start;">'
+                    f'<div style="background:#00C896;color:white;font-family:Syne,sans-serif;font-weight:800;'
+                    f'border-radius:50%;width:26px;height:26px;display:flex;align-items:center;'
+                    f'justify-content:center;flex-shrink:0;font-size:13px;">{num}</div>'
+                    f'<div style="flex:1;line-height:1.65;color:#0B2545;">{content}</div></div>'
+                )
+                continue
+
+        # Paragraphe normal
+        if in_list:
+            lines.append("</ul>")
+            in_list = False
+        lines.append(f"<p style=\"margin:8px 0;line-height:1.7;\">{line}</p>")
+
+    if in_list:
+        lines.append("</ul>")
+
     return f'<div class="{css}">{"".join(lines)}</div>'
 
 
@@ -538,6 +587,7 @@ elif st.session_state.auth and st.session_state.page == "app":
                 if _c not in _df_arch.columns: _df_arch[_c] = ""
             for _c in ["kpi_1","kpi_2","kpi_3"]:
                 _df_arch[_c] = pd.to_numeric(_df_arch[_c], errors="coerce").fillna(0)
+
         import datetime as _dt_dash
         _hour_d = _dt_dash.datetime.now().hour
         _greet  = ("Good morning" if _hour_d < 12 else "Good afternoon" if _hour_d < 18 else "Good evening") if lang_d == "en" else ("Bonjour" if _hour_d < 18 else "Bonsoir")
@@ -549,66 +599,80 @@ elif st.session_state.auth and st.session_state.page == "app":
         if _df_arch is None or _df_arch.empty:
             st.info("Aucun audit encore. Lancez votre premier audit." if lang_d == "fr" else "No audit yet. Launch your first audit.")
         else:
-            
             _col_l, _col_r = st.columns(2)
             _mod_actif = st.session_state.get("module", "stock")
 
-            if _mod_actif == "stock":
-                with _col_l:
-                    try:
-                        _dfs_pie = _df_arch[_df_arch["module"] == "stock"].copy()
-                        if not _dfs_pie.empty:
-                            _sort_c = "created_at" if "created_at" in _dfs_pie.columns else "date"
-                            _dfs_pie = _dfs_pie.sort_values(_sort_c, ascending=True)
-                            _lp = _dfs_pie.iloc[-1]
-                            _k2p = float(_lp.get("kpi_2", 0)); _k3p = float(_lp.get("kpi_3", 0))
-                            _l2p = str(_lp.get("kpi_label_2", "Service")); _l3p = str(_lp.get("kpi_label_3", "Ruptures"))
-                            _date_pie = str(_lp.get("date", "") or str(_lp.get("created_at", ""))[:10])
-                            _ok = max(0.1, 100 - _k2p - min(_k3p*5, 30))
-                            _fig_p = go.Figure(go.Pie(
-                                labels=[_l2p, _l3p, "Sain"],
-                                values=[_k2p, max(_k3p, 0.1), max(_ok, 0.1)],
-                                hole=0.45,
-                                marker=dict(colors=["#00C896","#E8304A","#E2E8F0"], line=dict(color="white", width=2)),
-                                hovertemplate="%{label}: <b>%{value:.1f}%</b><extra></extra>",
-                            ))
-                            _fig_p.update_layout(title=dict(text=f"📦 Stock -- {_date_pie}", font=dict(size=12,color="#0B2545"), x=0),
-                                                  legend=dict(font=dict(size=9),orientation="h",yanchor="bottom",y=-0.25),
-                                                  margin=dict(t=36,b=50,l=0,r=0), height=230, paper_bgcolor="white")
-                            st.plotly_chart(_fig_p, use_container_width=True, config={"displayModeBar": False})
-                    except Exception:
-                        pass
+            # ── CAMEMBERT À GAUCHE ──
+            with _col_l:
+                try:
+                    _dfs_pie = _df_arch[_df_arch["module"] == _mod_actif].copy()
+                    if not _dfs_pie.empty:
+                        _sort_c = "created_at" if "created_at" in _dfs_pie.columns else "date"
+                        _dfs_pie = _dfs_pie.sort_values(_sort_c, ascending=True)
+                        _lp = _dfs_pie.iloc[-1]
+                        _k2p = float(_lp.get("kpi_2", 0)); _k3p = float(_lp.get("kpi_3", 0))
+                        _l2p = str(_lp.get("kpi_label_2", "Service")); _l3p = str(_lp.get("kpi_label_3", "Ruptures"))
+                        _date_pie = str(_lp.get("date", "") or str(_lp.get("created_at", ""))[:10])
+                        _ico_p = "📦" if _mod_actif == "stock" else "🚚"
+                        _ok = max(0.1, 100 - _k2p - min(_k3p*5, 30))
+                        _fig_p = go.Figure(go.Pie(
+                            labels=[_l2p, _l3p, "Sain"],
+                            values=[_k2p, max(_k3p, 0.1), max(_ok, 0.1)],
+                            hole=0.45,
+                            marker=dict(colors=["#00C896","#E8304A","#E2E8F0"], line=dict(color="white", width=2)),
+                            hovertemplate="%{label}: <b>%{value:.1f}%</b><extra></extra>",
+                        ))
+                        _fig_p.update_layout(
+                            title=dict(text=f"{_ico_p} {'Stock' if _mod_actif=='stock' else 'Transport'} -- {_date_pie}",
+                                       font=dict(size=12,color="#0B2545"), x=0),
+                            legend=dict(font=dict(size=9),orientation="h",yanchor="bottom",y=-0.25),
+                            margin=dict(t=36,b=50,l=0,r=0), height=240, paper_bgcolor="white"
+                        )
+                        st.plotly_chart(_fig_p, use_container_width=True, config={"displayModeBar": False})
+                    else:
+                        st.info("Pas encore d'audit pour ce module." if lang_d=="fr" else "No audit yet for this module.")
+                except Exception:
+                    pass
 
+            # ── COURBE ÉVOLUTIVE À DROITE ──
             with _col_r:
                 try:
-                    for _mc in ["stock", "transport"]:
-                        _dfc = _df_arch[_df_arch["module"] == _mc].copy()
-                        if len(_dfc) < 2: continue
+                    _dfc = _df_arch[_df_arch["module"] == _mod_actif].copy()
+                    if len(_dfc) >= 2:
                         _sort_c2 = "created_at" if "created_at" in _dfc.columns else "date"
                         _dfc = _dfc.sort_values(_sort_c2, ascending=True).reset_index(drop=True)
                         for _c in ["kpi_1","kpi_2","kpi_3"]:
                             _dfc[_c] = pd.to_numeric(_dfc[_c], errors="coerce").fillna(0)
-                        _l2c = str(_dfc["kpi_label_2"].iloc[-1])
-                        _clr = "#00C896" if _mc == "stock" else "#F39C12"
+                        _l2c = str(_dfc["kpi_label_2"].iloc[-1]) if "kpi_label_2" in _dfc.columns else "KPI"
+                        _clr = "#00C896" if _mod_actif == "stock" else "#F39C12"
+                        _fill_clr = "rgba(0,200,150,0.08)" if _mod_actif == "stock" else "rgba(243,156,18,0.08)"
                         _dates_c = [str(d)[:10] for d in _dfc["date"].tolist()] if "date" in _dfc.columns else [str(i) for i in range(len(_dfc))]
                         _fig_c = go.Figure()
                         _fig_c.add_trace(go.Scatter(
                             x=list(range(len(_dfc))), y=_dfc["kpi_2"].tolist(),
                             mode="lines+markers", line=dict(color=_clr, width=2.5),
                             marker=dict(size=9, color=_clr, line=dict(color="white", width=2)),
-                            fill="tozeroy", fillcolor="rgba(0,200,150,0.08)" if _mc == "stock" else "rgba(243,156,18,0.08)",
+                            fill="tozeroy", fillcolor=_fill_clr,
+                            hovertemplate="<b>%{y:.1f}</b><extra></extra>",
                         ))
                         _fig_c.update_layout(
-                            title=dict(text=f"📈 {_l2c} -- {len(_dfc)} audits", font=dict(size=12,color="#0B2545"), x=0),
-                            xaxis=dict(tickmode="array",tickvals=list(range(len(_dfc))),ticktext=[d[:5] for d in _dates_c],tickfont=dict(size=8),showgrid=False),
+                            title=dict(text=f"📈 {_l2c} -- {len(_dfc)} audits",
+                                       font=dict(size=12,color="#0B2545"), x=0),
+                            xaxis=dict(tickmode="array",tickvals=list(range(len(_dfc))),
+                                       ticktext=[d[:5] for d in _dates_c],tickfont=dict(size=8),showgrid=False),
                             yaxis=dict(tickfont=dict(size=8),gridcolor="rgba(0,0,0,0.04)"),
                             plot_bgcolor="white", paper_bgcolor="white",
-                            margin=dict(t=36,b=20,l=30,r=10), height=230, showlegend=False,
+                            margin=dict(t=36,b=20,l=30,r=10), height=240, showlegend=False,
                         )
                         st.plotly_chart(_fig_c, use_container_width=True, config={"displayModeBar": False})
-                        break
+                    elif len(_dfc) == 1:
+                        st.info("Au moins 2 audits sont necessaires pour afficher l evolution." if lang_d=="fr" else "At least 2 audits needed to show trend.")
+                    else:
+                        st.info("Pas encore d audit pour ce module." if lang_d=="fr" else "No audit yet for this module.")
                 except Exception:
                     pass
+
+            st.markdown("<br>", unsafe_allow_html=True)
 
             # ── RECAP DERNIER AUDIT ──
             try:
@@ -625,8 +689,8 @@ elif st.session_state.auth and st.session_state.page == "app":
                 _l3_r = str(_last_recap.get("kpi_label_3", ""))
                 _res_recap = str(_last_recap.get("resume_ia", "")).strip()
                 _clr_k2 = "#00C896" if _k2_r >= 90 else ("#F39C12" if _k2_r >= 75 else "#E8304A")
-                st.markdown(f"""<div style="background:white;border:1px solid #E2E8F0;border-radius:14px;padding:18px 22px;margin:16px 0;">
-                <div style="font-size:11px;font-weight:700;color:#4A6080;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;">{_ico_recap} Recap de l'audit de votre import — {_date_recap}</div>
+                st.markdown(f"""<div style="background:white;border:1px solid #E2E8F0;border-radius:14px;padding:18px 22px;margin:8px 0 16px 0;">
+                <div style="font-size:11px;font-weight:700;color:#4A6080;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;">{_ico_recap} Recap de l audit de votre import -- {_date_recap}</div>
                 <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
                     <div style="flex:1;min-width:120px;background:#F0F4F8;border-radius:8px;padding:10px 14px;text-align:center;">
                         <div style="font-size:10px;color:#4A6080;text-transform:uppercase;">{_l1_r}</div>
@@ -640,15 +704,14 @@ elif st.session_state.auth and st.session_state.page == "app":
                         <div style="font-size:10px;color:#4A6080;text-transform:uppercase;">{_l3_r}</div>
                         <div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:#0B2545;">{_k3_r:,.0f}</div>
                     </div>
-                </div>""", unsafe_allow_html=True)
+                </div></div>""", unsafe_allow_html=True)
                 if _res_recap and _res_recap not in ("","nan","None","N/A"):
                     _preview = _res_recap[:300].replace("\n"," ").replace("**","").replace("###","").strip()
-                    st.markdown(f'<div style="font-size:12px;color:#4A6080;line-height:1.6;padding:8px 0;">{_preview}...</div>', unsafe_allow_html=True)
-                st.markdown("</div>", unsafe_allow_html=True)
+                    st.markdown(f'<div style="font-size:12px;color:#4A6080;line-height:1.6;padding:8px 0 16px 0;">{_preview}...</div>', unsafe_allow_html=True)
             except Exception:
                 pass
-                
-            st.markdown("<br>", unsafe_allow_html=True)
+
+            # ── TASKS À FAIRE ──
             try:
                 _sort_col = "created_at" if "created_at" in _df_arch.columns else "date"
                 _lr = _df_arch.sort_values(_sort_col, ascending=False).iloc[0]
@@ -692,6 +755,7 @@ elif st.session_state.auth and st.session_state.page == "app":
             except Exception:
                 pass
 
+            # ── NEWS ──
             if can_access("news"):
                 try:
                     _sec = "generique"
