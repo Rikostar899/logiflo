@@ -93,28 +93,101 @@ def fetch_route(dep, arr, mode, coords, _t=None):
         return (dep, arr, mode), (d if d and d > 0 else dv * 1.30)
 
 
-def smart_multimodal_router(df, dep_col, arr_col, mode_col=None):
-    import pandas as pd
-    coords = geocode_cities_mapbox(pd.concat([df[dep_col], df[arr_col]]).dropna().unique())
-    uniq = []
-    for _, row in df.iterrows():
-        dep  = row[dep_col]
-        arr  = row[arr_col]
-        mode = str(row[mode_col]).lower() if mode_col and pd.notna(row.get(mode_col)) else "route"
-        k = (dep, arr, mode)
-        if k not in st.session_state.route_cache and k not in uniq:
-            uniq.append(k)
-    if uniq:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
-            futures = [ex.submit(fetch_route, r[0], r[1], r[2], coords) for r in uniq]
-            for f in concurrent.futures.as_completed(futures):
-                key, dist = f.result()
-                st.session_state.route_cache[key] = dist
-    df["_DIST_CALCULEE"] = [
-        st.session_state.route_cache.get(
-            (row[dep_col], row[arr_col],
-             str(row[mode_col]).lower() if mode_col and pd.notna(row.get(mode_col)) else "route"),
-            0.0)
-        for _, row in df.iterrows()
-    ]
+def smart_multimodal_router(df, dep_col, arr_col, mode_col=None, mode_force=None):
+    """Calcule la distance pour chaque trajet selon le mode.
+    
+    - Routier : ORS API en priorité, fallback Haversine si échec
+    - Maritime : Haversine x 1.25
+    - Aérien : Haversine x 1.05
+    - Ferroviaire : Haversine x 1.15
+    
+    mode_force : si fourni, force ce mode pour TOUS les trajets (override mode_col).
+    """
+    if dep_col not in df.columns or arr_col not in df.columns:
+        return df
+    
+    df = df.copy()
+    df["_DIST_CALCULEE"] = 0.0
+    df["_GEO_OK"] = False
+    
+    # Geocoder toutes les villes uniques en une fois (gain de temps)
+    cities_unique = set()
+    for col in [dep_col, arr_col]:
+        cities_unique.update(df[col].dropna().astype(str).str.strip().unique())
+    cities_unique.discard("")
+    
+    geo_cache = st.session_state.get("geo_cache", {})
+    for city in cities_unique:
+        if city not in geo_cache:
+            coords = fetch_geo(city)
+            if coords:
+                geo_cache[city] = coords
+    st.session_state["geo_cache"] = geo_cache
+    
+    route_cache = st.session_state.get("route_cache", {})
+    
+    for idx, row in df.iterrows():
+        dep = str(row.get(dep_col, "")).strip()
+        arr = str(row.get(arr_col, "")).strip()
+        if not dep or not arr or dep == "nan" or arr == "nan":
+            continue
+        
+        # Mode pour ce trajet
+        if mode_force:
+            mode = mode_force
+        elif mode_col and mode_col in df.columns:
+            mode_val = str(row.get(mode_col, "")).lower()
+            if any(k in mode_val for k in ["mer","ocean","maritime","sea","navire","bateau","conteneur","container"]):
+                mode = "maritime"
+            elif any(k in mode_val for k in ["air","aerien","avion","fret aerien"]):
+                mode = "aerien"
+            elif any(k in mode_val for k in ["rail","train","ferroviaire","sncf"]):
+                mode = "ferroviaire"
+            else:
+                mode = "routier"
+        else:
+            mode = "routier"
+        
+        # Coordonnées
+        coord_dep = geo_cache.get(dep)
+        coord_arr = geo_cache.get(arr)
+        if not coord_dep or not coord_arr:
+            continue
+        
+        df.at[idx, "_GEO_OK"] = True
+        cache_key = f"{mode}__{dep}__{arr}"
+        if cache_key in route_cache:
+            df.at[idx, "_DIST_CALCULEE"] = route_cache[cache_key]
+            continue
+        
+        # Calcul selon le mode
+        dist = 0.0
+        if mode == "routier":
+            # ORS en priorité
+            try:
+                ors_dist = _ors_distance(coord_dep[0], coord_dep[1], coord_arr[0], coord_arr[1])
+                if ors_dist and ors_dist > 0:
+                    dist = ors_dist
+            except Exception:
+                pass
+            # Fallback Haversine si ORS échoue
+            if dist == 0:
+                dist = calculate_haversine(coord_dep[0], coord_dep[1], coord_arr[0], coord_arr[1]) * 1.3
+        
+        elif mode == "maritime":
+            dist = calculate_haversine(coord_dep[0], coord_dep[1], coord_arr[0], coord_arr[1]) * 1.25
+        
+        elif mode == "aerien":
+            dist = calculate_haversine(coord_dep[0], coord_dep[1], coord_arr[0], coord_arr[1]) * 1.05
+        
+        elif mode == "ferroviaire":
+            dist = calculate_haversine(coord_dep[0], coord_dep[1], coord_arr[0], coord_arr[1]) * 1.15
+        
+        else:
+            dist = calculate_haversine(coord_dep[0], coord_dep[1], coord_arr[0], coord_arr[1]) * 1.3
+        
+        df.at[idx, "_DIST_CALCULEE"] = round(dist, 1)
+        route_cache[cache_key] = round(dist, 1)
+    
+    st.session_state["route_cache"] = route_cache
     return df
