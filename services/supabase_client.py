@@ -29,28 +29,29 @@ def _debug_supabase(msg, err=None):
 
 
 def get_supabase():
-    """Retourne un client Supabase ou None. Log explicite si échec."""
+    """Retourne un client Supabase ou None. Cherche dans env vars puis Streamlit secrets."""
     if _supa_create is None:
         _debug_supabase("Package 'supabase' non importe - verifier requirements.txt")
         return None
     try:
-        # Essai 1 : accès direct (format recommandé Streamlit)
-        try:
-            url = st.secrets["SUPABASE_URL"]
-            key = st.secrets["SUPABASE_KEY"]
-        except KeyError:
-            # Essai 2 : section [supabase] dans secrets.toml
+        import os
+        url = os.environ.get("SUPABASE_URL", "")
+        key = os.environ.get("SUPABASE_KEY", "")
+        if not url or not key:
             try:
-                url = st.secrets["supabase"]["url"]
-                key = st.secrets["supabase"]["key"]
-            except (KeyError, TypeError):
-                url = ""
-                key = ""
+                url = url or st.secrets["SUPABASE_URL"]
+                key = key or st.secrets["SUPABASE_KEY"]
+            except Exception:
+                try:
+                    url = url or st.secrets["supabase"]["url"]
+                    key = key or st.secrets["supabase"]["key"]
+                except Exception:
+                    pass
         if not url:
-            _debug_supabase(f"SUPABASE_URL vide. Secrets disponibles: {list(st.secrets.keys())}")
+            _debug_supabase("SUPABASE_URL manquant (env + secrets)")
             return None
         if not key:
-            _debug_supabase("SUPABASE_KEY vide")
+            _debug_supabase("SUPABASE_KEY manquant (env + secrets)")
             return None
         _debug_supabase(f"Connexion Supabase -> {url[:40]}...")
         client = _supa_create(url, key)
