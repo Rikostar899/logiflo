@@ -1047,8 +1047,15 @@ elif st.session_state.auth and st.session_state.page == "app":
                             st.markdown("</div>", unsafe_allow_html=True)
                         except Exception:
                             pass
-                        if st.session_state.last_pdf:
-                            st.download_button(_("stock_btn_dl"), st.session_state.last_pdf, "Audit_Stock_Logiflo.pdf", use_container_width=True)
+                        if st.session_state.last_pdf and len(st.session_state.last_pdf) > 100:
+                            st.download_button(
+                                _("stock_btn_dl"),
+                                data=st.session_state.last_pdf,
+                                file_name="Audit_Stock_Logiflo.pdf",
+                                mime="application/pdf",
+                                use_container_width=True,
+                                key="dl_stock_main"
+                            )
 
                 elif st.session_state.stock_view == "TERRAIN":
                     c1, c2 = st.columns(2)
@@ -1298,5 +1305,12 @@ elif st.session_state.auth and st.session_state.page == "app":
 
                 if st.session_state.analysis_trans:
                     st.markdown(render_report(st.session_state.analysis_trans,"manager"), unsafe_allow_html=True)
-                    if st.session_state.last_pdf:
-                        st.download_button(_("trans_btn_dl"), st.session_state.last_pdf, "Transport_Logiflo.pdf", use_container_width=True)
+                    if st.session_state.last_pdf and len(st.session_state.last_pdf) > 100:
+                        st.download_button(
+                            _("trans_btn_dl"),
+                            data=st.session_state.last_pdf,
+                            file_name="Transport_Logiflo.pdf",
+                            mime="application/pdf",
+                            use_container_width=True,
+                            key="dl_trans_main"
+                        )
