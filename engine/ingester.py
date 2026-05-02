@@ -324,8 +324,10 @@ def smart_ingester_stock_ultime(df, client_ai=None):
 def auto_map_columns_with_ai(df, client_ai=None):
     try:
         from openai import OpenAI
+        import os
         if client_ai is None:
-            client_ai = OpenAI(api_key=st.secrets.get("OPENAI_API_KEY", ""))
+            _key = os.environ.get("OPENAI_API_KEY", "") or st.secrets.get("OPENAI_API_KEY", "")
+            client_ai = OpenAI(api_key=_key)
     except Exception:
         return {"client": df.columns[0], "ca": df.columns[1] if len(df.columns) > 1 else None, "co": None}
 
