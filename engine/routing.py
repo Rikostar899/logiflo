@@ -186,16 +186,33 @@ def fetch_route(dep, arr, mode, coords, _t=None):
     return (dep, arr, mode), (d if d and d > 0 else dv * 1.30)
 
 
-def smart_multimodal_router(df, dep_col, arr_col, mode_col=None, mode_force=None):
+def smart_multimodal_router(df, dep_col, arr_col, mode_col=None, mode_force=None, dist_col=None):
     """
     Geocode les villes depart/arrivee et calcule les distances.
 
-    En V1, mode_force est ignore (tout est routier).
-    Le parametre est accepte pour compatibilite avec logiflo_app.py.
+    OPTIMISATION V1 : si le fichier a deja une colonne distance avec des
+    valeurs > 0, on SKIP le geocoding (gain : 30 sec → 0 sec).
 
     Ajoute la colonne '_DIST_CALCULEE' au DataFrame.
     """
     import pandas as pd
+
+    # ── OPTIMISATION : skip si distances deja presentes ──
+    # Auto-detection si dist_col pas fourni
+    if not dist_col:
+        for c in df.columns:
+            cn = nettoyer(c)
+            if any(k in cn for k in ["distancekm", "distance", "km", "tripdistance",
+                                      "totalkm", "kmparcourus", "mileage"]):
+                dist_col = c
+                break
+
+    if dist_col and dist_col in df.columns:
+        from engine.ingester import _safe_numeric
+        dist_vals = _safe_numeric(df[dist_col])
+        if dist_vals.notna().mean() > 0.5 and dist_vals.sum() > 0:
+            df["_DIST_CALCULEE"] = dist_vals.fillna(0)
+            return df
 
     # Init caches si absent
     if "geo_cache" not in st.session_state:
