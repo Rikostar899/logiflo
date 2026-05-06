@@ -61,6 +61,28 @@ def _asc(text): return _s(text)
 def _clean_pdf(text): return _s(str(text).replace("**", ""))
 
 
+def _format_kpi_val(val, label=""):
+    """Formate un KPI intelligemment : % si taux/marge, entier si compteur."""
+    label_low = _s(str(label)).lower()
+    _is_pct = any(kw in label_low for kw in [
+        "taux", "rate", "marge", "margin", "rentabilite", "profitability",
+        "service", "remplissage", "otif", "loading",
+    ])
+    _is_count = any(kw in label_low for kw in [
+        "rupture", "stockout", "article", "trajet", "toxic", "route",
+        "capital", "cout", "cost", "marge nette", "net margin",
+        "immobilise", "tied",
+    ])
+    if isinstance(val, float) and abs(val) >= 1000:
+        return _s(f"{val:,.0f}")
+    elif isinstance(val, float) and _is_pct and not _is_count:
+        return _s(f"{val:.1f}%")
+    elif isinstance(val, (int, float)):
+        v = int(val) if float(val) == int(val) else val
+        return _s(str(v))
+    return _s(str(val))
+
+
 def predict_ruptures(df, seuil_rupture=0, lang="fr"):
     if df is None or len(df) == 0: return []
     alertes = []
@@ -313,9 +335,7 @@ def generate_free_pdf(module, summary_text, kpis, labels):
             pdf.cell(card_w-4,6,_s(labels[i]).upper()[:22],align='C')
             pdf.set_xy(cx+2,card_y+13); pdf.set_font("Arial","B",15); pdf.set_text_color(11,37,69)
             val = kpis[i]
-            if isinstance(val,float) and abs(val)>=1000: vs=_s(f"{val:,.0f}")
-            elif isinstance(val,float): vs=_s(f"{val:.1f}%")
-            else: vs=_s(str(val))
+            vs = _format_kpi_val(val, labels[i])
             pdf.cell(card_w-4,10,vs,align='C')
         pdf.ln(42)
 
@@ -401,9 +421,7 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
             pdf.cell(card_w-4,6,_asc(labels[i]).upper()[:22],align='C')
             pdf.set_xy(cx+2,card_y+14); pdf.set_font("Arial","B",18); pdf.set_text_color(r,g,b)
             val = kpis[i]
-            if isinstance(val,float) and abs(val)>=1000: val_str=_s(f"{val:,.0f}")
-            elif isinstance(val,float) and abs(val)<=100: val_str=_s(f"{val:.1f}%")
-            else: val_str=_s(str(int(val)) if isinstance(val,float) else str(val))
+            val_str = _format_kpi_val(val, labels[i])
             pdf.cell(card_w-4,12,val_str,align='C')
         pdf.ln(34)  # V6.1: resserré (était 46)
 
@@ -437,14 +455,16 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
         pdf.set_y(4); pdf.set_text_color(255,255,255); pdf.set_font("Arial","B",11)
         pdf.cell(0,10,_s("CHARTS & VISUALIZATIONS" if lang=="en" else "GRAPHIQUES & VISUALISATIONS"),ln=True,align='C')
         pdf.ln(4)  # V6.1: resserré (était 6)
-        for fig in figs:
+        for idx, fig in enumerate(figs):
             _tp = None
             try:
                 import uuid
                 _tp = os.path.join(tempfile.gettempdir(), f"lgf_{uuid.uuid4().hex}.png")
                 _ok = False
+                # Graphique plus grand si seul sur la page
+                _chart_h_px = 480 if len(figs) <= 2 else 320
                 try:
-                    _b = fig.to_image(format="png", width=740, height=320)
+                    _b = fig.to_image(format="png", width=800, height=_chart_h_px)
                     if _b and len(_b) > 200:
                         with open(_tp,"wb") as _f: _f.write(_b)
                         _ok = True
@@ -452,18 +472,20 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
                     pass
                 if not _ok:
                     try:
-                        fig.write_image(_tp, format="png", width=740, height=320)
+                        fig.write_image(_tp, format="png", width=800, height=_chart_h_px)
                         if os.path.exists(_tp) and os.path.getsize(_tp) > 200: _ok = True
                     except Exception:
                         pass
                 if _ok and os.path.exists(_tp):
-                    _space = 297 - pdf.get_y() - 20
-                    _img_h = 72; _img_w = 176  # V6.1: resserré (était 84)
-                    if _space < _img_h + 10:
-                        pdf.add_page(); pdf.ln(5)
+                    _space = 297 - pdf.get_y() - 15
+                    _img_w = 190  # quasi pleine largeur
+                    _img_h = min(int(_chart_h_px * _img_w / 800), int(_space - 6))
+                    _img_h = max(_img_h, 70)  # minimum 70mm
+                    if _space < _img_h + 6:
+                        pdf.add_page(); pdf.ln(4)
                     _margin_x = (210 - _img_w) / 2
                     pdf.image(_tp, x=_margin_x, y=pdf.get_y(), w=_img_w)
-                    pdf.ln(_img_h + 4)  # V6.1: resserré (était +6)
+                    pdf.ln(_img_h + 3)
             except Exception:
                 pass
             finally:
@@ -491,26 +513,31 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
             else:
                 continue
         if not line:
-            pdf.ln(2); continue
+            pdf.ln(1); continue
         if line.startswith('### '):
-            if pdf.get_y() > 250: pdf.add_page(); pdf.ln(4)
+            if pdf.get_y() > 240: pdf.add_page(); pdf.ln(4)
             t = _asc(line[4:])
-            pdf.ln(3); _yh = pdf.get_y()  # V6.1: resserré (était 5)
+            pdf.ln(3); _yh = pdf.get_y()
             pdf.set_fill_color(240,244,248); pdf.rect(10,_yh,190,10,'F')
             pdf.set_fill_color(0,200,150); pdf.rect(10,_yh,3,10,'F')
             pdf.set_font("Arial","B",10); pdf.set_text_color(11,37,69)
-            pdf.set_x(16); pdf.cell(184,10,_s(t).upper(),ln=True); pdf.ln(3)  # V6.1: resserré (était 4)
+            pdf.set_x(16); pdf.cell(184,10,_s(t).upper(),ln=True); pdf.ln(2)
         elif line.startswith(('- ','* ')):
             _bt = _s(line[2:].replace("**",""))
-            if pdf.get_y() + 8 > 272: pdf.add_page(); pdf.ln(4)
-            pdf.set_font("Arial","",10); pdf.set_text_color(40,40,40)
-            pdf.set_x(14); pdf.cell(5,6,"-"); pdf.set_x(19)
-            pdf.multi_cell(181,6,_bt)
+            _est = max(1, len(_bt) // 80 + 1) * 5 + 2
+            if pdf.get_y() + _est > 268: pdf.add_page(); pdf.ln(4)
+            pdf.set_font("Arial","",9); pdf.set_text_color(40,40,40)
+            pdf.set_x(14); pdf.cell(5,5,"-"); pdf.set_x(19)
+            pdf.multi_cell(181,5,_bt)
         else:
-            _est = max(1, len(line)//45+1) * 6 + 4
-            if pdf.get_y() + _est > 272: pdf.add_page(); pdf.ln(4)
-            pdf.set_font("Arial","",10); pdf.set_text_color(40,40,40)
-            pdf.set_x(10); pdf.multi_cell(190,6,_s(line.replace("**","")))
+            _ct = _s(line.replace("**",""))
+            _est = max(1, len(_ct) // 80 + 1) * 5 + 2
+            # Items numerotes (1. 2. 3.) : garder avec le paragraphe suivant
+            if len(_ct) > 0 and _ct[0].isdigit() and '.' in _ct[:4]:
+                _est = max(_est, 40)  # reserve 40mm pour titre + debut paragraphe
+            if pdf.get_y() + _est > 268: pdf.add_page(); pdf.ln(4)
+            pdf.set_font("Arial","",9); pdf.set_text_color(40,40,40)
+            pdf.set_x(10); pdf.multi_cell(190,5,_ct)
 
     # PAGE FINALE CTA
     pdf.add_page()
