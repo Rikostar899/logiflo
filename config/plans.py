@@ -96,6 +96,14 @@ PLAN_LIMITS = {
 # ════════════════════════════════════════════════════════════════════════════
 # MAPPING UTILISATEURS → PLANS
 # ════════════════════════════════════════════════════════════════════════════
+# Alias pour compatibilite avec logiflo_app.py (qui reference "starter")
+PLAN_LIMITS["starter"] = PLAN_LIMITS["gratuit"]
+PLAN_LIMITS["business"] = PLAN_LIMITS["pro"]
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# MAPPING UTILISATEURS → PLANS
+# ════════════════════════════════════════════════════════════════════════════
 USERS_PLAN = {
     "eric": "expert",
     "admin": "expert",
