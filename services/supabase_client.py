@@ -1,8 +1,18 @@
+# -*- coding: utf-8 -*-
+"""
+Logiflo - services/supabase_client.py
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Client Supabase + Google Sheets fallback
+Version 6.1 (mai 2026) — fix SHEET_ID env var
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"""
+
 import streamlit as st
 import pandas as pd
 import datetime
 import base64
 import traceback
+import os
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -11,14 +21,17 @@ try:
 except Exception:
     _supa_create = None
 
-try:
-    SHEET_ID = st.secrets.get("GOOGLE_SHEET_ID", "")
-except Exception:
-    SHEET_ID = ""
+# Lecture SHEET_ID depuis env vars (Render) puis st.secrets
+SHEET_ID = os.environ.get("GOOGLE_SHEET_ID", "")
+if not SHEET_ID:
+    try:
+        SHEET_ID = st.secrets.get("GOOGLE_SHEET_ID", "")
+    except Exception:
+        SHEET_ID = ""
 
 
 def _debug_supabase(msg, err=None):
-    """Log interne visible dans les logs Streamlit Cloud (onglet Manage app -> Logs)."""
+    """Log interne visible dans les logs Render/Streamlit."""
     try:
         if err:
             print(f"[SUPABASE] {msg} -- {type(err).__name__}: {err}", flush=True)
@@ -29,12 +42,11 @@ def _debug_supabase(msg, err=None):
 
 
 def get_supabase():
-    """Retourne un client Supabase ou None. Cherche dans env vars puis Streamlit secrets."""
+    """Retourne un client Supabase ou None."""
     if _supa_create is None:
         _debug_supabase("Package 'supabase' non importe - verifier requirements.txt")
         return None
     try:
-        import os
         url = os.environ.get("SUPABASE_URL", "")
         key = os.environ.get("SUPABASE_KEY", "")
         if not url or not key:
@@ -64,28 +76,31 @@ def get_supabase():
 
 
 def save_audit_to_sheets(username, module, nb_lignes, kpis, labels, resume_ia, pdf_bytes):
+    """Sauvegarde un audit dans Supabase (fallback Google Sheets)."""
     sb = get_supabase()
     if not sb:
-        return _save_audit_sheets_fallback(username, module, nb_lignes, kpis, labels, resume_ia, pdf_bytes)
+        return _save_audit_sheets_fallback(
+            username, module, nb_lignes, kpis, labels, resume_ia, pdf_bytes
+        )
     try:
         now = datetime.datetime.now()
         pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8") if pdf_bytes else ""
         _profil = st.session_state.get("stock_view", "MANAGER").lower()
         payload = {
-            "user_id":     str(username),
-            "created_at":  now.isoformat(),
-            "module":      str(module),
-            "nb_lignes":   int(nb_lignes) if nb_lignes else 0,
-            "kpi_1":       round(float(kpis[0]), 2) if len(kpis) > 0 else 0,
-            "kpi_2":       round(float(kpis[1]), 2) if len(kpis) > 1 else 0,
-            "kpi_3":       round(float(kpis[2]), 2) if len(kpis) > 2 else 0,
+            "user_id": str(username),
+            "created_at": now.isoformat(),
+            "module": str(module),
+            "nb_lignes": int(nb_lignes) if nb_lignes else 0,
+            "kpi_1": round(float(kpis[0]), 2) if len(kpis) > 0 else 0,
+            "kpi_2": round(float(kpis[1]), 2) if len(kpis) > 1 else 0,
+            "kpi_3": round(float(kpis[2]), 2) if len(kpis) > 2 else 0,
             "kpi_label_1": str(labels[0]) if len(labels) > 0 else "",
             "kpi_label_2": str(labels[1]) if len(labels) > 1 else "",
             "kpi_label_3": str(labels[2]) if len(labels) > 2 else "",
-            "resume_ia":   str(resume_ia or "")[:2000],
-            "pdf_base64":  pdf_b64,
-            "profil":      _profil,
-            "sector_key":  str(st.session_state.get("_last_sector_key", "generique")),
+            "resume_ia": str(resume_ia or "")[:2000],
+            "pdf_base64": pdf_b64,
+            "profil": _profil,
+            "sector_key": str(st.session_state.get("_last_sector_key", "generique")),
         }
         response = sb.table("audits").insert(payload).execute()
         if response and hasattr(response, 'data') and response.data:
@@ -101,21 +116,24 @@ def save_audit_to_sheets(username, module, nb_lignes, kpis, labels, resume_ia, p
 
 
 def load_archives_from_sheets(username):
+    """Charge les archives d'un utilisateur depuis Supabase (fallback Sheets)."""
     sb = get_supabase()
     if not sb:
         return _load_archives_sheets_fallback(username)
     try:
-        resp = (sb.table("audits")
-                  .select("*")
-                  .eq("user_id", str(username))
-                  .order("created_at", desc=False)
-                  .execute())
+        resp = (
+            sb.table("audits")
+            .select("*")
+            .eq("user_id", str(username))
+            .order("created_at", desc=False)
+            .execute()
+        )
         if not resp or not hasattr(resp, 'data') or not resp.data:
             _debug_supabase(f"load_archives vide pour user={username}")
             return pd.DataFrame()
         df = pd.DataFrame(resp.data)
         if "created_at" in df.columns:
-            df["date"]  = pd.to_datetime(df["created_at"]).dt.strftime("%d/%m/%Y")
+            df["date"] = pd.to_datetime(df["created_at"]).dt.strftime("%d/%m/%Y")
             df["heure"] = pd.to_datetime(df["created_at"]).dt.strftime("%H:%M")
         _debug_supabase(f"load_archives OK -> {len(df)} lignes pour user={username}")
         return df
@@ -125,14 +143,17 @@ def load_archives_from_sheets(username):
 
 
 def load_user_prefs(username):
+    """Charge les preferences utilisateur depuis Supabase."""
     sb = get_supabase()
     if not sb:
         return {}
     try:
-        resp = (sb.table("user_prefs")
-                  .select("*")
-                  .eq("user_id", str(username))
-                  .execute())
+        resp = (
+            sb.table("user_prefs")
+            .select("*")
+            .eq("user_id", str(username))
+            .execute()
+        )
         if resp and hasattr(resp, 'data') and resp.data:
             return resp.data[0]
         return {}
@@ -142,6 +163,7 @@ def load_user_prefs(username):
 
 
 def save_user_prefs(username, prefs_dict):
+    """Sauvegarde les preferences utilisateur dans Supabase."""
     sb = get_supabase()
     if not sb:
         return False
@@ -156,17 +178,22 @@ def save_user_prefs(username, prefs_dict):
 
 
 def get_gsheet_client():
+    """Initialise un client Google Sheets (fallback)."""
     try:
         creds = Credentials.from_service_account_info(
             dict(st.secrets["gcp_service_account"]),
-            scopes=["https://www.googleapis.com/auth/spreadsheets",
-                    "https://www.googleapis.com/auth/drive"])
+            scopes=[
+                "https://www.googleapis.com/auth/spreadsheets",
+                "https://www.googleapis.com/auth/drive",
+            ],
+        )
         return gspread.authorize(creds)
     except Exception:
         return None
 
 
 def _save_audit_sheets_fallback(username, module, nb_lignes, kpis, labels, resume_ia, pdf_bytes):
+    """Fallback Google Sheets pour sauvegarder un audit."""
     try:
         gc = get_gsheet_client()
         if not gc or not SHEET_ID:
@@ -178,7 +205,10 @@ def _save_audit_sheets_fallback(username, module, nb_lignes, kpis, labels, resum
             ws = sh.add_worksheet(title=username, rows=1000, cols=12)
         now = datetime.datetime.now()
         ws.append_row([
-            now.strftime("%d/%m/%Y"), now.strftime("%H:%M"), module, nb_lignes,
+            now.strftime("%d/%m/%Y"),
+            now.strftime("%H:%M"),
+            module,
+            nb_lignes,
             round(kpis[0], 2) if len(kpis) > 0 else "",
             round(kpis[1], 2) if len(kpis) > 1 else "",
             round(kpis[2], 2) if len(kpis) > 2 else "",
@@ -186,7 +216,7 @@ def _save_audit_sheets_fallback(username, module, nb_lignes, kpis, labels, resum
             labels[1] if len(labels) > 1 else "",
             labels[2] if len(labels) > 2 else "",
             (resume_ia or "")[:800],
-            base64.b64encode(pdf_bytes).decode("utf-8") if pdf_bytes else ""
+            base64.b64encode(pdf_bytes).decode("utf-8") if pdf_bytes else "",
         ])
         return True
     except Exception:
@@ -194,6 +224,7 @@ def _save_audit_sheets_fallback(username, module, nb_lignes, kpis, labels, resum
 
 
 def _load_archives_sheets_fallback(username):
+    """Fallback Google Sheets pour charger les archives."""
     try:
         gc = get_gsheet_client()
         if not gc or not SHEET_ID:
@@ -207,7 +238,6 @@ def _load_archives_sheets_fallback(username):
         if not records:
             return pd.DataFrame()
         df = pd.DataFrame(records)
-        # Assurer que les colonnes date/heure existent
         cols = list(df.columns)
         if len(cols) >= 2 and "date" not in df.columns:
             df.rename(columns={cols[0]: "date", cols[1]: "heure"}, inplace=True)
@@ -215,7 +245,11 @@ def _load_archives_sheets_fallback(username):
             df.rename(columns={cols[2]: "module"}, inplace=True)
         if len(cols) >= 4 and "nb_lignes" not in df.columns:
             df.rename(columns={cols[3]: "nb_lignes"}, inplace=True)
-        col_map = {4:"kpi_1",5:"kpi_2",6:"kpi_3",7:"kpi_label_1",8:"kpi_label_2",9:"kpi_label_3",10:"resume_ia",11:"pdf_base64"}
+        col_map = {
+            4: "kpi_1", 5: "kpi_2", 6: "kpi_3",
+            7: "kpi_label_1", 8: "kpi_label_2", 9: "kpi_label_3",
+            10: "resume_ia", 11: "pdf_base64",
+        }
         for idx, name in col_map.items():
             if len(cols) > idx and name not in df.columns:
                 df.rename(columns={cols[idx]: name}, inplace=True)
@@ -225,71 +259,88 @@ def _load_archives_sheets_fallback(username):
 
 
 def get_historique_audits(username, module, n=6, current_kpis=None, current_labels=None):
+    """Recupere l'historique des audits pour comparaison tendancielle."""
     try:
         df = load_archives_from_sheets(username)
         if df is None or df.empty:
             return None
         df = df[df["module"] == module].copy()
-        # Filtrer par secteur si disponible pour ne pas mélanger les contextes
+
+        # Filtrer par secteur pour ne pas melanger les contextes
         if "sector_key" in df.columns:
-            last_sector = df["sector_key"].dropna().iloc[-1] if len(df["sector_key"].dropna()) > 0 else None
+            last_sector = (
+                df["sector_key"].dropna().iloc[-1]
+                if len(df["sector_key"].dropna()) > 0 else None
+            )
             if last_sector:
                 df = df[df["sector_key"] == last_sector].copy()
+
         if len(df) < 2:
             return None
+
         for col in ["kpi_1", "kpi_2", "kpi_3"]:
             df[col] = pd.to_numeric(df[col], errors="coerce")
+
         try:
-            df["_dt"] = pd.to_datetime(df["date"] + " " + df["heure"], format="%d/%m/%Y %H:%M", errors="coerce")
+            df["_dt"] = pd.to_datetime(
+                df["date"] + " " + df["heure"],
+                format="%d/%m/%Y %H:%M",
+                errors="coerce",
+            )
             df = df.sort_values("_dt", ascending=False)
         except Exception:
             pass
+
         recent = df.head(n).iloc[::-1]
         history = []
         for _, row in recent.iterrows():
             history.append({
-                "date":    row.get("date", "?"),
-                "kpi_1":  row.get("kpi_1", 0),
-                "kpi_2":  row.get("kpi_2", 0),
-                "kpi_3":  row.get("kpi_3", 0),
+                "date": row.get("date", "?"),
+                "kpi_1": row.get("kpi_1", 0),
+                "kpi_2": row.get("kpi_2", 0),
+                "kpi_3": row.get("kpi_3", 0),
                 "label_1": row.get("kpi_label_1", "KPI1"),
                 "label_2": row.get("kpi_label_2", "KPI2"),
                 "label_3": row.get("kpi_label_3", "KPI3"),
-                "resume":  str(row.get("resume_ia", ""))[:400],
+                "resume": str(row.get("resume_ia", ""))[:400],
             })
+
         if current_kpis and len(current_kpis) >= 2:
             cl = current_labels or ["KPI1", "KPI2", "KPI3"]
             history.append({
-                "date":    datetime.date.today().strftime("%d/%m/%Y"),
-                "kpi_1":  float(current_kpis[0]) if len(current_kpis) > 0 else 0,
-                "kpi_2":  float(current_kpis[1]) if len(current_kpis) > 1 else 0,
-                "kpi_3":  float(current_kpis[2]) if len(current_kpis) > 2 else 0,
+                "date": datetime.date.today().strftime("%d/%m/%Y"),
+                "kpi_1": float(current_kpis[0]) if len(current_kpis) > 0 else 0,
+                "kpi_2": float(current_kpis[1]) if len(current_kpis) > 1 else 0,
+                "kpi_3": float(current_kpis[2]) if len(current_kpis) > 2 else 0,
                 "label_1": cl[0] if len(cl) > 0 else "KPI1",
                 "label_2": cl[1] if len(cl) > 1 else "KPI2",
                 "label_3": cl[2] if len(cl) > 2 else "KPI3",
-                "resume":  "",
+                "resume": "",
             })
+
         if len(history) < 2:
             return None
+
         first = history[0]
-        last  = history[-1]
+        last = history[-1]
 
         def delta_pct(new, old):
             try:
                 new, old = float(new), float(old)
-                if old == 0: return None
+                if old == 0:
+                    return None
                 return round((new - old) / abs(old) * 100, 1)
             except Exception:
                 return None
 
         return {
-            "history":    history,
-            "n_audits":   len(history),
+            "history": history,
+            "n_audits": len(history),
             "first_date": first["date"],
-            "last_date":  last["date"],
-            "delta_1":    delta_pct(last["kpi_1"], first["kpi_1"]),
-            "delta_2":    delta_pct(last["kpi_2"], first["kpi_2"]),
-            "delta_3":    delta_pct(last["kpi_3"], first["kpi_3"]),
+            "last_date": last["date"],
+            "delta_1": delta_pct(last["kpi_1"], first["kpi_1"]),
+            "delta_2": delta_pct(last["kpi_2"], first["kpi_2"]),
+            "delta_3": delta_pct(last["kpi_3"], first["kpi_3"]),
         }
     except Exception:
         return None
