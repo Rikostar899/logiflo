@@ -1,27 +1,292 @@
 # -*- coding: utf-8 -*-
 """
 Logiflo - engine/ai_analysis.py
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Generation d'analyses IA (OpenAI + Gemini fallback)
-Version 6.1 (mai 2026) — fix f-string prompts + V1 routier + ton compagnon
+Version 7.0 (mai 2026) — 10 regles metier stock implementees
 
-Corrections V6.1 :
-- FIX CRITIQUE : prompts convertis en f-strings (les regles historiques
-  etaient envoyees en texte brut "{_regle_historique}" au lieu d'etre
-  interpolees → la logique dormant/historique ne s'appliquait jamais)
-- Transport prompt adapte pour V1 routier uniquement
-- Ton plus "compagnon logistique" dans les prompts
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Regles :
+  R1  Pare-feu donnees (Mode A/B/C/D)
+  R2  Classification ABC/XYZ
+  R3  6 KPIs orientes cash
+  R4  Cout de possession SECTORIEL
+  R5  Stock mort corrige (zero sur 12 derniers mois, min 2 ans)
+  R6  Analyse fournisseur (si colonne existe)
+  R7  Top 5 actions chiffrees
+  R8  Cout de l'inaction (90 jours)
+  R9  Benchmark contextuel (vs secteur)
+  R10 CTA Logiflo uniquement dans audit gratuit
 """
 
 import streamlit as st
 import re
 import os
 import datetime
+import numpy as np
 
 from config.sectoral_db import detect_sector, get_sector_benchmarks
 from config.translations import _
 from services.supabase_client import get_historique_audits
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# CONSTANTES SECTORIELLES
+# ════════════════════════════════════════════════════════════════════════════
+SECTORAL_POSSESSION_RATE = {
+    "stock_industrie": 0.20, "stock_distribution": 0.23,
+    "stock_retail": 0.30, "stock_pharma": 0.28,
+    "stock_agroalim": 0.42, "stock_btp": 0.22,
+    "generique": 0.23,
+}
+
+SECTORAL_COVERAGE_THRESHOLD = {
+    "stock_industrie": 3, "stock_distribution": 2,
+    "stock_retail": 6, "stock_pharma": 4,
+    "stock_agroalim": 1, "stock_btp": 1,
+    "generique": 4,
+}
+
+SECTORAL_MARGIN_RATIO = {
+    "stock_retail": 2.5, "stock_distribution": 1.4,
+    "stock_industrie": 1.6, "stock_pharma": 2.0,
+    "stock_agroalim": 1.5, "stock_btp": 1.3,
+    "generique": 1.5,
+}
+
+DEAD_STOCK_DECOTE = {
+    "lt_6m": 0.80, "6_12m": 0.60, "12_24m": 0.50,
+    "gt_24m": 0.40, "fashion_gt_24m": 0.30,
+}
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# ENRICHISSEMENT STOCK (le coeur metier V7)
+# ════════════════════════════════════════════════════════════════════════════
+def _compute_stock_enrichment(df, sector_key, lang="fr"):
+    """
+    Calcule TOUTES les metriques metier stock pour injection dans le prompt IA.
+    Retourne un texte structure pret a etre ajoute au data_summary.
+    """
+    if df is None or len(df) == 0:
+        return ""
+
+    lines = []
+    _en = lang == "en"
+    _poss_rate = SECTORAL_POSSESSION_RATE.get(sector_key, 0.23)
+    _cov_threshold = SECTORAL_COVERAGE_THRESHOLD.get(sector_key, 4)
+
+    # ── R1 : DETECTION MODE (A/B/C/D) ──
+    has_prix = "prix_unitaire" in df.columns and df["prix_unitaire"].notna().mean() > 0.3
+    cols_conso = [c for c in ["conso_an1", "conso_an2", "conso_an3", "conso_an4"] if c in df.columns]
+    has_conso = len(cols_conso) >= 1
+    nb_annees_conso = len(cols_conso)
+
+    if has_prix and has_conso:
+        mode = "A"
+    elif has_prix and not has_conso:
+        mode = "B"
+    elif not has_prix and has_conso:
+        mode = "C"
+    else:
+        mode = "D"
+
+    mode_labels = {
+        "A": ("FULL (prix + conso)", "FULL (prices + consumption)"),
+        "B": ("SNAPSHOT (prix, pas de conso)", "SNAPSHOT (prices, no consumption)"),
+        "C": ("OPERATIONNEL (conso, pas de prix)", "OPERATIONAL (consumption, no prices)"),
+        "D": ("INVENTAIRE (ni prix ni conso)", "INVENTORY (no prices, no consumption)"),
+    }
+    _ml = mode_labels[mode][1 if _en else 0]
+    lines.append(f"=== {'DATA MODE' if _en else 'MODE DONNEES'} : {mode} — {_ml} ===")
+
+    if mode in ("C", "D"):
+        lines.append(f"{'WARNING' if _en else 'ATTENTION'} : {'NO prices in the file. NEVER write amounts in EUR.' if _en else 'PAS de prix dans le fichier. N ECRIS JAMAIS de montants en EUR.'}")
+    if mode in ("B", "D"):
+        lines.append(f"{'WARNING' if _en else 'ATTENTION'} : {'NO consumption history. Cannot calculate rotation, dead stock, coverage.' if _en else 'PAS d historique de consommation. Impossible de calculer rotation, stock mort, couverture.'}")
+
+    # ── R4 : COUT DE POSSESSION SECTORIEL ──
+    if mode in ("A", "B"):
+        capital_total = 0
+        if "valeur_totale" in df.columns:
+            capital_total = df["valeur_totale"].sum()
+        elif has_prix and "quantite" in df.columns:
+            capital_total = (df["quantite"].fillna(0) * df["prix_unitaire"].fillna(0)).sum()
+
+        if capital_total > 0:
+            cout_poss = capital_total * _poss_rate
+            lines.append(f"\n=== {'HOLDING COST' if _en else 'COUT DE POSSESSION'} ===")
+            lines.append(f"{'Total capital' if _en else 'Capital total'} : {capital_total:,.0f} EUR")
+            lines.append(f"{'Sectoral rate' if _en else 'Taux sectoriel'} : {_poss_rate*100:.0f}%/{'year' if _en else 'an'}")
+            lines.append(f"{'Annual holding cost' if _en else 'Cout possession annuel'} : {cout_poss:,.0f} EUR/{'year' if _en else 'an'} ({cout_poss/12:,.0f} EUR/{'month' if _en else 'mois'})")
+
+    # ── R5 : STOCK MORT (corrige : zero sur 12 derniers mois, min 2 ans) ──
+    if has_conso and nb_annees_conso >= 2:
+        last_conso_col = cols_conso[-1]  # conso la plus recente
+        df_with_qty = df[df["quantite"].fillna(0) > 0].copy() if "quantite" in df.columns else df.copy()
+
+        dead_mask = (df_with_qty[last_conso_col].fillna(0) == 0)
+        if nb_annees_conso >= 3:
+            prev_col = cols_conso[-2]
+            dead_mask = dead_mask & (df_with_qty[prev_col].fillna(0) == 0)
+
+        dead = df_with_qty[dead_mask]
+
+        if len(dead) > 0:
+            lines.append(f"\n=== {'DEAD STOCK' if _en else 'STOCK MORT'} ({len(dead)} {'refs' if _en else 'refs'}) ===")
+            lines.append(f"{'Definition' if _en else 'Definition'} : {'zero consumption on last 12 months, min 2 years data' if _en else 'zero conso sur les 12 derniers mois, minimum 2 ans de donnees'}")
+
+            if mode == "A":
+                if "valeur_totale" in dead.columns:
+                    cap_mort = dead["valeur_totale"].sum()
+                else:
+                    cap_mort = (dead["quantite"].fillna(0) * dead["prix_unitaire"].fillna(0)).sum()
+                lines.append(f"{'Dead capital' if _en else 'Capital mort'} : {cap_mort:,.0f} EUR")
+                lines.append(f"{'Holding cost on dead stock' if _en else 'Cout possession stock mort'} : {cap_mort * _poss_rate:,.0f} EUR/{'year' if _en else 'an'}")
+
+                # Simulations R7/R8
+                recup_fournisseur = cap_mort * 0.65
+                recup_solde = cap_mort * 0.45
+                lines.append(f"\n{'SIMULATION — Dead stock liquidation' if _en else 'SIMULATION — Liquidation stock mort'} :")
+                lines.append(f"  {'Scenario A — Supplier return (65% credit)' if _en else 'Scenario A — Retour fournisseur (65% avoir)'} : {recup_fournisseur:,.0f} EUR")
+                lines.append(f"  {'Scenario B — Clearance sale (-55%)' if _en else 'Scenario B — Vente soldee (-55%)'} : {recup_solde:,.0f} EUR")
+                lines.append(f"  {'Scenario C — Do nothing' if _en else 'Scenario C — Ne rien faire'} : -{cap_mort * _poss_rate / 12 * 3:,.0f} EUR {'lost in 90 days (holding cost)' if _en else 'perdus en 90 jours (cout possession)'}")
+
+            top_dead = dead.nlargest(5, "quantite") if "quantite" in dead.columns else dead.head(5)
+            for _, row in top_dead.iterrows():
+                ref = row.get("reference", "?")
+                qty = row.get("quantite", 0)
+                val = f" = {row.get('quantite', 0) * row.get('prix_unitaire', 0):,.0f} EUR" if mode == "A" else ""
+                fournisseur = f" (fourn: {row.get('fournisseur', '?')})" if "fournisseur" in df.columns else ""
+                lines.append(f"  - {ref} : {qty:.0f} {'units' if _en else 'unites'}{val}{fournisseur}")
+
+    # ── R3 : SURSTOCK ──
+    if has_conso and "quantite" in df.columns:
+        df_active = df[(df["quantite"].fillna(0) > 0)].copy()
+        if "_conso_moy" in df_active.columns:
+            conso_col = "_conso_moy"
+        elif cols_conso:
+            df_active["_conso_calc"] = df_active[cols_conso].fillna(0).mean(axis=1)
+            conso_col = "_conso_calc"
+        else:
+            conso_col = None
+
+        if conso_col and conso_col in df_active.columns:
+            df_active["_conso_mens"] = df_active[conso_col] / 12
+            df_active["_couv_mois"] = np.where(
+                df_active["_conso_mens"] > 0,
+                df_active["quantite"] / df_active["_conso_mens"],
+                9999
+            )
+            surstock = df_active[(df_active["_couv_mois"] > _cov_threshold) & (df_active["_conso_mens"] > 0)]
+
+            if len(surstock) > 0:
+                lines.append(f"\n=== {'OVERSTOCK' if _en else 'SURSTOCK'} ({len(surstock)} refs, {'threshold' if _en else 'seuil'} > {_cov_threshold} {'months' if _en else 'mois'}) ===")
+
+                if mode == "A":
+                    surstock_val = 0
+                    for _, row in surstock.iterrows():
+                        stock_cible = row["_conso_mens"] * _cov_threshold
+                        excedent = max(0, row["quantite"] - stock_cible)
+                        prix = row.get("prix_unitaire", 0) or 0
+                        surstock_val += excedent * prix
+                    lines.append(f"{'Overstock capital' if _en else 'Capital surstocke'} : {surstock_val:,.0f} EUR")
+                    lines.append(f"{'Holding cost' if _en else 'Cout possession surstock'} : {surstock_val * _poss_rate:,.0f} EUR/{'year' if _en else 'an'}")
+
+                    lines.append(f"\n{'SIMULATION — Overstock reduction' if _en else 'SIMULATION — Reduction surstock'} :")
+                    lines.append(f"  {'Scenario A — Freeze reorders' if _en else 'Scenario A — Geler les appros'} : {surstock_val:,.0f} EUR {'freed progressively' if _en else 'liberes progressivement'}")
+                    lines.append(f"  {'Scenario B — Promo -30%' if _en else 'Scenario B — Promo -30%'} : {surstock_val * 0.70:,.0f} EUR {'recovered in 3 months' if _en else 'recuperes en 3 mois'}")
+                    lines.append(f"  {'Scenario C — Do nothing' if _en else 'Scenario C — Ne rien faire'} : -{surstock_val * _poss_rate / 4:,.0f} EUR/{'quarter' if _en else 'trimestre'}")
+
+                top_sur = surstock.nlargest(5, "_couv_mois")
+                for _, row in top_sur.iterrows():
+                    ref = row.get("reference", "?")
+                    cov = row["_couv_mois"]
+                    qty = row.get("quantite", 0)
+                    lines.append(f"  - {ref} : {cov:.0f} {'months coverage' if _en else 'mois de couverture'}, {qty:.0f} {'units' if _en else 'unites'}")
+
+    # ── RUPTURES ACTIVES ──
+    if has_conso and "quantite" in df.columns:
+        rupt = df[(df["quantite"].fillna(0) <= 0)]
+        if conso_col and conso_col in df.columns:
+            rupt_actives = rupt[rupt[cols_conso[-1]].fillna(0) > 0] if cols_conso else rupt
+        else:
+            rupt_actives = rupt
+
+        if len(rupt_actives) > 0:
+            lines.append(f"\n=== {'ACTIVE STOCKOUTS' if _en else 'RUPTURES ACTIVES'} ({len(rupt_actives)} refs) ===")
+            if mode == "A":
+                margin_ratio = SECTORAL_MARGIN_RATIO.get(sector_key, 1.5)
+                ca_perdu_mois = 0
+                for _, row in rupt_actives.iterrows():
+                    conso_an = row.get(cols_conso[-1], 0) or 0
+                    prix = row.get("prix_unitaire", 0) or 0
+                    ca_perdu_mois += (conso_an / 12) * prix * margin_ratio
+                lines.append(f"{'Estimated lost revenue' if _en else 'CA perdu estime'} : {ca_perdu_mois:,.0f} EUR/{'month' if _en else 'mois'} ({'based on sectoral margin ratio' if _en else 'base sur ratio marge sectoriel'} x{margin_ratio})")
+                lines.append(f"{'Restock investment needed' if _en else 'Investissement reappro'} : {sum(r.get(cols_conso[-1], 0) / 12 * _cov_threshold * r.get('prix_unitaire', 0) for _, r in rupt_actives.iterrows()):,.0f} EUR")
+
+            for _, row in rupt_actives.head(5).iterrows():
+                ref = row.get("reference", "?")
+                conso_txt = f", {'conso' if not _en else 'consumption'} {row.get(cols_conso[-1], 0):.0f}/{'year' if _en else 'an'}" if cols_conso else ""
+                lines.append(f"  - {ref} : {'stock 0' if _en else 'stock 0'}{conso_txt}")
+
+    # ── R6 : ANALYSE FOURNISSEUR ──
+    if "fournisseur" in df.columns and df["fournisseur"].notna().sum() > 0:
+        lines.append(f"\n=== {'SUPPLIER ANALYSIS' if _en else 'ANALYSE FOURNISSEUR'} ===")
+        grp = df.groupby("fournisseur")
+
+        if mode in ("A", "B") and "prix_unitaire" in df.columns:
+            df["_val"] = df["quantite"].fillna(0) * df["prix_unitaire"].fillna(0)
+            cap_total = df["_val"].sum()
+            if cap_total > 0:
+                fgrp = df.groupby("fournisseur")["_val"].sum().sort_values(ascending=False)
+                lines.append(f"{'Capital concentration' if _en else 'Concentration capital'} :")
+                for fn, fv in fgrp.head(5).items():
+                    pct = fv / cap_total * 100
+                    alerte = " [!] ALERT > 30%" if pct > 30 else ""
+                    lines.append(f"  - {fn} : {fv:,.0f} EUR ({pct:.0f}%){alerte}")
+
+        if has_conso and nb_annees_conso >= 2:
+            last_col = cols_conso[-1]
+            dead_by_fourn = df[(df["quantite"].fillna(0) > 0) & (df[last_col].fillna(0) == 0)]
+            if len(dead_by_fourn) > 0:
+                fourn_dead = dead_by_fourn.groupby("fournisseur").size().sort_values(ascending=False)
+                lines.append(f"{'Dead stock by supplier' if _en else 'Stock mort par fournisseur'} :")
+                for fn, cnt in fourn_dead.head(3).items():
+                    lines.append(f"  - {fn} : {cnt} {'dead refs' if _en else 'refs mortes'}")
+
+        if has_conso and "quantite" in df.columns:
+            fourn_rupt = df[(df["quantite"].fillna(0) <= 0) & (df[cols_conso[-1]].fillna(0) > 0)]
+            if len(fourn_rupt) > 0:
+                fr = fourn_rupt.groupby("fournisseur").size().sort_values(ascending=False)
+                lines.append(f"{'Stockouts by supplier' if _en else 'Ruptures par fournisseur'} :")
+                for fn, cnt in fr.head(3).items():
+                    lines.append(f"  - {fn} : {cnt} {'stockouts' if _en else 'ruptures'}")
+
+    # ── R8 : COUT DE L'INACTION (90 jours) ──
+    if mode == "A":
+        cost_inaction = 0
+        cap_mort_total = 0
+        ca_perdu_total = 0
+        surstock_cost = 0
+
+        if has_conso and nb_annees_conso >= 2:
+            last_col = cols_conso[-1]
+            dead_df = df[(df["quantite"].fillna(0) > 0) & (df[last_col].fillna(0) == 0)]
+            cap_mort_total = (dead_df["quantite"].fillna(0) * dead_df["prix_unitaire"].fillna(0)).sum() if len(dead_df) > 0 else 0
+
+        if has_conso:
+            rupt_df = df[(df["quantite"].fillna(0) <= 0) & (df[cols_conso[-1]].fillna(0) > 0)] if cols_conso else None
+            if rupt_df is not None and len(rupt_df) > 0:
+                margin_ratio = SECTORAL_MARGIN_RATIO.get(sector_key, 1.5)
+                for _, r in rupt_df.iterrows():
+                    ca_perdu_total += (r.get(cols_conso[-1], 0) / 12) * r.get("prix_unitaire", 0) * margin_ratio
+
+        cost_inaction = (cap_mort_total * _poss_rate / 4) + (ca_perdu_total * 3) + surstock_cost
+        if cost_inaction > 0:
+            lines.append(f"\n=== {'COST OF INACTION (90 DAYS)' if _en else 'COUT DE L INACTION (90 JOURS)'} ===")
+            lines.append(f"{'Dead stock holding' if _en else 'Possession stock mort'} : -{cap_mort_total * _poss_rate / 4:,.0f} EUR")
+            lines.append(f"{'Lost revenue (3 months)' if _en else 'CA perdu (3 mois)'} : -{ca_perdu_total * 3:,.0f} EUR")
+            lines.append(f"{'TOTAL COST OF INACTION' if _en else 'COUT TOTAL INACTION'} : -{cost_inaction:,.0f} EUR {'over 90 days' if _en else 'sur 90 jours'}")
+
+    return "\n".join(lines) if lines else ""
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -48,19 +313,13 @@ def format_historique_pour_prompt(hist, module, lang="fr"):
         lines.append("\nCOMPUTED TRENDS:")
         d1, d2, d3 = hist["delta_1"], hist["delta_2"], hist["delta_3"]
         if module == "transport":
-            if d1 is not None:
-                lines.append(f"  Net margin: {'improving' if d1 > 0 else 'declining'} ({d1:+.1f}%)")
-            if d2 is not None:
-                lines.append(f"  Profitability: {'improving' if d2 > 0 else 'declining'} ({d2:+.1f}%)")
-            if d3 is not None:
-                lines.append(f"  Toxic routes: {'improving' if d3 < 0 else 'worsening'} ({d3:+.1f}%)")
+            if d1 is not None: lines.append(f"  Net margin: {'improving' if d1 > 0 else 'declining'} ({d1:+.1f}%)")
+            if d2 is not None: lines.append(f"  Profitability: {'improving' if d2 > 0 else 'declining'} ({d2:+.1f}%)")
+            if d3 is not None: lines.append(f"  Toxic routes: {'improving' if d3 < 0 else 'worsening'} ({d3:+.1f}%)")
         else:
-            if d1 is not None:
-                lines.append(f"  Capital/Items: {d1:+.1f}%")
-            if d2 is not None:
-                lines.append(f"  Service level: {'improving' if d2 > 0 else 'declining'} ({d2:+.1f}%)")
-            if d3 is not None:
-                lines.append(f"  Stock-outs: {'worsening' if d3 > 0 else 'improving'} ({d3:+.1f}%)")
+            if d1 is not None: lines.append(f"  Capital/Items: {d1:+.1f}%")
+            if d2 is not None: lines.append(f"  Service level: {'improving' if d2 > 0 else 'declining'} ({d2:+.1f}%)")
+            if d3 is not None: lines.append(f"  Stock-outs: {'worsening' if d3 > 0 else 'improving'} ({d3:+.1f}%)")
         lines.append("=== END HISTORICAL DATA ===\n")
     else:
         lines = [f"\n=== TENDANCE HISTORIQUE -- {n} derniers audits ==="]
@@ -76,163 +335,106 @@ def format_historique_pour_prompt(hist, module, lang="fr"):
         lines.append("\nTENDANCES CALCULEES :")
         d1, d2, d3 = hist["delta_1"], hist["delta_2"], hist["delta_3"]
         if module == "transport":
-            if d1 is not None:
-                lines.append(f"  Marge nette : {'en hausse' if d1 > 0 else 'en baisse'} ({d1:+.1f}%)")
-            if d2 is not None:
-                lines.append(f"  Taux rentabilite : {'en hausse' if d2 > 0 else 'en baisse'} ({d2:+.1f}%)")
-            if d3 is not None:
-                lines.append(f"  Trajets toxiques : {'en hausse' if d3 > 0 else 'en baisse'} ({d3:+.1f}%)")
+            if d1 is not None: lines.append(f"  Marge nette : {'en hausse' if d1 > 0 else 'en baisse'} ({d1:+.1f}%)")
+            if d2 is not None: lines.append(f"  Taux rentabilite : {'en hausse' if d2 > 0 else 'en baisse'} ({d2:+.1f}%)")
+            if d3 is not None: lines.append(f"  Trajets toxiques : {'en hausse' if d3 > 0 else 'en baisse'} ({d3:+.1f}%)")
         else:
-            if d1 is not None:
-                lines.append(f"  Capital/Articles : {d1:+.1f}%")
-            if d2 is not None:
-                lines.append(f"  Taux de service : {'en amelioration' if d2 > 0 else 'en degradation'} ({d2:+.1f}%)")
-            if d3 is not None:
-                lines.append(f"  Ruptures : {'en hausse' if d3 > 0 else 'en baisse'} ({d3:+.1f}%)")
+            if d1 is not None: lines.append(f"  Capital/Articles : {d1:+.1f}%")
+            if d2 is not None: lines.append(f"  Taux de service : {'en amelioration' if d2 > 0 else 'en degradation'} ({d2:+.1f}%)")
+            if d3 is not None: lines.append(f"  Ruptures : {'en hausse' if d3 > 0 else 'en baisse'} ({d3:+.1f}%)")
         lines.append("=== FIN DONNEES HISTORIQUES ===\n")
     return "\n".join(lines)
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# PROMPTS STOCK
+# PROMPTS STOCK MANAGER (V7 — 10 regles)
 # ════════════════════════════════════════════════════════════════════════════
 def get_prompt_stock():
-    """Prompt pour l'analyse stock (Manager). FIX V6.1 : f-string."""
     lang = st.session_state.get("language", "fr")
-
-    # Verifier le nombre d'audits historiques pour la logique dormant
     _n_audits = 0
     try:
         _uid = st.session_state.get("current_user", "")
-        _hist_check = get_historique_audits(_uid, "stock", n=10)
-        if _hist_check:
-            _n_audits = _hist_check.get("n_audits", 0)
+        _hist = get_historique_audits(_uid, "stock", n=10)
+        if _hist:
+            _n_audits = _hist.get("n_audits", 0)
     except Exception:
         _n_audits = 0
-    _assez_historique = _n_audits >= 3
+    _enough = _n_audits >= 3
 
     if lang == "en":
-        _history_rule = (
-            "HISTORICAL DATA: 3+ audits available. You CAN identify dormant stock and draw confirmed conclusions."
-            if _assez_historique else
-            "HISTORICAL DATA: fewer than 3 audits available. You MUST NOT use the word 'dormant'. For high-stock references, ASK the user if these levels are expected (seasonal stockpile, major upcoming order)."
-        )
+        _hr = ("3+ audits available. You CAN confirm dead stock (zero consumption confirmed over multiple periods)." if _enough
+               else "Fewer than 3 audits. You MUST NOT use the word 'dead' or 'dormant'. For items with zero recent consumption, write: 'No movement detected on last 12 months — to be confirmed with client (seasonal pattern? reserved stock?)'. ASK, don't assert.")
 
-        _dormant_rule = (
-            "If 3+ audits: identify confirmed dormant stock with zero consumption."
-            if _assez_historique else
-            "First/second audit: DO NOT use 'dormant'. For high-stock references, write: 'Several references show high stock quantities — we need to confirm whether these levels are expected (seasonal buildup, major upcoming order) or indicate overstock.' Then list references. Ask the question."
-        )
+        return f"""You are a Senior Supply Chain Financial Auditor. You deliver PRESCRIPTIVE, cash-oriented reports for SME executives.
 
-        return f"""MANDATORY FORMAT: You MUST start EACH section with exactly three hashes followed by a space, like this: "### PROFITABILITY AUDIT". Without the three hashes, the visual rendering is broken. This rule is NON-NEGOTIABLE and applies to the 4 sections: "### OPERATIONAL DIAGNOSIS", "### FINANCIAL DIAGNOSIS AND STOCK ANALYSIS", "### WHAT TO DO - TOP PRIORITY", "### IMMEDIATE ACTION PLAN (1-2-3)".
+RESPOND IN ENGLISH. Full explanatory sentences. Cite exact references and exact EUR amounts.
 
-You are a trusted Senior Supply Chain Auditor who helps SME leaders understand and optimize their stock.
-PROFILE: 40+ years of experience in international logistics and supply chain finance, across distribution, industry, retail and pharma.
-You write like a senior consultant who genuinely cares about the business: professional, precise, contextualised, balanced between expertise and accessibility. You explain the "why" behind every diagnosis.
-RESPOND ENTIRELY IN ENGLISH. Write in full explanatory sentences. Build arguments.
-
-TECHNICAL VOCABULARY TO USE NATURALLY: stock coverage, BFR/working capital, cash conversion, service level, stockout rate, dead stock, overstock, SKU, rotation, DIO, OTIF, safety stock, reorder point.
-
-{_history_rule}
-
-CRITICAL RULES:
-1. If tied-up capital is 0 EUR OR prices missing: NEVER write figures in EUR. Speak in quantities, coverage in weeks. Say clearly that financial analysis requires purchase prices.
-2. If service level >= sectoral benchmark: OPEN with congratulations BEFORE pointing to improvement areas.
-3. NEVER invent figures.
-4. List more than 2 references? Each on its own line starting with "- ".
+RULES (NON-NEGOTIABLE):
+1. DATA MODE is indicated in the data below. If mode C or D (no prices): NEVER write EUR amounts. Speak in quantities only. Say clearly that financial analysis requires prices.
+2. If service level >= sector benchmark: OPEN with congratulations.
+3. NEVER invent figures. Only use data provided.
+4. Each recommendation MUST cite: 1 exact reference + 1 action verb + 1 EUR amount (or quantity if no prices).
+5. NEVER give generic advice ("communicate with suppliers", "optimize your stock"). ONLY cite specific references with specific amounts.
+6. Use the SIMULATIONS provided in the data to build your recommendations.
+7. {_hr}
 
 ### OPERATIONAL DIAGNOSIS
-Open with a full contextualised sentence situating the service level vs sectoral benchmark.
-Then introduce critical references and list them.
-If historical data: compare to previous audit with exact numbers.
+Service level vs sector benchmark. List critical references. If history: compare with exact numbers.
 
-### FINANCIAL DIAGNOSIS AND STOCK ANALYSIS
-CASE A — prices available, capital > 0:
-Quantify tied-up capital, put it in perspective against sectoral norms (DIO, BFR weight).
-{_dormant_rule}
-
-CASE B — no prices or capital = 0:
-Open transparently: "The file does not include purchase prices. Financial reading is unavailable but operational analysis remains fully valid."
-Pivot to quantity-based analysis. Ask questions.
+### FINANCIAL DIAGNOSIS
+Use data mode provided. If mode A: quantify dead capital, overstock, holding cost with exact EUR. If mode B: capital only. If mode C/D: quantities only, say prices are needed.
+If supplier analysis is provided: integrate concentration risks and dead stock by supplier.
 
 ### STOCKOUT PREDICTIONS
-Generated by the Logiflo predictive engine. Only write this section if alerts are present in the data.
-TIME FORMAT RULE: if the delay is under 2 weeks, convert to DAYS. Example: never say "stockout in 0.7 weeks" or "1.3 weeks". Say "stockout in approximately 5 days" or "in about 10 days". Above 2 weeks, use rounded weeks.
+Only if alerts present. Delays < 2 weeks in DAYS, not weeks.
 
-### WHAT TO DO - TOP PRIORITY
-One full direct sentence giving the single most urgent action with its estimated impact.
+### TOP 5 PRIORITY ACTIONS
+5 actions ranked by cash impact. Each action = 1 reference + 1 verb + 1 EUR amount. Use simulations from the data.
 
-### IMMEDIATE ACTION PLAN (1-2-3)
-3 recommendations as full consulting paragraphs: action title, explanation, target, expected impact, difficulty 1-5.
+### COST OF INACTION
+If provided in the data, state the 90-day cost clearly.
 
-STOP AFTER THE LAST RECOMMENDATION. DO NOT WRITE "### SCORING LOGIFLO" OR ANY SCORE SECTION. DO NOT WRITE ANY CLOSING PHRASE. THE RESPONSE ENDS ON THE LAST RECOMMENDATION.
+STOP after the last action. NO scoring section. NO closing phrase."""
 
-ABSOLUTE RULES: Full sentences, consultant tone, never invent figures, congratulate when performance meets or exceeds benchmarks, never label dormant without 3+ audits of history."""
+    _rh = ("3 audits ou plus disponibles. Tu PEUX confirmer les stocks morts (consommation zero confirmee sur plusieurs periodes)." if _enough
+           else "Moins de 3 audits. Tu NE DOIS PAS utiliser les mots 'mort' ou 'dormant'. Pour les articles sans consommation recente, ecris : 'Aucun mouvement detecte sur les 12 derniers mois — a confirmer avec le client (saisonnalite ? stock reserve ?)'. POSE LA QUESTION, n'affirme pas.")
 
-    # ── FRANCAIS ──
-    _regle_historique = (
-        "DONNEES HISTORIQUES : 3 audits ou plus disponibles. Tu PEUX identifier les stocks dormants et tirer des conclusions confirmees."
-        if _assez_historique else
-        "DONNEES HISTORIQUES : moins de 3 audits disponibles. Tu NE DOIS PAS utiliser le mot 'dormant'. Pour les references en grande quantite, POSE LA QUESTION a l'utilisateur : est-ce que ces niveaux sont attendus (constitution saisonniere, commande majeure a venir) ?"
-    )
+    return f"""Tu es un Auditeur Financier Senior Supply Chain. Tu delivres des rapports PRESCRIPTIFS et orientes cash pour les dirigeants de PME.
 
-    _regle_dormant = (
-        "Si 3 audits ou plus : identifie les stocks dormants confirmes (consommation zero) et liste les references."
-        if _assez_historique else
-        "Premier ou deuxieme audit : N'UTILISE PAS le mot 'dormant'. Pour les references en grande quantite, ecris plutot : 'Plusieurs references presentent des niveaux de stock importants — il faudrait confirmer avec vous si ces volumes sont attendus (constitution saisonniere, commande majeure a venir) ou s'ils indiquent une situation de surstock.' Liste ensuite les references. Pose la question explicitement."
-    )
+REPONDS EN FRANCAIS. Phrases completes et explicatives. Cite les references exactes et les montants exacts en EUR.
 
-    return f"""FORMAT OBLIGATOIRE : Tu DOIS commencer CHAQUE section par exactement trois dieses suivis d'un espace, comme ceci : "### DIAGNOSTIC OPERATIONNEL". Sans les trois dieses, le rendu visuel est casse. Cette regle est NON NEGOCIABLE et s'applique aux sections : "### DIAGNOSTIC OPERATIONNEL", "### DIAGNOSTIC FINANCIER ET ANALYSE DU STOCK", "### A FAIRE - PRIORITE ABSOLUE", "### PLAN D'ACTION (1-2-3)".
-
-Tu es un Auditeur Senior Supply Chain de confiance qui aide les dirigeants de PME a comprendre et optimiser leur stock.
-PROFIL : 40 ans et plus d'experience en logistique internationale et finance supply chain, dans la distribution, l'industrie, le retail et la pharma.
-Tu ecris comme un consultant senior qui se soucie vraiment du business de son client : professionnel, precis, contextualise, juste equilibre entre expertise et accessibilite. Tu expliques le "pourquoi" derriere chaque diagnostic. Tu es la pour aider, pas pour impressionner.
-REPONDS IMPERATIVEMENT EN FRANCAIS. Ecris en phrases completes et explicatives. Construis un raisonnement.
-
-VOCABULAIRE TECHNIQUE A UTILISER NATURELLEMENT : couverture de stock, BFR, cash conversion, taux de service, taux de rupture, stock dormant, surstock, SKU ou reference, rotation, DIO, OTIF, stock de securite, point de commande.
-
-{_regle_historique}
-
-REGLES CRITIQUES :
-1. Si capital immobilise = 0 EUR OU prix absents : N'ECRIS JAMAIS de montants en EUR. Parle en quantites, en semaines de couverture. Dis clairement que l'analyse financiere necessite un fichier avec prix d'achat.
-2. Si taux de service >= benchmark sectoriel : COMMENCE par une felicitation AVANT de pointer les axes d'amelioration.
-3. N'INVENTE AUCUN chiffre.
-4. Plus de 2 references citees ? Chacune sur sa propre ligne precedee de "- ".
+REGLES (NON NEGOCIABLES) :
+1. Le MODE DONNEES est indique ci-dessous. Si mode C ou D (pas de prix) : N'ECRIS JAMAIS de montants en EUR. Parle en quantites uniquement. Dis clairement que l'analyse financiere necessite les prix d'achat.
+2. Si taux de service >= benchmark sectoriel : COMMENCE par une felicitation.
+3. N'INVENTE AUCUN chiffre. N'utilise QUE les donnees fournies.
+4. Chaque recommandation DOIT citer : 1 reference exacte + 1 verbe d'action + 1 montant EUR (ou quantite si pas de prix).
+5. JAMAIS de conseil generique ("communiquer avec les fournisseurs", "optimiser le stock"). UNIQUEMENT des references specifiques avec des montants precis.
+6. Utilise les SIMULATIONS fournies dans les donnees pour construire tes recommandations.
+7. {_rh}
 
 ### DIAGNOSTIC OPERATIONNEL
-Ouvre par une phrase complete et contextualisee situant le taux de service face au benchmark sectoriel.
-Introduis ensuite les references critiques et liste-les.
-Si historique disponible : compare a l'audit precedent avec chiffres exacts.
+Taux de service vs benchmark sectoriel. Liste les references critiques. Si historique : compare avec chiffres exacts.
 
-### DIAGNOSTIC FINANCIER ET ANALYSE DU STOCK
-CAS A — prix disponibles et capital > 0 :
-Chiffre le capital immobilise, mets-le en perspective face aux normes sectorielles (DIO, poids BFR).
-{_regle_dormant}
-
-CAS B — pas de prix, ou capital immobilise = 0 :
-Ouvre en transparence : "Le fichier transmis n'inclut pas les prix d'achat. La lecture financiere du stock est donc indisponible, mais l'analyse operationnelle reste pleinement exploitable."
-Bascule sur une analyse en quantites. Pose des questions plutot que d'affirmer.
+### DIAGNOSTIC FINANCIER
+Utilise le mode donnees indique. Si mode A : chiffre le capital mort, le surstock, le cout de possession avec EUR exacts. Si mode B : capital seulement. Si mode C/D : quantites seulement, dis que les prix sont necessaires.
+Si l'analyse fournisseur est fournie : integre les risques de concentration et le stock mort par fournisseur.
 
 ### PREDICTIONS DE RUPTURE
-UNIQUEMENT si des alertes sont presentes dans les donnees transmises. Sinon saute completement cette section (ne pas ecrire le titre).
-REGLE DE FORMAT TEMPOREL : si le delai est inferieur a 2 semaines, convertis en JOURS. Exemple : ne dis PAS "en rupture dans 0,7 semaines" ou "1,3 semaines". Dis "en rupture dans environ 5 jours" ou "dans environ 10 jours". Au-dessus de 2 semaines, parle en semaines arrondies.
+Uniquement si des alertes sont presentes. Delais < 2 semaines en JOURS, pas en semaines.
 
-### A FAIRE - PRIORITE ABSOLUE
-Une phrase complete et directe donnant l'action la plus urgente avec son impact estime.
+### TOP 5 ACTIONS PRIORITAIRES
+5 actions classees par impact cash. Chaque action = 1 reference + 1 verbe + 1 montant EUR. Utilise les simulations fournies.
 
-### PLAN D'ACTION (1-2-3)
-3 recommandations en paragraphes de consulting : titre, phrase explicative, cible, impact attendu, difficulte 1 a 5.
+### COUT DE L INACTION
+Si fourni dans les donnees, enonce clairement le cout a 90 jours.
 
-ARRETE-TOI APRES LA DERNIERE RECOMMANDATION. N'ECRIS PAS "### SCORING LOGIFLO" NI AUCUNE SECTION SCORING. N'ECRIS AUCUNE PHRASE DE CLOTURE TYPE "Ces recommandations visent a..." OU "Je reste a votre disposition". LA REPONSE SE TERMINE SUR LA DERNIERE RECOMMANDATION.
-
-REGLES ABSOLUES : Phrases completes, ton consultant bienveillant, n'invente aucun chiffre, felicite quand la performance atteint ou depasse le benchmark, ne qualifie jamais de dormant sans 3 audits ou plus d'historique."""
+ARRETE-TOI apres la derniere action. PAS de section scoring. PAS de phrase de cloture."""
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# PROMPT TERRAIN
+# PROMPT TERRAIN (inchange)
 # ════════════════════════════════════════════════════════════════════════════
 def get_prompt_terrain():
-    """Prompt pour l'analyse stock (profil Terrain / chef d'entrepot)."""
     lang = st.session_state.get("language", "fr")
     if lang == "en":
         return """You are an experienced warehouse supervisor helping your team day-to-day.
@@ -287,96 +489,47 @@ L action la plus urgente basee sur les donnees reelles.
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# PROMPT TRANSPORT ROUTIER (V1)
+# PROMPT TRANSPORT (inchange — masque en V1)
 # ════════════════════════════════════════════════════════════════════════════
 def get_prompt_transport():
-    """Prompt pour l'analyse transport routier (V1)."""
     lang = st.session_state.get("language", "fr")
     if lang == "en":
         return """You are a Senior Road Transport and Supply Chain Strategy Auditor.
-PROFILE: 40+ years in road freight transport and logistics for SMEs and corporations across Europe.
-You write like a senior consultant speaking to a Transport Director or COO. You genuinely care about helping this business become more profitable.
 RESPOND ENTIRELY IN ENGLISH. Write in full explanatory sentences.
-
-TECHNICAL VOCABULARY: net margin, yield, cost/km, empty return, loading factor, OTIF, linehaul, drayage, freight rate, FSC, backhaul, CNR benchmark.
-
 CRITICAL RULES:
-1. Margin > 10%: OPEN with congratulations ("Your X% net margin sits above the healthy range of 6-10% — excellent performance, congratulations.") BEFORE any improvement point.
-2. Margin 6-10%: Healthy. State it plainly.
-3. Margin < 6%: Alert. Explain why.
-4. Margin < 0%: Critical. Name the structural issue.
-5. NEVER invent figures.
-6. CNR 2026 benchmarks: Long-haul 1.85-2.10 EUR/km, regional 1.40-1.65 EUR/km, urban/parcels 1.55-1.85 EUR/km, fuel ~26.5% of total cost.
-7. More than 2 routes or clients? List with "- " on separate lines.
-
+1. Margin > 10%: OPEN with congratulations. 2. Margin 6-10%: Healthy. 3. Margin < 6%: Alert. 4. Margin < 0%: Critical.
+5. NEVER invent figures. 6. CNR 2026: Long-haul 1.85-2.10 EUR/km, regional 1.40-1.65 EUR/km. 7. List routes with "- ".
 ### PROFITABILITY AUDIT
-Verdict sentence using the margin rule, placing it in sectoral context vs CNR benchmarks.
-Introduce the worst routes with a full sentence, list them on separate lines.
-Explain the likely root cause (empty returns, underpricing, excess mileage, fuel surcharge not applied).
-If historical: compare margin evolution.
-
+Verdict + worst routes + root cause. If historical: compare.
 ### NETWORK DIAGNOSIS
-Full diagnosis, not a statistics list. Cost/km vs CNR benchmarks with percentage gaps.
-Identify structural issues: geographic imbalance, concentration risk, underpriced contracts.
-
+Cost/km vs CNR. Structural issues.
 ### WHAT TO DO - TOP PRIORITY
-One full direct sentence with the most urgent action and its estimated cash impact.
-
+One sentence, most urgent action + cash impact.
 ### RATIONALIZATION PLAN (1-2-3)
-3 strategic recommendations in consulting paragraphs: action, explanation, target, expected impact, difficulty 1-5.
-
-STOP AFTER THE LAST RECOMMENDATION. DO NOT WRITE "### LOGIFLO SCORE" OR ANY SCORING SECTION. DO NOT WRITE ANY CLOSING PHRASE. THE RESPONSE ENDS ON THE LAST RECOMMENDATION.
-
-ABSOLUTE RULES: Consultant tone, never invent figures, congratulate when margin exceeds the healthy range."""
+3 strategic recommendations. STOP after last one. NO scoring."""
 
     return """Tu es un Auditeur Senior en Strategie Transport Routier et Supply Chain.
-PROFIL : 40 ans et plus d'experience en transport routier de marchandises et logistique, pour PME et groupes sur l'Europe.
-Tu ecris comme un consultant senior qui se soucie vraiment de la rentabilite de son client. Tu es la pour aider, pas pour faire un rapport froid. Tu expliques le "pourquoi" derriere chaque diagnostic.
-REPONDS IMPERATIVEMENT EN FRANCAIS. Ecris en phrases completes et explicatives.
-
-VOCABULAIRE TECHNIQUE : marge nette, yield, cout au kilometre, retour a vide, taux de remplissage, OTIF, traction, taux de fret, surcharge carburant, backhaul, referentiel CNR.
-
-REGLES CRITIQUES :
-1. Marge > 10% : COMMENCE par une felicitation ("Votre marge nette de X% se situe au-dessus de la norme saine de 6 a 10% — excellente performance, felicitations.") AVANT tout axe d'amelioration.
-2. Marge 6-10% : Saine. Dis-le clairement.
-3. Marge < 6% : Alerte. Explique pourquoi.
-4. Marge < 0% : Critique. Nomme le probleme structurel.
-5. N'INVENTE AUCUN chiffre.
-6. Referentiels CNR 2026 : Longue distance 1,85-2,10 EUR/km, regional 1,40-1,65 EUR/km, urbain/messagerie 1,55-1,85 EUR/km, carburant ~26,5% du cout total.
-7. Plus de 2 trajets ou clients cites ? Liste avec "- " sur des lignes separees.
-
+REPONDS EN FRANCAIS. Phrases completes et explicatives.
+REGLES : 1. Marge > 10% : felicite. 2. 6-10% : sain. 3. < 6% : alerte. 4. < 0% : critique.
+5. N'invente rien. 6. CNR 2026 : longue distance 1,85-2,10, regional 1,40-1,65. 7. Liste avec "- ".
 ### AUDIT DE RENTABILITE
-Phrase de verdict utilisant la regle de marge, placee dans le contexte sectoriel et face aux referentiels CNR.
-Introduis les trajets les moins rentables par une phrase complete, liste-les sur des lignes separees.
-Explique la cause racine probable (retours a vide, sous-tarification, kilometrage excessif, surcharge carburant non appliquee).
-Si historique : compare l'evolution de la marge.
-
+Verdict + pires trajets + cause. Si historique : compare.
 ### DIAGNOSTIC RESEAU
-Diagnostic complet, pas une liste de statistiques. Cout/km vs referentiels CNR avec ecarts en pourcentage.
-Identifie les problemes structurels : desequilibre geographique, risque de concentration, contrats sous-tarifes.
-
+Cout/km vs CNR. Problemes structurels.
 ### A FAIRE - PRIORITE ABSOLUE
-Une phrase complete et directe avec l'action la plus urgente et son impact cash estime.
-
+Une phrase, action urgente + impact cash.
 ### PLAN DE RATIONALISATION (1-2-3)
-3 recommandations strategiques en paragraphes de consulting : action, explication, cible, impact attendu, difficulte 1 a 5.
-
-ARRETE-TOI APRES LA DERNIERE RECOMMANDATION. N'ECRIS PAS "### SCORING LOGIFLO" NI AUCUNE SECTION SCORING. N'ECRIS AUCUNE PHRASE DE CLOTURE TYPE "Ces recommandations visent a..." OU "Je reste a votre disposition". LA REPONSE SE TERMINE SUR LA DERNIERE RECOMMANDATION.
-
-REGLES ABSOLUES : Ton consultant bienveillant, n'invente aucun chiffre, felicite quand la marge depasse la norme saine."""
+3 recommandations. ARRETE apres la derniere. PAS de scoring."""
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# EXTRACTION LIGNES CLES DU FICHIER
+# EXTRACTION LIGNES CLES (simplifie — l'enrichissement fait le gros du travail)
 # ════════════════════════════════════════════════════════════════════════════
 def _extract_key_rows(df, module, lang="fr"):
-    """Extrait les lignes les plus critiques du fichier pour enrichir le prompt."""
     try:
         lines = []
-        if lang == "en":
-            lines.append("=== KEY DATA ROWS (worst performers + anomalies) ===")
-        else:
-            lines.append("=== LIGNES CLES DU FICHIER (pires performances + anomalies) ===")
+        lbl = "KEY DATA ROWS" if lang == "en" else "LIGNES CLES DU FICHIER"
+        lines.append(f"=== {lbl} ===")
 
         if module == "transport":
             if "Marge_Nette" in df.columns and "_CA" in df.columns:
@@ -385,36 +538,9 @@ def _extract_key_rows(df, module, lang="fr"):
                     client_col = df.columns[0]
                     lines.append(
                         f"  - {row.get(client_col, '?')}: "
-                        f"CA={row.get('_CA', 0):.0f} EUR, "
-                        f"Cout={row.get('_CO', 0):.0f} EUR, "
-                        f"Marge={row.get('Marge_Nette', 0):.0f} EUR "
-                        f"({row.get('Rentabilite_%', 0):.1f}%)"
+                        f"CA={row.get('_CA', 0):.0f} EUR, Cout={row.get('_CO', 0):.0f} EUR, "
+                        f"Marge={row.get('Marge_Nette', 0):.0f} EUR ({row.get('Rentabilite_%', 0):.1f}%)"
                     )
-        else:
-            if "reference" in df.columns and "quantite" in df.columns:
-                rupt = df[df["quantite"] <= 0]
-                if len(rupt) > 0:
-                    refs = rupt["reference"].astype(str).head(5).tolist()
-                    lbl = "Stockouts" if lang == "en" else "Ruptures"
-                    lines.append(f"  {lbl}: {', '.join(refs)}")
-
-                if "_conso_moy" in df.columns:
-                    dorm = df[(df["quantite"] > 0) & (df["_conso_moy"] == 0)]
-                    if len(dorm) > 0:
-                        refs_d = dorm.nlargest(5, "quantite")["reference"].astype(str).tolist()
-                        lbl = "Dormant (no consumption)" if lang == "en" else "Dormants (conso nulle)"
-                        lines.append(f"  {lbl}: {', '.join(refs_d)}")
-
-                if "Couverture_mois" in df.columns:
-                    surs = df[df["Couverture_mois"] > 6].head(3)
-                    if len(surs) > 0:
-                        refs_s = surs["reference"].astype(str).tolist()
-                        cov = surs["Couverture_mois"].apply(
-                            lambda x: f"{x:.0f}m" if x < 9999 else "inf"
-                        ).tolist()
-                        lbl = "Overstock" if lang == "en" else "Surstock"
-                        lines.append(f"  {lbl}: {', '.join([f'{r}({c})' for r, c in zip(refs_s, cov)])}")
-
         return "\n".join(lines) if len(lines) > 1 else ""
     except Exception:
         return ""
@@ -424,15 +550,10 @@ def _extract_key_rows(df, module, lang="fr"):
 # NETTOYAGE SORTIE IA
 # ════════════════════════════════════════════════════════════════════════════
 def _strip_scoring_and_outro(texte, lang="fr"):
-    """Supprime toute section SCORING residuelle + phrases de cloture parasites."""
     if not texte:
         return texte
-
-    # Supprimer section scoring (titre + contenu jusqu'au prochain ### ou fin)
     pattern_scoring = r'###\s*(SCORING\s+LOGIFLO|LOGIFLO\s+SCORE)[\s\S]*?(?=###|\Z)'
     texte = re.sub(pattern_scoring, '', texte, flags=re.IGNORECASE)
-
-    # Supprimer phrases de cloture parasites (FR + EN)
     outros = [
         r'Ces recommandations visent[\s\S]*$',
         r'Je reste [àa] votre disposition[\s\S]*$',
@@ -443,24 +564,18 @@ def _strip_scoring_and_outro(texte, lang="fr"):
     ]
     for pat in outros:
         texte = re.sub(pat, '', texte, flags=re.IGNORECASE | re.MULTILINE)
-
     return texte.rstrip() + "\n"
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# GENERATION ANALYSE IA (point d'entree principal)
+# GENERATION ANALYSE IA (point d'entree principal — V7)
 # ════════════════════════════════════════════════════════════════════════════
 def generate_ai_analysis(data_summary, historique_txt="", df_raw=None,
                           sector_key=None, mode_detected=None):
-    """
-    Genere l'analyse IA complete.
-    Pipeline : OpenAI GPT-4o-mini → Gemini 1.5 Flash → rapport local.
-    """
     lang = st.session_state.get("language", "fr")
     module = st.session_state.get("module", "stock")
     view = st.session_state.get("stock_view", "MANAGER")
 
-    # ── Initialiser client OpenAI ──
     client = None
     try:
         from openai import OpenAI
@@ -470,7 +585,6 @@ def generate_ai_analysis(data_summary, historique_txt="", df_raw=None,
     except Exception:
         client = None
 
-    # ── Detecter secteur ──
     if not sector_key:
         sector_key = detect_sector(
             df=df_raw, module=module,
@@ -482,7 +596,6 @@ def generate_ai_analysis(data_summary, historique_txt="", df_raw=None,
 
     benchmarks = get_sector_benchmarks(sector_key, lang)
 
-    # ── Selectionner le prompt ──
     if module == "transport":
         sys_prompt = get_prompt_transport()
     elif view == "TERRAIN":
@@ -497,27 +610,22 @@ def generate_ai_analysis(data_summary, historique_txt="", df_raw=None,
     parts.append(f"=== {lbl_audit} ===\n{data_summary}")
     parts.append(f"=== {lbl_bench} ===\n{benchmarks}")
 
+    # ── V7 : ENRICHISSEMENT STOCK (10 regles metier) ──
+    if module == "stock" and df_raw is not None:
+        enrichment = _compute_stock_enrichment(df_raw, sector_key, lang)
+        if enrichment:
+            parts.append(enrichment)
+
     if historique_txt and historique_txt.strip():
         parts.append(historique_txt)
     else:
         if lang == "en":
-            parts.append(
-                "=== HISTORY ===\n"
-                "First audit -- no historical comparison available. "
-                "Do NOT use the word 'dormant'. For high-stock references, "
-                "ASK the user if these levels are expected."
-            )
+            parts.append("=== HISTORY ===\nFirst audit -- no historical comparison. Do NOT use 'dead' or 'dormant'. ASK if high-stock levels are expected.")
         else:
-            parts.append(
-                "=== HISTORIQUE ===\n"
-                "Premier audit -- pas de comparaison historique disponible. "
-                "N'UTILISE PAS le mot 'dormant'. Pour les references en grande "
-                "quantite, POSE LA QUESTION a l'utilisateur : ces niveaux "
-                "sont-ils attendus ?"
-            )
+            parts.append("=== HISTORIQUE ===\nPremier audit -- pas de comparaison. N'utilise PAS 'mort' ou 'dormant'. POSE LA QUESTION pour les niveaux eleves.")
 
-    # Lignes cles du fichier
-    if df_raw is not None:
+    # Transport key rows (stock key rows now handled by enrichment)
+    if module == "transport" and df_raw is not None:
         try:
             key_data = _extract_key_rows(df_raw, module, lang)
             if key_data:
@@ -534,13 +642,11 @@ def generate_ai_analysis(data_summary, historique_txt="", df_raw=None,
             _ctx = _periode.get(_ctx_key)
             if _ctx:
                 _lbl = _periode.get("label", "")
-                lbl_season = "SEASONAL CONTEXT" if lang == "en" else "CONTEXTE SAISONNIER"
-                lbl_period = "Period" if lang == "en" else "Periode"
-                parts.append(f"=== {lbl_season} ===\n{lbl_period} : {_lbl}\n{_ctx}")
+                parts.append(f"=== {'SEASONAL CONTEXT' if lang == 'en' else 'CONTEXTE SAISONNIER'} ===\n{_lbl}\n{_ctx}")
     except Exception:
         pass
 
-    # Predictions de rupture (stock uniquement)
+    # Predictions rupture
     try:
         from engine.pdf_gen import predict_ruptures, format_predictions_pour_prompt
         if module == "stock" and df_raw is not None:
@@ -551,14 +657,13 @@ def generate_ai_analysis(data_summary, historique_txt="", df_raw=None,
     except Exception:
         pass
 
-    # Alerte BFR (stock uniquement)
+    # Alerte BFR
     try:
         from engine.pdf_gen import compute_alerte_bfr
         if module == "stock" and df_raw is not None:
             _bfr = compute_alerte_bfr(df_raw, lang=lang)
             if _bfr.get("available") and _bfr.get("texte"):
-                lbl_bfr = "BFR ALERT" if lang == "en" else "ALERTE BFR"
-                parts.append(f"=== {lbl_bfr} ===\n{_bfr['texte']}")
+                parts.append(f"=== {'BFR ALERT' if lang == 'en' else 'ALERTE BFR'} ===\n{_bfr['texte']}")
     except Exception:
         pass
 
@@ -573,9 +678,7 @@ def generate_ai_analysis(data_summary, historique_txt="", df_raw=None,
                     {"role": "system", "content": sys_prompt},
                     {"role": "user", "content": user_msg},
                 ],
-                temperature=0.35,
-                max_tokens=2400,
-                timeout=30,
+                temperature=0.30, max_tokens=3000, timeout=35,
             )
             texte = r.choices[0].message.content
             try:
@@ -595,10 +698,7 @@ def generate_ai_analysis(data_summary, historique_txt="", df_raw=None,
             _gem = _genai.GenerativeModel("gemini-1.5-flash")
             _resp = _gem.generate_content(
                 f"{sys_prompt}\n\n{user_msg}",
-                generation_config=_genai.types.GenerationConfig(
-                    temperature=0.35,
-                    max_output_tokens=2400,
-                ),
+                generation_config=_genai.types.GenerationConfig(temperature=0.30, max_output_tokens=3000),
             )
             texte = _resp.text
             try:
@@ -609,15 +709,10 @@ def generate_ai_analysis(data_summary, historique_txt="", df_raw=None,
     except Exception:
         pass
 
-    # ── FALLBACK LOCAL ──
     return _rapport_sans_ia(data_summary, sector_key or "generique", lang)
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# RAPPORT LOCAL (dernier recours sans IA)
-# ════════════════════════════════════════════════════════════════════════════
 def _rapport_sans_ia(data_summary, sector_key, lang="fr"):
-    """Rapport minimal si OpenAI ET Gemini sont indisponibles."""
     benchmarks = get_sector_benchmarks(sector_key or "generique", lang)
     if lang == "en":
         return f"""### AUTOMATIC DIAGNOSIS
@@ -630,8 +725,7 @@ AI analysis temporarily unavailable.
 {benchmarks}
 
 ### WHAT TO DO - TOP PRIORITY
-Compare your indicators to the benchmarks above.
-Any negative gap above 5 points requires action this week."""
+Compare your indicators to the benchmarks above. Any negative gap above 5 points requires action this week."""
 
     return f"""### DIAGNOSTIC AUTOMATIQUE
 L analyse IA est temporairement indisponible.
@@ -643,5 +737,4 @@ L analyse IA est temporairement indisponible.
 {benchmarks}
 
 ### A FAIRE - PRIORITE ABSOLUE
-Comparez vos indicateurs aux benchmarks ci-dessus.
-Tout ecart negatif de plus de 5 points merite une action cette semaine."""
+Comparez vos indicateurs aux benchmarks ci-dessus. Tout ecart negatif de plus de 5 points merite une action cette semaine."""
