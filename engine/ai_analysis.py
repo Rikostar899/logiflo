@@ -81,6 +81,9 @@ def _compute_stock_enrichment(df, sector_key, lang="fr"):
     if not has_conso and "_conso_moy" in df.columns and df["_conso_moy"].notna().sum() > 0:
         has_conso = True
     nb_annees_conso = len(cols_conso)
+    # Variable safe : la colonne de conso la plus recente (ou None)
+    _last_conso = cols_conso[-1] if cols_conso else ("_conso_moy" if "_conso_moy" in df.columns else None)
+    _has_lc = _last_conso is not None and _last_conso in df.columns  # safe guard
 
     if has_prix and has_conso:
         mode = "A"
@@ -116,12 +119,12 @@ def _compute_stock_enrichment(df, sector_key, lang="fr"):
 
     # ── R5 : STOCK MORT (corrige : zero sur 12 derniers mois, min 2 ans) ──
     if has_conso and nb_annees_conso >= 2:
-        last_conso_col = cols_conso[-1]  # conso la plus recente
+        last_conso_col = _last_conso  # conso la plus recente
         df_with_qty = df[df["quantite"].fillna(0) > 0].copy() if "quantite" in df.columns else df.copy()
 
         dead_mask = (df_with_qty[last_conso_col].fillna(0) == 0)
         if nb_annees_conso >= 3:
-            prev_col = cols_conso[-2]
+            prev_col = cols_conso[-2] if len(cols_conso) >= 2 else None
             dead_mask = dead_mask & (df_with_qty[prev_col].fillna(0) == 0)
 
         dead = df_with_qty[dead_mask]
@@ -203,7 +206,7 @@ def _compute_stock_enrichment(df, sector_key, lang="fr"):
     if has_conso and "quantite" in df.columns:
         rupt = df[(df["quantite"].fillna(0) <= 0)]
         if conso_col and conso_col in df.columns:
-            rupt_actives = rupt[rupt[cols_conso[-1]].fillna(0) > 0] if cols_conso else rupt
+            rupt_actives = rupt[rupt[_last_conso].fillna(0) > 0] if _has_lc else rupt
         else:
             rupt_actives = rupt
 
@@ -213,15 +216,15 @@ def _compute_stock_enrichment(df, sector_key, lang="fr"):
                 margin_ratio = SECTORAL_MARGIN_RATIO.get(sector_key, 1.5)
                 ca_perdu_mois = 0
                 for _, row in rupt_actives.iterrows():
-                    conso_an = row.get(cols_conso[-1], 0) or 0
+                    conso_an = row.get(_last_conso, 0) or 0
                     prix = row.get("prix_unitaire", 0) or 0
                     ca_perdu_mois += (conso_an / 12) * prix * margin_ratio
                 lines.append(f"{'Estimated lost revenue' if _en else 'CA perdu estime'} : {ca_perdu_mois:,.0f} EUR/{'month' if _en else 'mois'} ({'based on sectoral margin ratio' if _en else 'base sur ratio marge sectoriel'} x{margin_ratio})")
-                lines.append(f"{'Restock investment needed' if _en else 'Investissement reappro'} : {sum(r.get(cols_conso[-1], 0) / 12 * _cov_threshold * r.get('prix_unitaire', 0) for _, r in rupt_actives.iterrows()):,.0f} EUR")
+                lines.append(f"{'Restock investment needed' if _en else 'Investissement reappro'} : {sum(r.get(_last_conso, 0) / 12 * _cov_threshold * r.get('prix_unitaire', 0) for _, r in rupt_actives.iterrows()):,.0f} EUR")
 
             for _, row in rupt_actives.head(5).iterrows():
                 ref = row.get("reference", "?")
-                conso_txt = f", {'conso' if not _en else 'consumption'} {row.get(cols_conso[-1], 0):.0f}/{'year' if _en else 'an'}" if cols_conso else ""
+                conso_txt = f", {'conso' if not _en else 'consumption'} {row.get(_last_conso, 0):.0f}/{'year' if _en else 'an'}" if _has_lc else ""
                 lines.append(f"  - {ref} : {'stock 0' if _en else 'stock 0'}{conso_txt}")
 
     # ── R6 : ANALYSE FOURNISSEUR ──
@@ -241,7 +244,7 @@ def _compute_stock_enrichment(df, sector_key, lang="fr"):
                     lines.append(f"  - {fn} : {fv:,.0f} EUR ({pct:.0f}%){alerte}")
 
         if has_conso and nb_annees_conso >= 2:
-            last_col = cols_conso[-1]
+            last_col = _last_conso
             dead_by_fourn = df[(df["quantite"].fillna(0) > 0) & (df[last_col].fillna(0) == 0)]
             if len(dead_by_fourn) > 0:
                 fourn_dead = dead_by_fourn.groupby("fournisseur").size().sort_values(ascending=False)
@@ -249,8 +252,8 @@ def _compute_stock_enrichment(df, sector_key, lang="fr"):
                 for fn, cnt in fourn_dead.head(3).items():
                     lines.append(f"  - {fn} : {cnt} {'dead refs' if _en else 'refs mortes'}")
 
-        if has_conso and "quantite" in df.columns:
-            fourn_rupt = df[(df["quantite"].fillna(0) <= 0) & (df[cols_conso[-1]].fillna(0) > 0)]
+        if _has_lc and "quantite" in df.columns:
+            fourn_rupt = df[(df["quantite"].fillna(0) <= 0) & (df[_last_conso].fillna(0) > 0)]
             if len(fourn_rupt) > 0:
                 fr = fourn_rupt.groupby("fournisseur").size().sort_values(ascending=False)
                 lines.append(f"{'Stockouts by supplier' if _en else 'Ruptures par fournisseur'} :")
@@ -265,16 +268,16 @@ def _compute_stock_enrichment(df, sector_key, lang="fr"):
         surstock_cost = 0
 
         if has_conso and nb_annees_conso >= 2:
-            last_col = cols_conso[-1]
+            last_col = _last_conso
             dead_df = df[(df["quantite"].fillna(0) > 0) & (df[last_col].fillna(0) == 0)]
             cap_mort_total = (dead_df["quantite"].fillna(0) * dead_df["prix_unitaire"].fillna(0)).sum() if len(dead_df) > 0 else 0
 
         if has_conso:
-            rupt_df = df[(df["quantite"].fillna(0) <= 0) & (df[cols_conso[-1]].fillna(0) > 0)] if cols_conso else None
+            rupt_df = df[(df["quantite"].fillna(0) <= 0) & (df[_last_conso].fillna(0) > 0)] if _has_lc else None
             if rupt_df is not None and len(rupt_df) > 0:
                 margin_ratio = SECTORAL_MARGIN_RATIO.get(sector_key, 1.5)
                 for _, r in rupt_df.iterrows():
-                    ca_perdu_total += (r.get(cols_conso[-1], 0) / 12) * r.get("prix_unitaire", 0) * margin_ratio
+                    ca_perdu_total += (r.get(_last_conso, 0) / 12) * r.get("prix_unitaire", 0) * margin_ratio
 
         cost_inaction = (cap_mort_total * _poss_rate / 4) + (ca_perdu_total * 3) + surstock_cost
         if cost_inaction > 0:
