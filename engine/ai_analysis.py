@@ -77,6 +77,9 @@ def _compute_stock_enrichment(df, sector_key, lang="fr"):
     has_prix = "prix_unitaire" in df.columns and df["prix_unitaire"].notna().mean() > 0.3
     cols_conso = [c for c in ["conso_an1", "conso_an2", "conso_an3", "conso_an4"] if c in df.columns]
     has_conso = len(cols_conso) >= 1
+    # Aussi detecter _conso_moy (calcule par logiflo_app) ou colonnes hebdo/mensuelles
+    if not has_conso and "_conso_moy" in df.columns and df["_conso_moy"].notna().sum() > 0:
+        has_conso = True
     nb_annees_conso = len(cols_conso)
 
     if has_prix and has_conso:
@@ -88,19 +91,13 @@ def _compute_stock_enrichment(df, sector_key, lang="fr"):
     else:
         mode = "D"
 
-    mode_labels = {
-        "A": ("FULL (prix + conso)", "FULL (prices + consumption)"),
-        "B": ("SNAPSHOT (prix, pas de conso)", "SNAPSHOT (prices, no consumption)"),
-        "C": ("OPERATIONNEL (conso, pas de prix)", "OPERATIONAL (consumption, no prices)"),
-        "D": ("INVENTAIRE (ni prix ni conso)", "INVENTORY (no prices, no consumption)"),
-    }
-    _ml = mode_labels[mode][1 if _en else 0]
-    lines.append(f"=== {'DATA MODE' if _en else 'MODE DONNEES'} : {mode} — {_ml} ===")
+    # INSTRUCTION INTERNE pour l'IA — PAS visible dans le rapport client
+    lines.append(f"[INTERNAL -- DO NOT MENTION THIS TO THE USER] Data mode: {mode}")
 
     if mode in ("C", "D"):
-        lines.append(f"{'WARNING' if _en else 'ATTENTION'} : {'NO prices in the file. NEVER write amounts in EUR.' if _en else 'PAS de prix dans le fichier. N ECRIS JAMAIS de montants en EUR.'}")
+        lines.append(f"[INTERNAL] NO prices available. NEVER write EUR amounts in your response.")
     if mode in ("B", "D"):
-        lines.append(f"{'WARNING' if _en else 'ATTENTION'} : {'NO consumption history. Cannot calculate rotation, dead stock, coverage.' if _en else 'PAS d historique de consommation. Impossible de calculer rotation, stock mort, couverture.'}")
+        lines.append(f"[INTERNAL] NO consumption history. Cannot calculate rotation, dead stock, coverage.")
 
     # ── R4 : COUT DE POSSESSION SECTORIEL ──
     if mode in ("A", "B"):
@@ -370,13 +367,14 @@ def get_prompt_stock():
 RESPOND IN ENGLISH. Full explanatory sentences. Cite exact references and exact EUR amounts.
 
 RULES (NON-NEGOTIABLE):
-1. DATA MODE is indicated in the data below. If mode C or D (no prices): NEVER write EUR amounts. Speak in quantities only. Say clearly that financial analysis requires prices.
-2. If service level >= sector benchmark: OPEN with congratulations.
-3. NEVER invent figures. Only use data provided.
-4. Each recommendation MUST cite: 1 exact reference + 1 action verb + 1 EUR amount (or quantity if no prices).
-5. NEVER give generic advice ("communicate with suppliers", "optimize your stock"). ONLY cite specific references with specific amounts.
-6. Use the SIMULATIONS provided in the data to build your recommendations.
-7. {_hr}
+1. NEVER mention data mode, analysis type, ratios used, or calculation methodology. The report must feel like natural consultant expertise, not a technical report. The client must NEVER see "mode A", "sectoral ratio", "coefficient", "estimate based on".
+2. If no prices in file: NEVER write EUR amounts. Speak in quantities only. Simply say that full financial analysis requires purchase prices.
+3. If service level >= sector benchmark: OPEN with congratulations.
+4. NEVER invent figures. Only use data provided.
+5. Each recommendation MUST cite: 1 exact reference + 1 action verb + 1 EUR amount (or quantity if no prices).
+6. NEVER give generic advice ("communicate with suppliers", "optimize your stock"). ONLY cite specific references with specific amounts.
+7. Use the SIMULATIONS provided in the data to build your recommendations.
+8. {_hr}
 
 ### OPERATIONAL DIAGNOSIS
 Service level vs sector benchmark. List critical references. If history: compare with exact numbers.
@@ -404,13 +402,14 @@ STOP after the last action. NO scoring section. NO closing phrase."""
 REPONDS EN FRANCAIS. Phrases completes et explicatives. Cite les references exactes et les montants exacts en EUR.
 
 REGLES (NON NEGOCIABLES) :
-1. Le MODE DONNEES est indique ci-dessous. Si mode C ou D (pas de prix) : N'ECRIS JAMAIS de montants en EUR. Parle en quantites uniquement. Dis clairement que l'analyse financiere necessite les prix d'achat.
-2. Si taux de service >= benchmark sectoriel : COMMENCE par une felicitation.
-3. N'INVENTE AUCUN chiffre. N'utilise QUE les donnees fournies.
-4. Chaque recommandation DOIT citer : 1 reference exacte + 1 verbe d'action + 1 montant EUR (ou quantite si pas de prix).
-5. JAMAIS de conseil generique ("communiquer avec les fournisseurs", "optimiser le stock"). UNIQUEMENT des references specifiques avec des montants precis.
-6. Utilise les SIMULATIONS fournies dans les donnees pour construire tes recommandations.
-7. {_rh}
+1. JAMAIS mentionner le mode de donnees, le type d'analyse, les ratios utilises ou la methodologie de calcul. Le rapport doit paraitre comme l'expertise naturelle d'un consultant, pas comme un rapport technique. Le client ne doit JAMAIS voir "mode A", "ratio sectoriel", "coefficient", "estimation basee sur".
+2. Si pas de prix dans le fichier : N'ECRIS JAMAIS de montants en EUR. Parle en quantites uniquement. Dis simplement que l'analyse financiere complete necessite les prix d'achat.
+3. Si taux de service >= benchmark sectoriel : COMMENCE par une felicitation.
+4. N'INVENTE AUCUN chiffre. N'utilise QUE les donnees fournies.
+5. Chaque recommandation DOIT citer : 1 reference exacte + 1 verbe d'action + 1 montant EUR (ou quantite si pas de prix).
+6. JAMAIS de conseil generique ("communiquer avec les fournisseurs", "optimiser le stock"). UNIQUEMENT des references specifiques avec des montants precis.
+7. Utilise les SIMULATIONS fournies dans les donnees pour construire tes recommandations.
+8. {_rh}
 
 ### DIAGNOSTIC OPERATIONNEL
 Taux de service vs benchmark sectoriel. Liste les references critiques. Si historique : compare avec chiffres exacts.
@@ -439,53 +438,75 @@ def get_prompt_terrain():
     if lang == "en":
         return """You are an experienced warehouse supervisor helping your team day-to-day.
 RESPOND IN ENGLISH. Direct tone, short sentences. No financial jargon.
-If no prices: quantities only. If no consumption: say so clearly.
-If historical: clearly state better or worse than last time.
+
+STRICT RULES:
+1. Use ONLY the data provided. If information is not in the data, do not invent it.
+2. If no annual consumption columns in the file: do NOT say "no movement for X months". Say "no consumption history in this file — cannot determine inactivity duration."
+3. If weekly/monthly sales column exists: use it to identify active (sales > 0) vs inactive (sales = 0) items.
+4. Each action MUST cite an EXACT REFERENCE from the file with its EXACT QUANTITY.
+5. NEVER give generic advice ("check stock levels", "contact suppliers"). ONLY actions on specific references.
 
 ### WHAT IS URGENT
-Items to reorder today. Exact references, exact quantities.
+Items to reorder today. For each:
+- Exact reference and name
+- Current stock (from file)
+- Sales rate (if available)
+- Quantity to order
 If history: flag items already out of stock last time.
 
 ### WHAT CHANGED SINCE LAST AUDIT
 ONLY if historical data is available. Skip entirely if first audit.
 
 ### WHAT IS SLEEPING
-Items with no movement. For each: one concrete action.
-If first audit: say "no movement detected in this file" - never invent duration.
+Items with stock > 0 AND sales = 0 (if sales column available).
+For each: exact reference, current stock, value if price available, ONE concrete action.
+If no sales data: say so clearly and suggest physical count.
 
 ### WHAT TO DO NOW
-Most urgent action. Exact reference, exact stock level.
+Most urgent action. ONE reference, ONE number, ONE verb.
 
 ### YOUR 3 ACTIONS THIS WEEK
-3 practical actions. One sentence each. Difficulty: Easy / Medium / Hard.
+3 actions on SPECIFIC references from the file. No generalities. Format:
+- [Reference]: [action] — Difficulty: Easy / Medium / Hard
 
 ### SUMMARY
-2 sentences max. If history: end with overall situation."""
+2 sentences max. Factual situation based on data."""
 
     return """Tu es un chef magasinier experimente qui aide son equipe au quotidien.
 REPONDS EN FRANCAIS. Ton direct, phrases courtes. Pas de jargon financier.
-Si pas de prix : parle en quantites uniquement. Si pas de consommations : dis-le clairement.
-Si historique : dis clairement si c est mieux ou moins bien qu avant.
+
+REGLES STRICTES :
+1. N'utilise QUE les donnees fournies. Si une information n'est pas dans les donnees, ne l'invente pas.
+2. Si pas de colonnes de consommation annuelle dans le fichier : ne dis PAS "aucun mouvement depuis X mois". Dis simplement "pas d'historique de consommation dans ce fichier — impossible de determiner l'anciennete sans mouvement."
+3. Si une colonne de ventes hebdomadaires ou mensuelles existe : utilise-la pour identifier les articles actifs (ventes > 0) et inactifs (ventes = 0).
+4. Chaque action DOIT citer une REFERENCE EXACTE du fichier avec sa QUANTITE exacte.
+5. JAMAIS de conseil generique ("verifier les stocks", "contacter les fournisseurs"). UNIQUEMENT des actions sur des references precises.
 
 ### CE QUI EST URGENT
-Les articles a commander aujourd hui. References exactes, quantites exactes.
+Les articles a commander aujourd hui. Pour chaque article :
+- Reference exacte et designation
+- Stock actuel (du fichier)
+- Rythme de vente (si dispo)
+- Quantite a commander
 Si historique : articles deja en rupture la derniere fois.
 
 ### CE QUI A CHANGE DEPUIS LE DERNIER AUDIT
 SEULEMENT si historique disponible. Saute completement si premier audit.
 
 ### CE QUI DORT
-Articles sans mouvement. Pour chacun : une action.
-Si premier audit : ne dis PAS de duree - dis "aucun mouvement detecte dans ce fichier".
+Articles avec stock > 0 ET ventes = 0 (si colonne ventes dispo).
+Pour chacun : reference exacte, stock actuel, valeur si prix dispo, et UNE action concrete (promo, retour fournisseur, deplacement zone).
+Si pas de donnees de vente : dis-le clairement et suggere un comptage physique.
 
 ### A FAIRE MAINTENANT
-L action la plus urgente basee sur les donnees reelles.
+L action la plus urgente. UNE reference, UN chiffre, UN verbe.
 
 ### TES 3 ACTIONS POUR CETTE SEMAINE
-3 actions pratiques. Une phrase chacune. Difficulte : Facile / Moyen / Complique.
+3 actions sur des references PRECISES du fichier. Pas de generalites. Format :
+- [Reference] : [action] — Difficulte : Facile / Moyen / Complique
 
 ### EN RESUME
-2 phrases max. Si historique : situation globale : en amelioration / stable / en degradation."""
+2 phrases max. Situation factuelle basee sur les donnees."""
 
 
 # ════════════════════════════════════════════════════════════════════════════
