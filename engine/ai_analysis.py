@@ -380,14 +380,16 @@ RULES (NON-NEGOTIABLE):
 Service level vs sector benchmark. List critical references. If history: compare with exact numbers.
 
 ### FINANCIAL DIAGNOSIS
-Use data mode provided. If mode A: quantify dead capital, overstock, holding cost with exact EUR. If mode B: capital only. If mode C/D: quantities only, say prices are needed.
+If prices available: quantify dead capital, overstock, holding cost with exact EUR.
+ABSOLUTE RULE: every aggregate amount MUST be followed by the top 3-5 items that compose it, with detail (reference, quantity, unit price, value). The CFO needs to know WHICH items represent these amounts to take action.
+If no prices: quantities only, simply say full financial analysis requires purchase prices.
 If supplier analysis is provided: integrate concentration risks and dead stock by supplier.
 
 ### STOCKOUT PREDICTIONS
 Only if alerts present. Delays < 2 weeks in DAYS, not weeks.
 
 ### TOP 5 PRIORITY ACTIONS
-5 actions ranked by cash impact. Each action = 1 reference + 1 verb + 1 EUR amount. Use simulations from the data.
+5 actions ranked by cash impact. Each action MUST name the specific references (exact name), quantity, EUR amount at stake, and action verb. Use simulations from the data. NEVER an action without a named reference.
 
 ### COST OF INACTION
 If provided in the data, state the 90-day cost clearly.
@@ -415,14 +417,16 @@ REGLES (NON NEGOCIABLES) :
 Taux de service vs benchmark sectoriel. Liste les references critiques. Si historique : compare avec chiffres exacts.
 
 ### DIAGNOSTIC FINANCIER
-Utilise le mode donnees indique. Si mode A : chiffre le capital mort, le surstock, le cout de possession avec EUR exacts. Si mode B : capital seulement. Si mode C/D : quantites seulement, dis que les prix sont necessaires.
+Si prix disponibles : chiffre le capital mort, le surstock, le cout de possession avec EUR exacts.
+REGLE ABSOLUE : chaque montant agrege DOIT etre suivi des 3 a 5 articles principaux qui le composent, avec leur detail (reference, quantite, prix unitaire, valeur). Le DAF a besoin de savoir QUELS articles representent ces montants pour agir.
+Si pas de prix : quantites seulement, dis simplement que l'analyse financiere complete necessite les prix d'achat.
 Si l'analyse fournisseur est fournie : integre les risques de concentration et le stock mort par fournisseur.
 
 ### PREDICTIONS DE RUPTURE
 Uniquement si des alertes sont presentes. Delais < 2 semaines en JOURS, pas en semaines.
 
 ### TOP 5 ACTIONS PRIORITAIRES
-5 actions classees par impact cash. Chaque action = 1 reference + 1 verbe + 1 montant EUR. Utilise les simulations fournies.
+5 actions classees par impact cash. Chaque action DOIT nommer les references concernees (nom exact), la quantite, le montant EUR en jeu, et le verbe d'action. Utilise les simulations fournies. JAMAIS d'action sans reference nommee.
 
 ### COUT DE L INACTION
 Si fourni dans les donnees, enonce clairement le cout a 90 jours.
@@ -463,11 +467,16 @@ For each: exact reference, current stock, value if price available, ONE concrete
 If no sales data: say so clearly and suggest physical count.
 
 ### WHAT TO DO NOW
-Most urgent action. ONE reference, ONE number, ONE verb.
+IF consumption data is present: most urgent action. ONE reference, ONE justified number, ONE verb.
+IF consumption data is ABSENT: do NOT order anything (you don't know the sales rate). Instead write:
+"To calculate reorder needs, add consumption history (Sales_2023, Sales_2024, Sales_2025). Meanwhile, check the [X] items at zero stock: are they active stockouts or discontinued?"
+NEVER invent a quantity to order without consumption data.
 
 ### YOUR 3 ACTIONS THIS WEEK
-3 actions on SPECIFIC references from the file. No generalities. Format:
-- [Reference]: [action] — Difficulty: Easy / Medium / Hard
+3 actions on SPECIFIC references from the file. No generalities.
+IF no consumption data: actions must be verifications (count, move, check with sales team), NOT orders.
+Format:
+- [Exact reference]: [concrete action] — Difficulty: Easy / Medium / Hard
 
 ### SUMMARY
 2 sentences max. Factual situation based on data."""
@@ -499,11 +508,16 @@ Pour chacun : reference exacte, stock actuel, valeur si prix dispo, et UNE actio
 Si pas de donnees de vente : dis-le clairement et suggere un comptage physique.
 
 ### A FAIRE MAINTENANT
-L action la plus urgente. UNE reference, UN chiffre, UN verbe.
+SI les donnees de consommation sont presentes : l'action la plus urgente. UNE reference, UN chiffre justifie, UN verbe.
+SI les donnees de consommation sont ABSENTES : ne commande RIEN (tu ne connais pas le rythme de vente). A la place ecris :
+"Pour calculer vos besoins de reappro, ajoutez l'historique de consommation (Conso_2023, Conso_2024, Conso_2025). En attendant, verifiez les [X] articles a stock zero : sont-ils en rupture active ou en arret de commercialisation ?"
+JAMAIS inventer une quantite a commander sans donnee de consommation.
 
 ### TES 3 ACTIONS POUR CETTE SEMAINE
-3 actions sur des references PRECISES du fichier. Pas de generalites. Format :
-- [Reference] : [action] — Difficulte : Facile / Moyen / Complique
+3 actions sur des references PRECISES du fichier. Pas de generalites.
+SI pas de conso : les actions doivent etre des verifications (compter, deplacer, verifier avec le commercial) pas des commandes.
+Format :
+- [Reference exacte] : [action concrete] — Difficulte : Facile / Moyen / Complique
 
 ### EN RESUME
 2 phrases max. Situation factuelle basee sur les donnees."""
