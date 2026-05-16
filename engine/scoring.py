@@ -1,4 +1,18 @@
+# -*- coding: utf-8 -*-
+"""
+Logiflo - engine/scoring.py
+Version 7.0 (mai 2026) — scoring avec cout de possession sectoriel
+"""
+
 import streamlit as st
+
+SECTORAL_POSSESSION_RATE = {
+    "stock_industrie": 0.20, "stock_distribution": 0.23,
+    "stock_retail": 0.30, "stock_pharma": 0.28,
+    "stock_agroalim": 0.42, "stock_btp": 0.22,
+    "generique": 0.23,
+}
+
 
 def compute_logiflo_score(module, df=None, kpis=None, labels=None,
                            sector_key="generique", lang="fr"):
@@ -37,6 +51,7 @@ def compute_logiflo_score(module, df=None, kpis=None, labels=None,
         d2 = "Stock-out Risk" if lang == "en" else "Risque de rupture"
         details[d2] = s2
 
+        # Resilience : tient compte du stock mort/surstock + cout de possession
         s3 = 70
         if df is not None:
             try:
@@ -44,10 +59,19 @@ def compute_logiflo_score(module, df=None, kpis=None, labels=None,
                 nb_dorm = len(df[df["Statut"].str.contains("Dormant", na=False)]) if "Statut" in df.columns else 0
                 nb_surs = len(df[df["Statut"].str.contains("Surstock", na=False)]) if "Statut" in df.columns else 0
                 taux_anom = ((nb_dorm + nb_surs) / nb_total2) * 100
-                if taux_anom <= 5:    s3 = 100
-                elif taux_anom <= 10: s3 = 75
-                elif taux_anom <= 20: s3 = 50
-                else:                 s3 = 25
+
+                # V7 : ajuster par le cout de possession sectoriel
+                # Plus le taux est haut (agroalim 42%), plus les anomalies coutent cher
+                poss_rate = SECTORAL_POSSESSION_RATE.get(sector_key, 0.23)
+                # Facteur de severite : agroalim (0.42) = 1.8x plus severe que industrie (0.20)
+                severity = poss_rate / 0.23  # normalise autour de 1.0
+                taux_ajuste = taux_anom * severity
+
+                if taux_ajuste <= 5:    s3 = 100
+                elif taux_ajuste <= 10: s3 = 75
+                elif taux_ajuste <= 20: s3 = 50
+                elif taux_ajuste <= 35: s3 = 30
+                else:                   s3 = 15
             except Exception:
                 s3 = 70
         scores["resilience"] = s3
