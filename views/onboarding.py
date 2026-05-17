@@ -91,6 +91,7 @@ def render_onboarding():
             except Exception:
                 pass
             st.session_state.rgpd_ok = True
+            st.session_state._onboarding_done = True
             st.session_state["_user_sector"] = selected_sector
             st.session_state.page = "app"
             st.rerun()
