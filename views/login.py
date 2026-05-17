@@ -74,7 +74,7 @@ def render_login():
                     st.session_state.current_user = email
                     st.session_state.module = "stock"
                     st.session_state._is_free = True
-                    st.session_state.page = "profil"
+                    st.session_state.page = "audit_gratuit"
                     st.rerun()
                 else:
                     st.error("Email invalide" if lang == "fr" else "Invalid email")
