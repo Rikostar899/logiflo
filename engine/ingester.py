@@ -53,6 +53,9 @@ SYNONYMES = {
         "reference", "ref", "article", "code", "sku", "ean", "ean13", "upc",
         "gtin", "produit", "designation", "libelle", "description", "nom",
         "item", "id", "identifiant", "matricule",
+        # E-commerce / marketplace
+        "title", "productname", "itemname", "itemtitle", "productdescription",
+        "listingname", "listingtitle", "name", "product",
         # Variantes courantes
         "codearticle", "codeproduit", "cdarticle", "cdart", "cdproduit",
         "descproduit", "descarticle", "itemcode", "itemno", "itemref",
@@ -72,13 +75,18 @@ SYNONYMES = {
         # Generiques
         "quantite", "qte", "qty", "stock", "stk", "volume", "pieces", "pcs",
         "units", "unit", "unites", "nombre", "nb", "nbre",
-        # Variantes
+        # Variantes stock en main
         "qtstk", "qte_stk", "qtestk", "stockactuel", "stockdispo",
         "stockdisponible", "stockreel", "stockphysique", "niveaustock",
         "qtestock", "qtedispo", "qtedisponible", "qtereel", "qtephysique",
         # Etat stock
         "restant", "solde", "soldedisponible", "encours", "inventaire",
         "disponible", "existant", "existants", "present",
+        # EN: stock on hand (e-commerce + ERP)
+        "available", "availableqty", "qtyavailable", "quantityavailable",
+        "onhand", "qtyonhand", "stockonhand", "instock", "currentstock",
+        "remainingstock", "remaining", "stocktotal", "totalstock",
+        "inventoryqty", "inventoryquantity", "inventory",
         # Unites specifiques
         "metre", "metres", "meter", "meters", "bobine", "bobines", "longueur",
         "longueurstock",
@@ -97,6 +105,10 @@ SYNONYMES = {
         "pmp", "pa", "pu", "pxu", "px_u",
         # Cout (peut etre prix unitaire d'achat)
         "coutunitaire", "coutmoyen", "unitcost", "avgcost",
+        # E-commerce / marketplace
+        "listprice", "sellingprice", "retailprice", "saleprice",
+        "currentprice", "buyitnowprice", "itemprice", "offerprice",
+        "prixvente", "prixpublic", "pvttc", "pvht",
         # Variantes
         "montantunitaire", "achat", "prixfournisseur", "prixbase",
         "baseachat", "priceeuro", "priceeur",
@@ -114,7 +126,23 @@ SYNONYMES = {
     "conso_an4": ["conso2025", "conso25", "consommation2025", "sorties2025",
                    "ventes2025", "c2025", "n0", "nactuel", "annee2025", "a2025",
                    "quantite2025", "qte2025", "cso25", "cso2025",
-                   "sortie2025", "consoactuelle", "consoencoursannee"],
+                   "sortie2025", "consoactuelle", "consoencoursannee",
+                   # EN: sold / consumption (e-commerce, ERP, WMS)
+                   "sold", "itemssold", "unitssold", "totalsold", "qtysold",
+                   "quantitysold", "salesqty", "salescount", "numbersold",
+                   "totalitemssold", "totalunitssold",
+                   # FR: vendu / consomme
+                   "vendu", "vendus", "nbvendu", "nbvendus", "qtevendue",
+                   "quantitevendue", "totalvendu",
+                   # Generique: consommation / sorties / demande
+                   "consumption", "usage", "demand", "output", "outbound",
+                   "consommation", "sorties", "sortie",
+                   # Hebdo / mensuel (sera annualise par logiflo_app)
+                   "venteshebdo", "venteshebdomadaires", "weeklysales",
+                   "ventesmensuelles", "monthlysales", "saleshebdo",
+                   "ventessemaine", "salesperweek", "salespermonth",
+                   "consohebdo", "consomensuelle",
+                   ],
 
     # ─── TRANSPORT ROUTIER (V1) ───────────────────────────────────────────
     "ca": [
@@ -192,6 +220,9 @@ SYNONYMES = {
     # ─── COMMUNS ──────────────────────────────────────────────────────────
     "fournisseur": [
         "fournisseur", "supplier", "vendor", "fournisseurs", "suppliers",
+        # E-commerce / marketplace
+        "brand", "marque", "manufacturer", "fabricant", "maker",
+        "brandname", "nommarque", "marqueproduit",
         "prestataire", "prestataires", "acheteur", "source", "origine",
         "partnername", "vendorname", "suppliername",
         "suppliernamecode", "supplier_name_code",
@@ -754,6 +785,35 @@ def _build_score_matrix(df, concepts):
                     scores["co"][ca_winner] = max(scores["co"][ca_winner] - 8, 0)
                     scores["co"][co_winner] = min(scores["co"][co_winner] + 8, 100)
                     scores["ca"][co_winner] = max(scores["ca"][co_winner] - 8, 0)
+
+    # Booster V7 : desambiguation sold vs available (e-commerce / ERP)
+    # "sold" = consommation, "available" = stock. Jamais l'inverse.
+    _sold_kw = ("sold", "itemssold", "unitssold", "vendu", "vendus", "nbvendu")
+    _avail_kw = ("available", "onhand", "instock", "dispo", "disponible", "stockdispo", "remaining")
+    _conso_stds = [s for s in concepts if s.startswith("conso_")]
+    if "quantite" in concepts and _conso_stds:
+        for col in df.columns:
+            cn = nettoyer(col)
+            # Si le nom de colonne contient un mot "sold" → c'est de la conso, PAS du stock
+            if any(kw in cn for kw in _sold_kw):
+                scores["quantite"][col] = max(scores["quantite"][col] - 40, 0)
+                for cs in _conso_stds:
+                    scores[cs][col] = min(scores[cs][col] + 30, 100)
+            # Si le nom contient "available" → c'est du stock, PAS de la conso
+            if any(kw in cn for kw in _avail_kw):
+                scores["quantite"][col] = min(scores["quantite"][col] + 25, 100)
+                for cs in _conso_stds:
+                    scores[cs][col] = max(scores[cs][col] - 25, 0)
+
+    # Booster V7 : anti-reference pour location/date/texte non-produit
+    _anti_ref_kw = ("location", "lieu", "adresse", "address", "city", "ville",
+                     "country", "pays", "region", "updated", "date", "time",
+                     "created", "modified", "timestamp", "currency", "devise")
+    if "reference" in concepts:
+        for col in df.columns:
+            cn = nettoyer(col)
+            if any(kw in cn for kw in _anti_ref_kw):
+                scores["reference"][col] = max(scores["reference"][col] - 30, 0)
 
     return scores, propres
 
