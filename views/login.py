@@ -45,6 +45,9 @@ def render_login():
                                 st.session_state["language"] = prefs["language"]
                             if prefs.get("seuil_rupture") is not None:
                                 st.session_state["seuil_rupture"] = int(prefs["seuil_rupture"])
+                            if prefs.get("onboarding_done"):
+                                st.session_state["_onboarding_done"] = True
+                                st.session_state["rgpd_ok"] = True
                     except Exception:
                         pass
                     st.session_state.page = "profil"
