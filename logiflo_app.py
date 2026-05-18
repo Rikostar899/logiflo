@@ -10,7 +10,7 @@ for k, v in {
     "seuil_bas": 15, "seuil_rupture": 0,
     "analysis_stock_manager": None, "analysis_stock_terrain": None,
     "last_pdf": None, "last_kpis": [], "last_labels": [],
-    "audit_gratuit_done": False, "rgpd_ok": False, "_is_free": False,
+    "audit_gratuit_done": False, "rgpd_ok": False, "_is_free": False, "_onboarding_done": False,
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
