@@ -82,18 +82,25 @@ def render_workspace():
     # Calculs KPI
     if has_conso:
         df["_conso_moy"] = df["_conso_moy"].fillna(0)
+        # Couverture en mois (pour surstock)
         df["Couverture_mois"] = np.where(df["_conso_moy"] > 0, df["quantite"] / df["_conso_moy"], 9999)
+        # Couverture en semaines (pour rupture imminente)
+        df["_conso_hebdo"] = df["_conso_moy"] / 52
+        df["_couv_semaines"] = np.where(df["_conso_hebdo"] > 0, df["quantite"] / df["_conso_hebdo"], 9999)
+
         df["Statut"] = np.select(
             [(df["quantite"] <= st.session_state.get("seuil_rupture", 0)),
+             (df["quantite"] > 0) & (df["_conso_hebdo"] > 0) & (df["_couv_semaines"] <= 1),
              (df["quantite"] > 0) & (df["_conso_moy"] == 0),
              (df["quantite"] > 0) & (df["Couverture_mois"] > 6)],
-            ["🔴 Rupture", "🔴 Dormant", "🟠 Surstock"], default="🟢 OK")
+            ["🔴 Rupture", "🔴 Rupture Imminente", "🔴 Dormant", "🟠 Surstock"], default="🟢 OK")
     else:
         df["Statut"] = np.where(df["quantite"] <= st.session_state.get("seuil_rupture", 0), "🔴 Rupture", "🟢 OK")
 
     df["valeur_totale"] = df["quantite"] * df["prix_unitaire"]
     val_totale = df["valeur_totale"].sum()
-    ruptures = df[df["Statut"] == "🔴 Rupture"]
+    # Ruptures = stock zero + imminentes (< 1 semaine de couverture)
+    ruptures = df[df["Statut"].str.contains("Rupture", na=False)]
     tx_serv = (1 - len(ruptures) / max(len(df), 1)) * 100
 
     # ══ VUE MANAGER ══
@@ -116,7 +123,8 @@ def _render_manager(df, val_totale, tx_serv, ruptures, sans_prix, has_conso, lan
 
     # Graphiques (dans le dashboard, pas dans le PDF)
     cp, cl2 = st.columns(2)
-    cmap = {"🔴 Rupture": "#E8304A", "🟢 OK": "#00C896", "🔴 Dormant": "#c0392b", "🟠 Surstock": "#f39c12"}
+    cmap = {"🔴 Rupture": "#E8304A", "🔴 Rupture Imminente": "#FF6B6B",
+            "🟢 OK": "#00C896", "🔴 Dormant": "#c0392b", "🟠 Surstock": "#f39c12"}
     with cp:
         fig_pie = px.pie(df, names="Statut", hole=0.4, color="Statut", color_discrete_map=cmap)
         fig_pie.update_layout(paper_bgcolor="rgba(0,0,0,0)")
