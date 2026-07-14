@@ -680,6 +680,51 @@ def _strip_scoring_and_outro(texte, lang="fr"):
     return texte.rstrip() + "\n"
 
 
+def _has_stockout_signal(data_summary, df_raw):
+    """Detecte si une rupture (active ou imminente) est presente dans les donnees.
+    Garde-fou deterministe independant du respect du prompt par l'IA."""
+    try:
+        txt = (data_summary or "").lower()
+        if "rupture" in txt or "stockout" in txt or "imminent" in txt:
+            for m in re.finditer(r'(\d+)\s*(?:article|item|reference|ref)', txt):
+                if int(m.group(1)) > 0:
+                    return True
+            return True
+        if df_raw is not None and "Statut" in getattr(df_raw, "columns", []):
+            if df_raw["Statut"].astype(str).str.contains("Rupture", na=False).any():
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def _strip_congratulations(texte, lang="fr"):
+    """Garde-fou deterministe : retire toute formule de felicitation
+    si une rupture existe dans les donnees, quoi que l'IA ait ecrit."""
+    if not texte:
+        return texte
+    patterns_fr = [
+        r"[Ff]\u00e9licitations?\s*,?\s*", r"[Ee]xcellente?\s+gestion[^.]*\.\s*",
+        r"[Bb]ravo\s*,?\s*", r"[Cc]ela\s+t\u00e9moigne\s+d['\u2019]une\s+(?:excellente|bonne)[^.]*\.\s*",
+    ]
+    patterns_en = [
+        r"[Cc]ongratulations?\s*,?\s*", r"[Gg]reat\s+job[^.]*\.\s*",
+        r"[Ee]xcellent\s+management[^.]*\.\s*",
+    ]
+    out = texte
+    for p in (patterns_fr if lang != "en" else patterns_en):
+        out = re.sub(p, "", out)
+    return out
+
+
+def _strip_scoring_and_outro_safe(texte, lang, data_summary, df_raw):
+    """Post-traitement complet : nettoyage standard + garde-fou anti-felicitation."""
+    texte = _strip_scoring_and_outro(texte, lang)
+    if _has_stockout_signal(data_summary, df_raw):
+        texte = _strip_congratulations(texte, lang)
+    return texte
+
+
 # ════════════════════════════════════════════════════════════════════════════
 # GENERATION ANALYSE IA (point d'entree principal — V7)
 # ════════════════════════════════════════════════════════════════════════════
@@ -781,55 +826,6 @@ def generate_ai_analysis(data_summary, historique_txt="", df_raw=None,
         pass
 
     user_msg = "\n\n".join(parts)
-
-def _has_stockout_signal(data_summary, df_raw):
-    """Detecte si une rupture (active ou imminente) est presente dans les donnees.
-    Garde-fou deterministe independant du respect du prompt par l'IA."""
-    try:
-        txt = (data_summary or "").lower()
-        if any(kw in txt for kw in ("rupture", "stockout", "imminente", "imminent")):
-            # cherche un compte > 0 a proximite des mots-cles (heuristique simple et robuste)
-            import re
-            for m in re.finditer(r'(\d+)\s*(?:article|item|reference|ref)', txt):
-                if int(m.group(1)) > 0:
-                    return True
-            if "rupture" in txt or "stockout" in txt:
-                return True
-        if df_raw is not None and "Statut" in getattr(df_raw, "columns", []):
-            if df_raw["Statut"].astype(str).str.contains("Rupture", na=False).any():
-                return True
-    except Exception:
-        pass
-    return False
-
-
-def _strip_congratulations(texte, lang="fr"):
-    """Garde-fou deterministe : retire toute formule de felicitation
-    si une rupture existe dans les donnees, quoi que l'IA ait ecrit.
-    Ceinture de securite en complement de la regle de prompt (qui peut etre ignoree)."""
-    if not texte:
-        return texte
-    import re
-    patterns_fr = [
-        r"[Ff]\u00e9licitations?\s*,?\s*", r"[Ee]xcellente?\s+gestion[^.]*\.\s*",
-        r"[Bb]ravo\s*,?\s*", r"[Cc]ela\s+t\u00e9moigne\s+d['\u2019]une\s+(?:excellente|bonne)[^.]*\.\s*",
-    ]
-    patterns_en = [
-        r"[Cc]ongratulations?\s*,?\s*", r"[Gg]reat\s+job[^.]*\.\s*",
-        r"[Ee]xcellent\s+management[^.]*\.\s*",
-    ]
-    out = texte
-    for p in (patterns_fr if lang != "en" else patterns_en):
-        out = re.sub(p, "", out)
-    return out
-
-
-def _strip_scoring_and_outro_safe(texte, lang, data_summary, df_raw):
-    texte = _strip_scoring_and_outro(texte, lang)
-    if _has_stockout_signal(data_summary, df_raw):
-        texte = _strip_congratulations(texte, lang)
-    return texte
-
 
     # ── APPEL OPENAI ──
     if client:
