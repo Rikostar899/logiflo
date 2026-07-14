@@ -236,6 +236,19 @@ SYNONYMES = {
         "tripstartdate", "trip_start_date", "shipdate", "shippingdate",
         "datefacture", "datefacturation",
     ],
+    "date_peremption": [
+        # FR
+        "dlc", "ddm", "dluo", "peremption", "datepremption", "dateperemption",
+        "datelimite", "datelimiteconso", "datelimiteconsommation",
+        "datedureeminimale", "datedureevie", "finvalidite", "dateexpiration",
+        "expirationle", "perimele", "aconsommeravant", "aconsommer",
+        # EN
+        "expiry", "expirydate", "expirationdate", "expdate", "exp",
+        "bestbefore", "bestbeforedate", "usebydate", "useby",
+        "sellby", "sellbydate", "shelflife", "validuntil", "validthrough",
+        # Abreviations courtes courantes
+        "exp_date", "exp_dt", "dlc_date", "peremp",
+    ],
     "delai": [
         "delai", "delailivraison", "leadtime", "lt", "lead", "delaifournisseur",
         "delaiapprovisionnement", "delaireapprovisionnement",
@@ -600,6 +613,24 @@ def _score_contenu(series, std):
     sample = series.dropna().head(50)
     if len(sample) == 0:
         return 0
+
+    # ── DATE DE PEREMPTION : score base sur la reconnaissance de format date ──
+    if std == "date_peremption":
+        parsed = pd.to_datetime(sample, errors='coerce', format='ISO8601')
+        if parsed.isna().mean() > 0.5:
+            parsed = pd.to_datetime(sample, errors='coerce', dayfirst=True)
+        pct_valid_date = parsed.notna().mean()
+        if pct_valid_date < 0.5:
+            return 0
+        score = 40 + int(pct_valid_date * 40)
+        # Bonus si les dates sont plausibles pour une peremption (pas 100% dans le passe lointain)
+        try:
+            future_ratio = (parsed.dropna() >= pd.Timestamp.now() - pd.Timedelta(days=730)).mean()
+            if future_ratio > 0.3:
+                score += 10
+        except Exception:
+            pass
+        return max(0, min(score, 100))
 
     cleaned = (
         sample.astype(str)
@@ -1041,15 +1072,18 @@ def smart_ingester_stock_ultime(df, client_ai=None):
         return None, "Le fichier est vide ou ne contient que des lignes vides."
 
     concepts = ["reference", "quantite", "prix_unitaire",
-                "conso_an1", "conso_an2", "conso_an3", "conso_an4"]
+                "conso_an1", "conso_an2", "conso_an3", "conso_an4",
+                "date_peremption"]
 
     scores, propres = _build_score_matrix(df, concepts)
 
     ordre = ["reference", "quantite", "prix_unitaire",
-             "conso_an4", "conso_an3", "conso_an2", "conso_an1"]
+             "conso_an4", "conso_an3", "conso_an2", "conso_an1",
+             "date_peremption"]
     seuils = {
         "reference": 35, "quantite": 55, "prix_unitaire": 55,
         "conso_an4": 55, "conso_an3": 55, "conso_an2": 55, "conso_an1": 55,
+        "date_peremption": 45,
     }
 
     trouvees, utilises = _select_best_columns(scores, propres, ordre, seuils)
@@ -1090,6 +1124,20 @@ def smart_ingester_stock_ultime(df, client_ai=None):
 
     df["_has_conso"] = has_conso
     df["_conso_moy"] = df[conso_cols].mean(axis=1) if has_conso else 0.0
+
+    # ── V8 : DATE DE PEREMPTION ──────────────────────────────────────────
+    has_peremption = False
+    if "date_peremption" in df.columns:
+        _parsed = pd.to_datetime(df["date_peremption"], errors='coerce', format='ISO8601')
+        if _parsed.isna().mean() > 0.5:
+            _parsed = pd.to_datetime(df["date_peremption"], errors='coerce', dayfirst=True)
+        df["date_peremption"] = _parsed
+        # Colonne exploitable si au moins 10% des lignes ont une date valide
+        if df["date_peremption"].notna().mean() >= 0.10:
+            has_peremption = True
+        else:
+            df = df.drop(columns=["date_peremption"])
+    df["_has_peremption"] = has_peremption
 
     _debug_log(f"Stock OK. Colonnes finales : {list(df.columns)[:15]}", "ok")
     return df.copy(), "Succes"
