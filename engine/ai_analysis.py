@@ -445,19 +445,22 @@ RULES (NON-NEGOTIABLE):
 6. Each recommendation MUST cite: 1 exact reference + 1 action verb + 1 EUR amount (or quantity if no prices).
 7. NEVER give generic advice ("communicate with suppliers", "optimize your stock"). ONLY cite specific references with specific amounts.
 8. Use the SIMULATIONS provided in the data to build your recommendations.
-9. {_hr}
+9. SECTION GATING (critical): only write a section if its data block is explicitly present in the provided data. If there is NO "OVERSTOCK" block, you are FORBIDDEN from claiming overstock or naming overstocked items — do NOT repurpose the largest-quantity items as "overstock". If there is NO "DEAD STOCK" block, do not mention dead stock. Absence of a block means that analysis was not computed (often because consumption data is missing) — say nothing rather than inventing it.
+10. EXPIRY vs STOCKOUT are OPPOSITES. Expiry = too much stock held too long (perishable risk). Stockout = not enough stock. NEVER describe an expiring item as an "imminent stockout". They belong to different sections and different logic. Do not mix them in the same sentence.
+11. EVERY amount you cite MUST come from the data. If an item shows "0 EUR" or an amount is not in the data, write "amount to confirm (purchase price needed)" — never "value not specified" next to a total you did report.
+12. {_hr}
 
 ### OPERATIONAL DIAGNOSIS
-Service level vs sector benchmark, stated as fact. If any stockout or imminent stockout alerts exist, lead with them — they take priority over the headline service level number. List critical references. If history: compare with exact numbers.
+Service level vs sector benchmark, stated as fact. If any stockout or imminent stockout alerts exist, lead with them — they take priority over the headline service level number. List critical references. Do NOT mention expiry here (expiry has its own section). If history: compare with exact numbers.
 
 ### FINANCIAL DIAGNOSIS
-If prices available: quantify dead capital, overstock, holding cost with exact EUR.
-ABSOLUTE RULE: every aggregate amount MUST be followed by the top 3-5 items that compose it, with detail (reference, quantity, unit price, value). The CFO needs to know WHICH items represent these amounts to take action.
+If prices available: quantify dead capital, overstock, holding cost with exact EUR — but ONLY for categories that have an explicit data block (see rule 9). If the data has no overstock/dead-stock block, simply report total immobilized capital and its main line items, and stop. Do not fabricate a breakdown.
+ABSOLUTE RULE: every aggregate amount MUST be followed by the top 3-5 items that compose it, with detail (reference, quantity, unit price, value). Amounts must come from the data (rule 11).
 If no prices: quantities only, simply say full financial analysis requires purchase prices.
 If supplier analysis is provided: integrate concentration risks and dead stock by supplier.
 
 ### EXPIRY RISK
-Only if an EXPIRY RISK block is present in the data. List CRITICAL items first (7 days or less), then ALERT, then MONITOR if present. Name each reference, quantity, days remaining, and EUR amount if available. If the data explicitly states consumption was unavailable for this check, say so plainly in one sentence — do not silently assume sell-through speed. Recommend the appropriate action per severity: CRITICAL → immediate promotion or donation, ALERT → featured placement or targeted discount, MONITOR → flag for next order review.
+Only if an EXPIRY RISK block is present in the data. Match each item to the EXACT severity label given in the data block (ALREADY EXPIRED, then CRITICAL, then ALERT, then MONITOR) — do not relabel; if the data says an item expires in 8 days it is NOT in the "7 days or less" bucket, respect the data's own grouping. Name each reference, quantity, days remaining, and EUR amount if available. If the data explicitly states consumption was unavailable for this check, say so plainly in one sentence. Recommend the action per severity: ALREADY EXPIRED → remove from sale / write-off, CRITICAL → immediate promotion or donation, ALERT → featured placement or targeted discount, MONITOR → flag for next order review.
 
 ### STOCKOUT PREDICTIONS
 Only if alerts present. Delays < 2 weeks in DAYS, not weeks.
@@ -486,19 +489,22 @@ REGLES (NON NEGOCIABLES) :
 6. Chaque recommandation DOIT citer : 1 reference exacte + 1 verbe d'action + 1 montant EUR (ou quantite si pas de prix).
 7. JAMAIS de conseil generique ("communiquer avec les fournisseurs", "optimiser le stock"). UNIQUEMENT des references specifiques avec des montants precis.
 8. Utilise les SIMULATIONS fournies dans les donnees pour construire tes recommandations.
-9. {_rh}
+9. CLOISONNEMENT DES SECTIONS (critique) : n'ecris une section QUE si son bloc de donnees est explicitement present. S'il n'y a PAS de bloc "SURSTOCK", il t'est INTERDIT de parler de surstock ou de nommer des articles surstockes — ne detourne PAS les articles aux plus grosses quantites en les qualifiant de "surstock". S'il n'y a PAS de bloc "STOCK MORT", n'en parle pas. L'absence d'un bloc signifie que cette analyse n'a pas ete calculee (souvent parce que la consommation manque) : ne dis rien plutot que d'inventer.
+10. PEREMPTION et RUPTURE sont des OPPOSES. Peremption = trop de stock garde trop longtemps (risque de perte). Rupture = pas assez de stock. Ne decris JAMAIS un article qui perime comme une "rupture imminente". Ils appartiennent a des sections differentes et a des logiques differentes. Ne les melange pas dans la meme phrase.
+11. CHAQUE montant que tu cites DOIT venir des donnees. Si un article affiche "0 EUR" ou qu'un montant n'est pas dans les donnees, ecris "montant a confirmer (prix d'achat requis)" — jamais "valeur non precisee" a cote d'un total que tu as pourtant annonce.
+12. {_rh}
 
 ### DIAGNOSTIC OPERATIONNEL
-Taux de service vs benchmark sectoriel, enonce comme un fait. Si une alerte de rupture ou de rupture imminente existe, commence par elle — elle prime sur le chiffre de taux de service. Liste les references critiques. Si historique : compare avec chiffres exacts.
+Taux de service vs benchmark sectoriel, enonce comme un fait. Si une alerte de rupture ou de rupture imminente existe, commence par elle — elle prime sur le chiffre de taux de service. Liste les references critiques. Ne parle PAS de peremption ici (la peremption a sa propre section). Si historique : compare avec chiffres exacts.
 
 ### DIAGNOSTIC FINANCIER
-Si prix disponibles : chiffre le capital mort, le surstock, le cout de possession avec EUR exacts.
-REGLE ABSOLUE : chaque montant agrege DOIT etre suivi des 3 a 5 articles principaux qui le composent, avec leur detail (reference, quantite, prix unitaire, valeur). Le DAF a besoin de savoir QUELS articles representent ces montants pour agir.
+Si prix disponibles : chiffre le capital mort, le surstock, le cout de possession avec EUR exacts — mais UNIQUEMENT pour les categories qui ont un bloc de donnees explicite (voir regle 9). Si les donnees n'ont pas de bloc surstock/stock mort, contente-toi de rapporter le capital total immobilise et ses principales lignes, puis arrete-toi. N'invente pas de decomposition.
+REGLE ABSOLUE : chaque montant agrege DOIT etre suivi des 3 a 5 articles principaux qui le composent, avec leur detail (reference, quantite, prix unitaire, valeur). Les montants doivent venir des donnees (regle 11).
 Si pas de prix : quantites seulement, dis simplement que l'analyse financiere complete necessite les prix d'achat.
 Si l'analyse fournisseur est fournie : integre les risques de concentration et le stock mort par fournisseur.
 
 ### RISQUE DE PEREMPTION
-Uniquement si un bloc RISQUE DE PEREMPTION est present dans les donnees. Liste d'abord les articles CRITIQUES (7 jours ou moins), puis ALERTE, puis SURVEILLER si present. Nomme chaque reference, la quantite, le nombre de jours restants, et le montant EUR si disponible. Si les donnees precisent explicitement que la consommation etait indisponible pour ce controle, dis-le clairement en une phrase — ne suppose jamais silencieusement la vitesse d'ecoulement. Recommande l'action adaptee a la severite : CRITIQUE → promotion immediate ou don, ALERTE → mise en avant ou remise ciblee, SURVEILLER → a signaler pour la prochaine commande.
+Uniquement si un bloc RISQUE DE PEREMPTION est present dans les donnees. Associe chaque article a l'EXACTE etiquette de severite donnee dans le bloc (DEJA PERIME, puis CRITIQUE, puis ALERTE, puis SURVEILLER) — ne re-etiquette pas ; si les donnees disent qu'un article expire dans 8 jours, il n'est PAS dans la categorie "7 jours ou moins", respecte le regroupement fourni par les donnees. Nomme chaque reference, la quantite, le nombre de jours restants, et le montant EUR si disponible. Si les donnees precisent explicitement que la consommation etait indisponible pour ce controle, dis-le clairement en une phrase. Recommande l'action adaptee a la severite : DEJA PERIME → retrait de la vente / perte a acter, CRITIQUE → promotion immediate ou don, ALERTE → mise en avant ou remise ciblee, SURVEILLER → a signaler pour la prochaine commande.
 
 ### PREDICTIONS DE RUPTURE
 Uniquement si des alertes sont presentes. Delais < 2 semaines en JOURS, pas en semaines.
