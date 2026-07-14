@@ -917,6 +917,34 @@ def _build_score_matrix(df, concepts):
             except Exception:
                 continue
 
+    # ══ GARDE-FOU V8.2 : PURETE NUMERIQUE pour QUANTITE et PRIX ══════════
+    # Un champ numerique (quantite, prix) doit privilegier une colonne
+    # numeriquement PROPRE. Une colonne texte-libre du type "14 packs de 4
+    # + 15 unites" produit des nombres absurdes une fois nettoyee (14415).
+    # Signal le plus fiable : le dtype pandas. Si pandas a lu la colonne comme
+    # float/int, elle est propre. Si object/str, au moins une valeur est du
+    # texte -> risque. On scanne TOUTE la colonne (pas un echantillon) pour
+    # ne pas rater une valeur sale en position lointaine.
+    import pandas.api.types as _ptypes
+    _num_concepts = [c for c in ("quantite", "prix_unitaire") if c in concepts]
+    if _num_concepts:
+        for std in _num_concepts:
+            # Colonnes candidates bien scorees pour ce concept
+            candidates = [c for c in df.columns if scores[std][c] >= 40]
+            # Parmi elles, y a-t-il au moins une colonne numerique NATIVE (float/int) ?
+            native_num = [c for c in candidates if _ptypes.is_numeric_dtype(df[c])]
+            if native_num:
+                # Une colonne propre existe : toute colonne candidate NON-native
+                # (object/str, donc contenant au moins une valeur texte) est
+                # fortement penalisee. Un seul "14 packs de 4" suffit a la
+                # rendre dangereuse (produit des nombres absurdes au nettoyage).
+                for c in candidates:
+                    if not _ptypes.is_numeric_dtype(df[c]):
+                        scores[std][c] = max(int(scores[std][c] * 0.20), 0)
+                # Et on donne un petit bonus aux natives pour trancher les ex-aequo
+                for c in native_num:
+                    scores[std][c] = min(scores[std][c] + 6, 100)
+
     return scores, propres
 
 
