@@ -52,6 +52,35 @@ def render_workspace():
         except UnicodeDecodeError:
             up.seek(0)
             df_brut = pd.read_csv(up, encoding="latin-1")
+        except Exception as e:
+            st.error(f"Erreur lecture fichier : {e}" if lang == "fr" else f"File read error: {e}")
+            pg.done()
+            return
+
+        # Garde-fou : fichier trop gros → échantillonnage
+        MAX_ROWS = 50000
+        if len(df_brut) > MAX_ROWS:
+            st.warning(
+                f"Fichier volumineux ({len(df_brut):,} lignes). Echantillonnage automatique a {MAX_ROWS:,} lignes pour eviter les problemes de memoire."
+                if lang == "fr" else
+                f"Large file ({len(df_brut):,} rows). Auto-sampling to {MAX_ROWS:,} rows to prevent memory issues.")
+            df_brut = df_brut.sample(n=MAX_ROWS, random_state=42).reset_index(drop=True)
+
+        # Garde-fou : détection fichier de transactions (pas un inventaire)
+        _first_col = df_brut.columns[0] if len(df_brut.columns) > 0 else ""
+        _first_low = str(_first_col).lower().replace(" ", "").replace("_", "")
+        _transaction_kw = ("transaction", "order", "commande", "facture", "invoice", "ticket")
+        _has_date_col = any("date" in str(c).lower() for c in df_brut.columns)
+        if any(kw in _first_low for kw in _transaction_kw) and _has_date_col:
+            st.warning(
+                "Ce fichier ressemble a un journal de ventes/transactions, pas a un inventaire stock. "
+                "Logiflo attend 1 ligne par article (reference, stock, prix). "
+                "Un fichier de transactions necessite d'etre agrege par produit avant l'analyse."
+                if lang == "fr" else
+                "This file looks like a sales/transaction log, not a stock inventory. "
+                "Logiflo expects 1 row per item (reference, stock, price). "
+                "A transaction file needs to be aggregated by product before analysis.")
+
         pg.step(_("step_detect"))
         df_propre, statut = smart_ingester_stock_ultime(df_brut, client_ai=client)
         pg.step(_("step_calc"))
@@ -80,6 +109,18 @@ def render_workspace():
         st.markdown(f"<span class='sans-prix-badge'>{_('stock_badge_no_conso')}</span>", unsafe_allow_html=True)
 
     # Calculs KPI
+    has_peremption = bool(df.get("_has_peremption", pd.Series([False])).iloc[0]) if "_has_peremption" in df.columns else False
+
+    # ── Risque de peremption (independant de has_conso, calcule en amont) ──
+    if has_peremption and "date_peremption" in df.columns:
+        _today = pd.Timestamp.now().normalize()
+        df["_jours_avant_peremption"] = (df["date_peremption"] - _today).dt.days
+        df["_perime_critique"] = df["_jours_avant_peremption"].notna() & (df["_jours_avant_peremption"] <= 7) & (df["quantite"] > 0)
+        df["_perime_alerte"] = df["_jours_avant_peremption"].notna() & (df["_jours_avant_peremption"] > 7) & (df["_jours_avant_peremption"] <= 30) & (df["quantite"] > 0)
+    else:
+        df["_perime_critique"] = False
+        df["_perime_alerte"] = False
+
     if has_conso:
         df["_conso_moy"] = df["_conso_moy"].fillna(0)
         # Couverture en mois (pour surstock)
@@ -90,12 +131,19 @@ def render_workspace():
 
         df["Statut"] = np.select(
             [(df["quantite"] <= st.session_state.get("seuil_rupture", 0)),
+             (df["_perime_critique"]),
              (df["quantite"] > 0) & (df["_conso_hebdo"] > 0) & (df["_couv_semaines"] <= 1),
+             (df["_perime_alerte"]),
              (df["quantite"] > 0) & (df["_conso_moy"] == 0),
              (df["quantite"] > 0) & (df["Couverture_mois"] > 6)],
-            ["🔴 Rupture", "🔴 Rupture Imminente", "🔴 Dormant", "🟠 Surstock"], default="🟢 OK")
+            ["🔴 Rupture", "🟡 Péremption Critique", "🔴 Rupture Imminente", "🟡 Péremption Proche",
+             "🔴 Dormant", "🟠 Surstock"], default="🟢 OK")
     else:
-        df["Statut"] = np.where(df["quantite"] <= st.session_state.get("seuil_rupture", 0), "🔴 Rupture", "🟢 OK")
+        df["Statut"] = np.select(
+            [(df["quantite"] <= st.session_state.get("seuil_rupture", 0)),
+             (df["_perime_critique"]),
+             (df["_perime_alerte"])],
+            ["🔴 Rupture", "🟡 Péremption Critique", "🟡 Péremption Proche"], default="🟢 OK")
 
     df["valeur_totale"] = df["quantite"] * df["prix_unitaire"]
     val_totale = df["valeur_totale"].sum()
@@ -113,17 +161,25 @@ def render_workspace():
 
 def _render_manager(df, val_totale, tx_serv, ruptures, sans_prix, has_conso, lang):
     # KPI Cards
-    c1, c2, c3 = st.columns(3)
+    _perim_count = int((df["_perime_critique"] | df["_perime_alerte"]).sum()) if "_perime_critique" in df.columns else 0
+    if _perim_count > 0:
+        c1, c2, c3, c4 = st.columns(4)
+    else:
+        c1, c2, c3 = st.columns(3)
     kpi1_label = _("stock_kpi_capital") if not sans_prix else _("stock_kpi_articles")
     kpi1_val = f"{val_totale:,.0f} EUR" if not sans_prix else str(len(df))
     c1.markdown(f"<div class='kpi-card'><h4>{kpi1_label}</h4><h2 style='color:#0B2545;'>{kpi1_val}</h2></div>", unsafe_allow_html=True)
     c2.markdown(f"<div class='kpi-card'><h4>{_('stock_kpi_service')}</h4><h2 style='color:#00C896;'>{tx_serv:.1f} %</h2></div>", unsafe_allow_html=True)
     c3.markdown(f"<div class='kpi-card'><h4>{_('stock_kpi_rupture')}</h4><h2 style='color:#E8304A;'>{len(ruptures)}</h2></div>", unsafe_allow_html=True)
+    if _perim_count > 0:
+        _lbl_perim = "Expiring soon" if lang == "en" else "Péremption proche"
+        c4.markdown(f"<div class='kpi-card'><h4>{_lbl_perim}</h4><h2 style='color:#E8A800;'>{_perim_count}</h2></div>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
 
     # Graphiques (dans le dashboard, pas dans le PDF)
     cp, cl2 = st.columns(2)
     cmap = {"🔴 Rupture": "#E8304A", "🔴 Rupture Imminente": "#FF6B6B",
+            "🟡 Péremption Critique": "#E8A800", "🟡 Péremption Proche": "#F4C542",
             "🟢 OK": "#00C896", "🔴 Dormant": "#c0392b", "🟠 Surstock": "#f39c12"}
     with cp:
         fig_pie = px.pie(df, names="Statut", hole=0.4, color="Statut", color_discrete_map=cmap)
