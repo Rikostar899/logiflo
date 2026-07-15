@@ -83,9 +83,21 @@ def _format_kpi_val(val, label=""):
 
 def predict_ruptures(df, seuil_rupture=0, lang="fr"):
     if df is None or len(df) == 0: return []
+    # Garde-fou explicite : sans historique de consommation reel, AUCUNE
+    # prediction de rupture n'est possible (une rupture se calcule a partir
+    # d'une vitesse de consommation). On verifie le flag officiel _has_conso.
+    if "_has_conso" in df.columns:
+        try:
+            if not bool(df["_has_conso"].iloc[0]):
+                return []
+        except Exception:
+            return []
     alertes = []
     cols_conso = [c for c in ["conso_an4","conso_an3","conso_an2","conso_an1"] if c in df.columns]
     if not cols_conso: return []
+    # Verifier qu'au moins une colonne conso contient des valeurs > 0
+    if not any((pd.to_numeric(df[c], errors="coerce").fillna(0) > 0).any() for c in cols_conso):
+        return []
     try:
         for _, row in df.iterrows():
             ref   = str(row.get("reference", "?"))
