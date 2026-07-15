@@ -3,27 +3,14 @@
 Logiflo - engine/ingester.py
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Smart Ingester unifie Stock + Transport
-Version 6.1 (mai 2026) — refactor V1 production-ready
+Version 8.3 (juillet 2026) — dtype-guard quantite/prix + peremption + anti-conso-fantome
 
-Strategie V1 :
-- Stock : ouvert (16 secteurs)
-- Transport : ROUTIER UNIQUEMENT (les autres modes sont caches)
-- Detection auto du mode : DESACTIVEE (toujours retourne "routier")
-
-Les autres modes (aerien, maritime, ferroviaire) restent dans le code
-mais ne sont jamais retournes par detect_transport_mode() en V1.
-Reactivation possible en V2/V3.
-
-API publique (signatures preservees) :
-- smart_ingester_stock_ultime(df, client_ai=None)
-- auto_map_columns_with_ai(df, client_ai=None)
-- detect_transport_mode(df, dep, arr, mode)  → retourne TOUJOURS "routier" en V1
-- super_clean(val)
-- nettoyer(t)
-- detect_periode(df)
-- render_debug_logs()
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MARQUEUR DE VERSION (pour verifier le deploiement) :
+LOGIFLO_INGESTER_VERSION = "8.3-dtype-guard"
+Si ce marqueur n'apparait pas dans le fichier deploye sur le serveur,
+c'est que l'ancienne version est encore active.
 """
+LOGIFLO_INGESTER_VERSION = "8.3-dtype-guard"
 
 import streamlit as st
 import pandas as pd
