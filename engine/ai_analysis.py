@@ -874,7 +874,21 @@ def generate_ai_analysis(data_summary, historique_txt="", df_raw=None,
     # Predictions rupture
     try:
         from engine.pdf_gen import predict_ruptures, format_predictions_pour_prompt
-        if module == "stock" and df_raw is not None:
+        # Defense en profondeur : ne JAMAIS predire de rupture sans historique
+        # de consommation reel, meme si une ancienne version de predict_ruptures
+        # (non a jour) ne verifie pas ce garde-fou. On verifie ici, en amont.
+        _conso_ok = True
+        if df_raw is not None:
+            if "_has_conso" in df_raw.columns:
+                try:
+                    _conso_ok = bool(df_raw["_has_conso"].iloc[0])
+                except Exception:
+                    _conso_ok = False
+            else:
+                # Pas de flag : on exige au moins une colonne conso_anN avec des valeurs > 0
+                _cc = [c for c in ["conso_an1", "conso_an2", "conso_an3", "conso_an4"] if c in df_raw.columns]
+                _conso_ok = any((pd.to_numeric(df_raw[c], errors="coerce").fillna(0) > 0).any() for c in _cc) if _cc else False
+        if module == "stock" and df_raw is not None and _conso_ok:
             _alertes = predict_ruptures(df_raw, lang=lang)
             _pred_txt = format_predictions_pour_prompt(_alertes, lang)
             if _pred_txt:
