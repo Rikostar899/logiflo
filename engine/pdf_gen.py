@@ -189,6 +189,29 @@ def compute_alerte_bfr(df, ca_annuel_estime=None, lang="fr"):
 
 
 def render_prediction_rupture(df, lang="fr"):
+    # Garde-fou autonome : une prediction de rupture EXIGE un historique de
+    # consommation reel. On verifie ici, de facon independante, qu'il existe
+    # au moins une colonne conso_anN contenant des valeurs strictement > 0.
+    # Sans cela, on n'affiche RIEN (une rupture ne se predit pas sans vitesse
+    # de consommation). Ce controle est volontairement redondant avec
+    # predict_ruptures pour resister a toute version de fichier non synchronisee.
+    try:
+        _cc = [c for c in ["conso_an1", "conso_an2", "conso_an3", "conso_an4"] if c in df.columns]
+        _has_real_conso = any(
+            (pd.to_numeric(df[c], errors="coerce").fillna(0) > 0).any() for c in _cc
+        ) if _cc else False
+        # Respecter aussi le flag officiel s'il est explicitement a False
+        if "_has_conso" in df.columns:
+            try:
+                if not bool(df["_has_conso"].iloc[0]):
+                    _has_real_conso = False
+            except Exception:
+                _has_real_conso = False
+        if not _has_real_conso:
+            return
+    except Exception:
+        return
+
     alertes = predict_ruptures(df, lang=lang)
     if not alertes: return
     _lbl = "Predictions de rupture -- 4 semaines" if lang=="fr" else "Stockout Predictions -- 4 weeks"
