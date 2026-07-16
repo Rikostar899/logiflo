@@ -1,12 +1,11 @@
 import streamlit as st
 from config.plans import USERS_DB
 from config.translations import _
-from services.supabase_client import load_user_prefs
+from services.supabase_client import load_user_prefs, get_organization
 
 
 def render_login():
     lang = st.session_state.get("language", "fr")
-
     st.markdown(
         '<div style="text-align:center;margin:40px 0 8px;">'
         '<span style="font-family:Syne,sans-serif;font-weight:900;font-size:2.5rem;color:#0B2545;">'
@@ -15,14 +14,12 @@ def render_login():
         f'{"Logistics Intelligence Platform" if lang == "en" else "Plateforme d Intelligence Logistique"}</p>',
         unsafe_allow_html=True,
     )
-
     # Sélecteur de langue
     _c1, lc, _c2 = st.columns([3, 1, 3])
     with lc:
         lang_choice = st.selectbox("", ["🇫🇷 Français", "🇬🇧 English"],
                                    key="lang_login", label_visibility="collapsed")
         st.session_state.language = "en" if "English" in lang_choice else "fr"
-
     _c1, cl, _c2 = st.columns([1, 1.5, 1])
     with cl:
         # Login avec identifiants
@@ -35,33 +32,53 @@ def render_login():
                     st.session_state.auth = True
                     st.session_state.current_user = u
                     st.session_state.module = "stock"
-                    # Charger les prefs
+
+                    # Charger les prefs PERSONNELLES (langue, seuil)
                     try:
                         prefs = load_user_prefs(u)
                         if prefs:
-                            if prefs.get("company_name"):
-                                st.session_state["company_name"] = prefs["company_name"]
                             if prefs.get("language"):
                                 st.session_state["language"] = prefs["language"]
                             if prefs.get("seuil_rupture") is not None:
                                 st.session_state["seuil_rupture"] = int(prefs["seuil_rupture"])
-                            if prefs.get("onboarding_done"):
-                                st.session_state["_onboarding_done"] = True
-                                st.session_state["rgpd_ok"] = True
                     except Exception:
                         pass
-                    st.session_state.page = "profil"
+
+                    # ── DECISION ONBOARDING (source de verite = table organizations) ──
+                    # C'est ici que se regle le bug du secteur redemande : on lit
+                    # l'etat reel en base, pas un flag de session fragile.
+                    try:
+                        org = get_organization(u)
+                    except Exception:
+                        org = None
+
+                    if org and org.get("onboarding_completed"):
+                        # Entreprise deja configuree -> on saute l'onboarding et on
+                        # va directement au choix de profil (Manager / Terrain),
+                        # qui se refait a chaque connexion.
+                        st.session_state["_onboarding_done"] = True
+                        st.session_state["rgpd_ok"] = True
+                        if org.get("sector_key"):
+                            st.session_state["_user_sector"] = org["sector_key"]
+                        if org.get("company_name"):
+                            st.session_state["company_name"] = org["company_name"]
+                        st.session_state.page = "profil"
+                    else:
+                        # Nouvelle entreprise -> onboarding depuis l'etape 1.
+                        # A la fin de l'onboarding, on enchaine sur le choix de profil.
+                        st.session_state["_onboarding_done"] = False
+                        st.session_state.onb_step = 1
+                        st.session_state.page = "onboarding"
+
                     st.rerun()
                 else:
                     st.error(_("login_err"))
-
         # Séparateur
         st.markdown(
             '<div style="text-align:center;font-size:11px;color:rgba(0,0,0,0.3);margin:16px 0;">— '
             f'{"or" if lang == "en" else "ou"} —</div>',
             unsafe_allow_html=True,
         )
-
         # Audit gratuit (email seul)
         with st.form("free_form"):
             email = st.text_input(
