@@ -101,11 +101,65 @@ def render_dashboard():
     except Exception:
         pass
 
-    # News
+    # ── SUIVI DES RECOMMANDATIONS (puces a cocher + barre de progression) ──
+    try:
+        _render_reco_tracking(username, lang)
+    except Exception:
+        pass
+
+    # News — secteur reel du client (plus en dur)
     if can_access("news"):
         try:
-            render_news_widget("stock_distribution", lang=lang)
+            _sector = st.session_state.get("_user_sector") or "stock_distribution"
+            render_news_widget(_sector, lang=lang)
         except Exception:
             pass
     else:
         show_lock("news")
+
+
+def _render_reco_tracking(username, lang):
+    """Affiche les recommandations du dernier audit avec cases a cocher
+    et barre de progression. L'etat des cases persiste dans Supabase."""
+    from services.supabase_client import get_recos, toggle_reco
+
+    recos = get_recos(username)
+    if not recos:
+        return
+
+    done = sum(1 for r in recos if r.get("done"))
+    total = len(recos)
+    pct = int(done / total * 100) if total else 0
+    _clr = "#00C896" if pct == 100 else ("#F39C12" if pct >= 40 else "#E8304A")
+
+    _title = "Suivi de votre plan d'action" if lang == "fr" else "Your action plan tracking"
+    _sub = (f"{done}/{total} actions realisees" if lang == "fr"
+            else f"{done}/{total} actions completed")
+
+    st.markdown(
+        f'<div style="background:white;border:1px solid #E2E8F0;border-radius:14px;'
+        f'padding:18px 22px;margin:16px 0 8px 0;">'
+        f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+        f'<span style="font-size:13px;font-weight:700;color:#0B2545;text-transform:uppercase;letter-spacing:1px;">✅ {_title}</span>'
+        f'<span style="font-size:13px;font-weight:800;color:{_clr};">{pct}%</span></div>'
+        f'<div style="font-size:12px;color:#4A6080;margin-bottom:10px;">{_sub}</div>'
+        f'<div style="height:8px;background:#F0F4F8;border-radius:99px;overflow:hidden;margin-bottom:14px;">'
+        f'<div style="height:100%;width:{pct}%;background:{_clr};border-radius:99px;transition:width .3s;"></div></div>',
+        unsafe_allow_html=True)
+
+    for r in recos:
+        rid = r.get("id")
+        txt = str(r.get("reco_text", ""))
+        montant = r.get("reco_montant")
+        is_done = bool(r.get("done"))
+        # Libelle : texte + montant si present
+        label = txt
+        if montant and float(montant) > 0:
+            label += f"  —  {float(montant):,.0f} EUR"
+        # Checkbox Streamlit : au changement, on persiste
+        new_val = st.checkbox(label, value=is_done, key=f"reco_{rid}")
+        if new_val != is_done:
+            toggle_reco(rid, new_val)
+            st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
