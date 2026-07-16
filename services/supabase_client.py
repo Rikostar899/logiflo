@@ -214,15 +214,16 @@ def save_organization(username, sector_key=None, revenue_bracket=None,
                       employee_count=None, location=None, company_name=None,
                       plan=None):
     """Cree ou met a jour la fiche entreprise d'un utilisateur.
-    Passe onboarding_completed a True. Appelee une seule fois, au clic
-    'Confirmer' du recapitulatif d'onboarding.
+    Passe onboarding_completed a True. Appelee au clic 'Confirmer' de l'onboarding.
 
-    upsert sur owner_user_id : si la ligne existe deja, elle est mise a jour ;
-    sinon elle est creee.
+    Strategie robuste (pas d'upsert on_conflict, qui depend d'une contrainte
+    UNIQUE parfois mal detectee par la lib) : on regarde si la ligne existe,
+    puis UPDATE ou INSERT en consequence. Retourne True seulement si Supabase
+    confirme l'ecriture avec des donnees.
     """
     sb = get_supabase()
     if not sb:
-        _debug_supabase("save_organization : pas de client Supabase")
+        _debug_supabase("save_organization ECHEC : pas de client Supabase")
         return False
     try:
         payload = {
@@ -243,13 +244,35 @@ def save_organization(username, sector_key=None, revenue_bracket=None,
         if plan is not None:
             payload["plan"] = str(plan)
 
-        sb.table("organizations").upsert(
-            payload, on_conflict="owner_user_id"
-        ).execute()
-        _debug_supabase(f"save_organization OK -> user={username} sector={sector_key}")
-        return True
+        # 1. La ligne existe-t-elle deja pour cet utilisateur ?
+        existing = (
+            sb.table("organizations")
+            .select("id")
+            .eq("owner_user_id", str(username))
+            .execute()
+        )
+        row_exists = bool(existing and hasattr(existing, "data") and existing.data)
+
+        if row_exists:
+            resp = (
+                sb.table("organizations")
+                .update(payload)
+                .eq("owner_user_id", str(username))
+                .execute()
+            )
+        else:
+            resp = sb.table("organizations").insert(payload).execute()
+
+        ok = bool(resp and hasattr(resp, "data") and resp.data)
+        if ok:
+            _debug_supabase(f"save_organization OK ({'update' if row_exists else 'insert'}) "
+                            f"-> user={username} sector={sector_key}")
+        else:
+            _debug_supabase(f"save_organization ECHEC : reponse vide -> {resp}")
+        return ok
     except Exception as e:
         _debug_supabase("save_organization EXCEPTION", e)
+        _debug_supabase(traceback.format_exc())
         return False
 
 
