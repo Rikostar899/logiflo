@@ -356,7 +356,6 @@ Version 2.0 (juillet 2026) — refonte multi-etapes
 """
 
 import streamlit as st
-from services.supabase_client import save_organization
 
 # ── LISTES DE REPONSES ───────────────────────────────────────────────────
 # (icone, libelle FR, libelle EN, valeur stockee)
