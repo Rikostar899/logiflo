@@ -249,12 +249,12 @@ def _screen_recap(lang):
                     employee_count=st.session_state.get("onb_employees_sort"),
                     location=st.session_state.get("onb_location"),
                 )
-                # On bascule vers l'app meme si l'ecriture echoue (mode degrade),
-                # mais on garde le secteur en session pour la suite immediate.
+                # On enchaine sur le choix de profil (Manager / Terrain) meme si
+                # l'ecriture echoue (mode degrade), en gardant le secteur en session.
                 st.session_state.rgpd_ok = True
                 st.session_state._onboarding_done = True
                 st.session_state["_user_sector"] = st.session_state.get("onb_sector")
-                st.session_state.page = "app"
+                st.session_state.page = "profil"
                 st.rerun()
 
 
