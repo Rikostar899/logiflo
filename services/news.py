@@ -3,7 +3,7 @@
 Logiflo - services/news.py
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Veille sectorielle (Google RSS + NewsAPI) + widget carousel
-Version 6.1 (mai 2026) — fix env vars + carousel DOM timing
+Version 7.0 (juillet 2026) — carousel via components.html (JS execute)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
 
@@ -148,7 +148,15 @@ def get_sector_news(sector_key, lang="fr"):
 
 
 def render_news_widget(sector_key, lang="fr"):
-    """Affiche le carousel d'actualites sectorielles."""
+    """Affiche le carousel d'actualites sectorielles (defilement auto).
+
+    CHANGEMENT V7 : utilise st.components.v1.html au lieu de st.markdown.
+    st.markdown NE PEUT PAS executer de JavaScript (Streamlit le neutralise),
+    c'est pourquoi le carousel ne defilait pas. components.v1.html execute
+    le JS dans une iframe isolee -> le defilement automatique fonctionne.
+    """
+    import streamlit.components.v1 as _components
+
     news = get_sector_news(sector_key, lang)
     _arts = [
         a for a in (news or [])
@@ -181,7 +189,7 @@ def render_news_widget(sector_key, lang="fr"):
             f'margin-bottom:10px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;'
             f'-webkit-box-orient:vertical;">{_t}</div>'
             f'<div style="font-size:12px;color:#4A6080;line-height:1.65;'
-            f'margin-bottom:14px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:5;'
+            f'margin-bottom:14px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:4;'
             f'-webkit-box-orient:vertical;">{_desc if _desc else _t}</div>'
             f'<div style="display:flex;justify-content:space-between;align-items:center;'
             f'border-top:1px solid #F0F4F8;padding-top:10px;">'
@@ -195,44 +203,45 @@ def render_news_widget(sector_key, lang="fr"):
     _dots = ""
     for i in range(_n):
         _act = " act" if i == 0 else ""
-        _dots += (
-            f'<button class="ndot{_uid}{_act}" '
-            f'onclick="nwG{_uid}({i})"></button>'
-        )
+        _dots += f'<button class="ndot{_uid}{_act}" onclick="nwG{_uid}({i})"></button>'
 
-    # ── CSS ──
-    _style_block = f"""<style>
-#nw{_uid}{{overflow:hidden;border-radius:12px;box-shadow:0 2px 16px rgba(11,37,69,0.08);}}
-#ntr{_uid}{{display:flex;transition:transform 0.5s ease;will-change:transform;}}
-.ns{_uid}:hover{{background:#F0FDF9 !important;}}
-#nd{_uid}{{display:flex;gap:6px;justify-content:center;padding:10px 0;}}
-.ndot{_uid}{{width:7px;height:7px;border-radius:50%;background:#E2E8F0;transition:all 0.3s;cursor:pointer;border:none;padding:0;}}
-.ndot{_uid}.act{{background:#00C896;width:20px;border-radius:4px;}}
-</style>"""
+    _title_html = (
+        f'<div style="font-size:11px;font-weight:700;color:#4A6080;letter-spacing:2px;'
+        f'text-transform:uppercase;margin-bottom:10px;font-family:sans-serif;">'
+        f'&#128240; {_lbl}</div>'
+    )
 
-    # ── JS (avec attente DOM Streamlit) ──
-    _script_block = f"""<script>
-(function _initCarousel{_uid}(){{
+    # ── HTML COMPLET autonome (styles + cards + dots + script) ──
+    _full = f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+  * {{ font-family:'Syne',-apple-system,BlinkMacSystemFont,sans-serif; box-sizing:border-box; }}
+  body {{ margin:0; padding:0; background:transparent; }}
+  #nw{_uid} {{ overflow:hidden; border-radius:12px; box-shadow:0 2px 16px rgba(11,37,69,0.08); }}
+  #ntr{_uid} {{ display:flex; transition:transform 0.5s ease; will-change:transform; }}
+  .ns{_uid}:hover {{ background:#F0FDF9 !important; }}
+  #nd{_uid} {{ display:flex; gap:6px; justify-content:center; padding:12px 0 4px 0; }}
+  .ndot{_uid} {{ width:7px; height:7px; border-radius:50%; background:#E2E8F0;
+                 transition:all 0.3s; cursor:pointer; border:none; padding:0; }}
+  .ndot{_uid}.act {{ background:#00C896; width:20px; border-radius:4px; }}
+</style></head>
+<body>
+  {_title_html}
+  <div id="nw{_uid}"><div id="ntr{_uid}">{_cards}</div></div>
+  <div id="nd{_uid}">{_dots}</div>
+<script>
+(function(){{
   var tr=document.getElementById("ntr{_uid}");
-  if(!tr){{setTimeout(_initCarousel{_uid},200);return;}}
   var c=0,n={_n};
   var ds=document.querySelectorAll("#nd{_uid} .ndot{_uid}");
-  function go(i){{c=i;tr.style.transform='translateX(-'+i*100+'%)';
-    ds.forEach(function(d,j){{d.classList.toggle('act',j===i);}});}}
+  function go(i){{
+    c=i;
+    tr.style.transform='translateX(-'+(i*100)+'%)';
+    for(var j=0;j<ds.length;j++){{ds[j].classList.toggle('act',j===i);}}
+  }}
   window["nwG{_uid}"]=go;
   setInterval(function(){{go((c+1)%n);}},5000);
 }})();
-</script>"""
+</script>
+</body></html>"""
 
-    # ── Assemblage ──
-    _html_full = (
-        f'<div style="font-size:11px;font-weight:700;color:#4A6080;letter-spacing:2px;'
-        f'text-transform:uppercase;margin-bottom:10px;margin-top:20px;">'
-        f'📰 {_lbl}</div>'
-        + _style_block
-        + f'<div id="nw{_uid}"><div id="ntr{_uid}">{_cards}</div></div>'
-        + f'<div id="nd{_uid}">{_dots}</div>'
-        + _script_block
-    )
-
-    st.markdown(_html_full, unsafe_allow_html=True)
+    _components.html(_full, height=290, scrolling=False)
