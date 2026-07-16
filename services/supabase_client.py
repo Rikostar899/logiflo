@@ -443,3 +443,142 @@ def get_historique_audits(username, module, n=6, current_kpis=None, current_labe
         }
     except Exception:
         return None
+
+
+# ════════════════════════════════════════════════════════════════════════
+# SUIVI DES RECOMMANDATIONS (table reco_tracking)
+# ════════════════════════════════════════════════════════════════════════
+
+def _extract_recos_from_report(resume_ia, lang="fr"):
+    """Extrait les 5 actions prioritaires depuis le texte du rapport IA.
+    Retourne une liste de dicts {text, montant}. Best-effort : si le parsing
+    echoue, retourne une liste vide (pas de suivi ce coup-ci, pas de crash)."""
+    import re as _re
+    if not resume_ia:
+        return []
+    txt = str(resume_ia)
+
+    # Reperer la section TOP 5 ACTIONS (FR ou EN)
+    markers = ["TOP 5 ACTIONS", "TOP 5 PRIORITY", "ACTIONS PRIORITAIRES",
+               "PRIORITY ACTIONS", "PLAN D'ACTION", "ACTION PLAN"]
+    start = -1
+    for m in markers:
+        i = txt.upper().find(m)
+        if i >= 0:
+            start = i
+            break
+    if start < 0:
+        return []
+
+    # On coupe apres la section (jusqu'a COUT DE L'INACTION ou fin)
+    section = txt[start:]
+    for stop in ["COUT DE L", "COST OF INACTION", "\n\n\n"]:
+        j = section.upper().find(stop, 20)
+        if j > 0:
+            section = section[:j]
+            break
+
+    recos = []
+    # Detecter les lignes numerotees (1. / 2. / - / •) avec du contenu
+    lines = section.split("\n")
+    for line in lines:
+        line = line.strip()
+        if not line or len(line) < 12:
+            continue
+        # Ligne d'action = commence par un chiffre, tiret ou puce
+        if _re.match(r'^(\d+[\.\)]|\-|\*|•)\s*', line):
+            clean = _re.sub(r'^(\d+[\.\)]|\-|\*|•)\s*', '', line).strip()
+            clean = _re.sub(r'\*\*', '', clean)  # retirer markdown gras
+            if len(clean) < 10:
+                continue
+            # Extraire un montant EUR si present
+            montant = None
+            mm = _re.search(r'([\d\s\.,]+)\s*(?:EUR|€)', clean)
+            if mm:
+                try:
+                    montant = float(mm.group(1).replace(" ", "").replace(",", "").replace(".", "")[:9] or 0)
+                    # heuristique : si le nombre a des decimales type 1.234,56 on simplifie
+                    raw = mm.group(1).replace(" ", "")
+                    montant = float(_re.sub(r'[^\d]', '', raw) or 0)
+                except Exception:
+                    montant = None
+            recos.append({"text": clean[:300], "montant": montant})
+        if len(recos) >= 5:
+            break
+    return recos
+
+
+def save_recos(username, resume_ia, audit_date=None, lang="fr"):
+    """Extrait et enregistre les recommandations du dernier audit.
+    Remplace les recos precedentes de l'utilisateur (option simple :
+    on suit les recos de l'audit courant)."""
+    sb = get_supabase()
+    if not sb:
+        return False
+    try:
+        recos = _extract_recos_from_report(resume_ia, lang)
+        if not recos:
+            return False
+
+        # On efface les anciennes recos de cet utilisateur (suivi = audit courant)
+        try:
+            sb.table("reco_tracking").delete().eq("owner_user_id", str(username)).execute()
+        except Exception:
+            pass
+
+        _date = audit_date or datetime.date.today().strftime("%d/%m/%Y")
+        rows = []
+        for r in recos:
+            import hashlib
+            h = hashlib.md5(r["text"].encode("utf-8")).hexdigest()[:16]
+            rows.append({
+                "owner_user_id": str(username),
+                "reco_text": r["text"],
+                "reco_montant": r["montant"],
+                "reco_hash": h,
+                "done": False,
+                "audit_date": _date,
+            })
+        sb.table("reco_tracking").insert(rows).execute()
+        _debug_supabase(f"save_recos OK -> {len(rows)} recos pour user={username}")
+        return True
+    except Exception as e:
+        _debug_supabase("save_recos EXCEPTION", e)
+        return False
+
+
+def get_recos(username):
+    """Recupere les recommandations suivies d'un utilisateur (ordre d'insertion)."""
+    sb = get_supabase()
+    if not sb:
+        return []
+    try:
+        resp = (
+            sb.table("reco_tracking")
+            .select("*")
+            .eq("owner_user_id", str(username))
+            .order("created_at", desc=False)
+            .execute()
+        )
+        if resp and hasattr(resp, "data") and resp.data:
+            return resp.data
+        return []
+    except Exception as e:
+        _debug_supabase("get_recos EXCEPTION", e)
+        return []
+
+
+def toggle_reco(reco_id, done):
+    """Coche/decoche une recommandation (persiste dans Supabase)."""
+    sb = get_supabase()
+    if not sb:
+        return False
+    try:
+        sb.table("reco_tracking").update({
+            "done": bool(done),
+            "updated_at": datetime.datetime.now().isoformat(),
+        }).eq("id", reco_id).execute()
+        return True
+    except Exception as e:
+        _debug_supabase("toggle_reco EXCEPTION", e)
+        return False
