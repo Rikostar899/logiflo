@@ -1,6 +1,5 @@
 import streamlit as st
 from config.translations import _
-from services.supabase_client import load_user_prefs
 
 
 def render_profil():
@@ -30,21 +29,8 @@ def render_profil():
 
 
 def _go_next():
-    if st.session_state.get("_onboarding_done"):
-        st.session_state.page = "app"
-        st.session_state.rgpd_ok = True
-        st.rerun()
-        return
-    user = st.session_state.get("current_user", "")
-    try:
-        prefs = load_user_prefs(user)
-        if prefs and prefs.get("onboarding_done"):
-            st.session_state._onboarding_done = True
-            st.session_state.rgpd_ok = True
-            st.session_state.page = "app"
-            st.rerun()
-            return
-    except Exception:
-        pass
-    st.session_state.page = "onboarding"
+    # A ce stade, l'onboarding est DEJA regle au login (via get_organization).
+    # Le choix Manager/Terrain vient de se faire -> on entre dans l'app.
+    st.session_state.rgpd_ok = True
+    st.session_state.page = "app"
     st.rerun()
