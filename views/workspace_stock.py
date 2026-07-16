@@ -341,19 +341,47 @@ def _render_scoring(df, lang):
             sector_key=detect_sector(df=df, module="stock"), lang=lang)
         _global = _score.get("global", 0)
         _details = _score.get("details", {})
+        _reliability = _score.get("reliability", 100)
+        _capped = _score.get("legal_capped", False)
+        _nb_perime = _score.get("nb_deja_perime", 0)
         _clr = "#00C896" if _global >= 70 else ("#F39C12" if _global >= 40 else "#E8304A")
+
+        # ── Carte score global ──
         st.markdown(
             f'<div style="background:white;border:1px solid #E2E8F0;border-radius:12px;padding:18px 22px;margin:16px 0;">'
             f'<div style="font-size:13px;font-weight:700;color:#0B2545;margin-bottom:14px;text-transform:uppercase;letter-spacing:1px;">Scoring Logiflo</div>'
+            f'<div style="display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;">'
             f'<div style="font-family:Syne,sans-serif;font-size:48px;font-weight:800;color:{_clr};line-height:1;">{_global}<span style="font-size:18px;color:#4A6080;">/100</span></div>'
+            f'<div style="font-size:12px;color:#4A6080;">'
+            f'{"Analysis reliability" if lang == "en" else "Fiabilite de l analyse"} : '
+            f'<span style="font-weight:700;color:{"#00C896" if _reliability >= 70 else "#F39C12" if _reliability >= 40 else "#E8304A"};">{_reliability}%</span></div>'
+            f'</div>'
             f'<div style="height:8px;background:#F0F4F8;border-radius:99px;overflow:hidden;margin:12px 0;">'
             f'<div style="height:100%;width:{_global}%;background:{_clr};border-radius:99px;"></div></div>',
             unsafe_allow_html=True)
+
+        # ── Bandeau plafond legal ──
+        if _capped:
+            _msg = (f"⚠️ Score plafonne : {_nb_perime} reference(s) deja perimee(s) en stock "
+                    f"— risque de conformite (Code de la consommation / DGCCRF). "
+                    f"A retirer de la vente en priorite."
+                    if lang == "fr" else
+                    f"⚠️ Score capped: {_nb_perime} already-expired reference(s) in stock "
+                    f"— compliance risk. Remove from sale as a priority.")
+            st.markdown(
+                f'<div style="background:#FDECEC;border:1px solid #E8304A;border-radius:8px;'
+                f'padding:12px 16px;margin:4px 0 12px 0;font-size:12.5px;color:#B02030;font-weight:600;">'
+                f'{_msg}</div>',
+                unsafe_allow_html=True)
+
+        # ── Sous-scores ──
         for lbl, val in _details.items():
+            _is_pct = "iabilit" in lbl or "eliabilit" in lbl  # fiabilite/reliability en %
             dc = "#00C896" if val >= 70 else ("#F39C12" if val >= 40 else "#E8304A")
+            _unit = "%" if _is_pct else "/100"
             st.markdown(
                 f'<div style="margin-bottom:8px;"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">'
-                f'<span style="color:#4A6080;">{lbl}</span><span style="color:{dc};font-weight:700;">{val}/100</span></div>'
+                f'<span style="color:#4A6080;">{lbl}</span><span style="color:{dc};font-weight:700;">{val}{_unit}</span></div>'
                 f'<div style="height:5px;background:#F0F4F8;border-radius:99px;overflow:hidden;">'
                 f'<div style="height:100%;width:{val}%;background:{dc};border-radius:99px;"></div></div></div>',
                 unsafe_allow_html=True)
