@@ -115,9 +115,11 @@ def render_workspace():
     if has_peremption and "date_peremption" in df.columns:
         _today = pd.Timestamp.now().normalize()
         df["_jours_avant_peremption"] = (df["date_peremption"] - _today).dt.days
-        df["_perime_critique"] = df["_jours_avant_peremption"].notna() & (df["_jours_avant_peremption"] <= 7) & (df["quantite"] > 0)
+        df["_deja_perime"] = df["_jours_avant_peremption"].notna() & (df["_jours_avant_peremption"] < 0) & (df["quantite"] > 0)
+        df["_perime_critique"] = df["_jours_avant_peremption"].notna() & (df["_jours_avant_peremption"] >= 0) & (df["_jours_avant_peremption"] <= 7) & (df["quantite"] > 0)
         df["_perime_alerte"] = df["_jours_avant_peremption"].notna() & (df["_jours_avant_peremption"] > 7) & (df["_jours_avant_peremption"] <= 30) & (df["quantite"] > 0)
     else:
+        df["_deja_perime"] = False
         df["_perime_critique"] = False
         df["_perime_alerte"] = False
 
@@ -130,20 +132,22 @@ def render_workspace():
         df["_couv_semaines"] = np.where(df["_conso_hebdo"] > 0, df["quantite"] / df["_conso_hebdo"], 9999)
 
         df["Statut"] = np.select(
-            [(df["quantite"] <= st.session_state.get("seuil_rupture", 0)),
+            [(df["_deja_perime"]),
+             (df["quantite"] <= st.session_state.get("seuil_rupture", 0)),
              (df["_perime_critique"]),
              (df["quantite"] > 0) & (df["_conso_hebdo"] > 0) & (df["_couv_semaines"] <= 1),
              (df["_perime_alerte"]),
              (df["quantite"] > 0) & (df["_conso_moy"] == 0),
              (df["quantite"] > 0) & (df["Couverture_mois"] > 6)],
-            ["🔴 Rupture", "🟡 Péremption Critique", "🔴 Rupture Imminente", "🟡 Péremption Proche",
+            ["⛔ Périmé", "🔴 Rupture", "🟡 Péremption Critique", "🔴 Rupture Imminente", "🟡 Péremption Proche",
              "🔴 Dormant", "🟠 Surstock"], default="🟢 OK")
     else:
         df["Statut"] = np.select(
-            [(df["quantite"] <= st.session_state.get("seuil_rupture", 0)),
+            [(df["_deja_perime"]),
+             (df["quantite"] <= st.session_state.get("seuil_rupture", 0)),
              (df["_perime_critique"]),
              (df["_perime_alerte"])],
-            ["🔴 Rupture", "🟡 Péremption Critique", "🟡 Péremption Proche"], default="🟢 OK")
+            ["⛔ Périmé", "🔴 Rupture", "🟡 Péremption Critique", "🟡 Péremption Proche"], default="🟢 OK")
 
     df["valeur_totale"] = df["quantite"] * df["prix_unitaire"]
     val_totale = df["valeur_totale"].sum()
@@ -161,7 +165,7 @@ def render_workspace():
 
 def _render_manager(df, val_totale, tx_serv, ruptures, sans_prix, has_conso, lang):
     # KPI Cards
-    _perim_count = int((df["_perime_critique"] | df["_perime_alerte"]).sum()) if "_perime_critique" in df.columns else 0
+    _perim_count = int((df.get("_deja_perime", False) | df["_perime_critique"] | df["_perime_alerte"]).sum()) if "_perime_critique" in df.columns else 0
     if _perim_count > 0:
         c1, c2, c3, c4 = st.columns(4)
     else:
@@ -178,7 +182,7 @@ def _render_manager(df, val_totale, tx_serv, ruptures, sans_prix, has_conso, lan
 
     # Graphiques (dans le dashboard, pas dans le PDF)
     cp, cl2 = st.columns(2)
-    cmap = {"🔴 Rupture": "#E8304A", "🔴 Rupture Imminente": "#FF6B6B",
+    cmap = {"⛔ Périmé": "#6B0F1A", "🔴 Rupture": "#E8304A", "🔴 Rupture Imminente": "#FF6B6B",
             "🟡 Péremption Critique": "#E8A800", "🟡 Péremption Proche": "#F4C542",
             "🟢 OK": "#00C896", "🔴 Dormant": "#c0392b", "🟠 Surstock": "#f39c12"}
     with cp:
@@ -230,11 +234,30 @@ def _render_manager(df, val_totale, tx_serv, ruptures, sans_prix, has_conso, lan
         st.session_state.last_kpis = _kpis
         st.session_state.last_labels = _labels
 
-        # Data summary
-        df_tox = df[df["Statut"].isin(["🔴 Dormant", "🟠 Surstock"])]
-        pires = df_tox.nlargest(3, "quantite") if not df_tox.empty else df.nlargest(3, "quantite")
-        top_str = ", ".join([f"{r['reference']} (qty:{r['quantite']:.0f})" for _, r in pires.iterrows()])
-        med = "" if not has_conso else f" Avg conso: {df['_conso_moy'].mean():.1f}."
+        # Data summary — labels EXPLICITES pour eviter que l'IA interprete
+        # les gros articles comme du "surstock" quand il n'y a pas de conso.
+        if has_conso:
+            df_tox = df[df["Statut"].isin(["🔴 Dormant", "🟠 Surstock"])]
+            if not df_tox.empty:
+                pires = df_tox.nlargest(3, "quantite")
+                top_str = "OVERSTOCK/DEAD items: " + ", ".join(
+                    [f"{r['reference']} (qty:{r['quantite']:.0f})" for _, r in pires.iterrows()])
+            else:
+                top_str = "No overstock or dead-stock detected."
+            med = f" Avg annual consumption available: {df['_conso_moy'].mean():.1f}."
+        else:
+            # SANS conso : pas de surstock possible. On donne les plus gros
+            # postes de CAPITAL, clairement etiquetes comme tels (pas surstock).
+            top_cap = df.copy()
+            if not sans_prix:
+                top_cap["_v"] = top_cap["quantite"] * top_cap["prix_unitaire"]
+                pires = top_cap.nlargest(3, "_v")
+                top_str = "LARGEST CAPITAL lines (NOT overstock — no consumption data to judge rotation): " + ", ".join(
+                    [f"{r['reference']} ({r['_v']:.0f} EUR)" for _, r in pires.iterrows()])
+            else:
+                top_str = "Largest-quantity items (NOT overstock — no consumption data): " + ", ".join(
+                    [f"{r['reference']} (qty:{r['quantite']:.0f})" for _, r in df.nlargest(3, "quantite").iterrows()])
+            med = " No consumption history: overstock, dead stock and stockout predictions CANNOT be computed. Do not mention them."
         prix = "" if sans_prix else f" Capital: {val_totale:.0f} EUR."
 
         pg2.step(_("step_ia"))
@@ -286,6 +309,8 @@ def _render_terrain(df, tx_serv, ruptures, has_conso, lang):
         pg3.step(_("step_read"))
         top_c = df.nsmallest(5, "quantite")
         top_s = ", ".join([f"{r['reference']} ({r['quantite']:.0f})" for _, r in top_c.iterrows()])
+        _conso_note = ("" if has_conso else
+                       " NO consumption/sales history: cannot compute what is sleeping, rotation, or reorder needs. Do not invent sales rates or stockout predictions.")
         pg3.step(_("step_ia"))
         _kpis_t = [float(len(df)), float(len(ruptures)), tx_serv]
         _labels_t = ["Articles", "Ruptures", "Service %"]
@@ -293,7 +318,7 @@ def _render_terrain(df, tx_serv, ruptures, has_conso, lang):
                                         current_kpis=_kpis_t, current_labels=_labels_t)
         _hist_txt_t = format_historique_pour_prompt(_hist_t, "terrain", lang)
         st.session_state.analysis_stock_terrain = generate_ai_analysis(
-            f"Field stock: {len(df)} refs. Stockouts: {len(ruptures)}. Lowest: {top_s}.",
+            f"Field stock: {len(df)} refs. Stockouts: {len(ruptures)}. Lowest qty: {top_s}.{_conso_note}",
             historique_txt=_hist_txt_t, df_raw=df,
             sector_key=detect_sector(df=df, module="stock"))
         pg3.done()
