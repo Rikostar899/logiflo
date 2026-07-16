@@ -12,7 +12,7 @@ from engine.ai_analysis import generate_ai_analysis, format_historique_pour_prom
 from engine.scoring import compute_logiflo_score
 from engine.pdf_gen import (generate_expert_pdf, render_prediction_rupture,
                              predict_ruptures, compute_alerte_bfr)
-from services.supabase_client import save_audit_to_sheets, get_historique_audits
+from services.supabase_client import save_audit_to_sheets, get_historique_audits, save_recos
 from components.helpers import render_report, StepProgress
 
 # Client OpenAI (peut etre None)
@@ -215,6 +215,13 @@ def _render_manager(df, val_totale, tx_serv, ruptures, sans_prix, has_conso, lan
                 st.session_state.get("analysis_stock_manager", ""),
                 st.session_state.get("last_pdf", b""),
             )
+            # Extraire et suivre les recommandations du rapport (pour le dashboard)
+            try:
+                _resume = st.session_state.get("analysis_stock_manager", "")
+                if _resume:
+                    save_recos(st.session_state.current_user, _resume, lang=lang)
+            except Exception:
+                pass
             st.success(_("stock_saved") if ok else _("stock_save_err"))
 
     # Prédictions rupture
