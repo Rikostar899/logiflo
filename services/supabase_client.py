@@ -344,3 +344,83 @@ def get_historique_audits(username, module, n=6, current_kpis=None, current_labe
         }
     except Exception:
         return None
+# ════════════════════════════════════════════════════════════════════════
+# FONCTIONS À AJOUTER dans services/supabase_client.py
+# (à coller à la fin du fichier, avant get_historique_audits ou après —
+#  l'ordre n'a pas d'importance, ce sont des fonctions indépendantes)
+# ════════════════════════════════════════════════════════════════════════
+
+
+def get_organization(username):
+    """Recupere la fiche entreprise d'un utilisateur depuis la table organizations.
+    Retourne un dict avec les infos de l'entreprise, ou None si elle n'existe pas
+    (= l'utilisateur n'a jamais fait l'onboarding).
+
+    C'est cette fonction que le routeur appelle a chaque connexion pour decider :
+    - None ou onboarding_completed=False  -> montrer l'onboarding
+    - onboarding_completed=True           -> aller directement a l'app
+    """
+    sb = get_supabase()
+    if not sb:
+        return None
+    try:
+        resp = (
+            sb.table("organizations")
+            .select("*")
+            .eq("owner_user_id", str(username))
+            .execute()
+        )
+        if resp and hasattr(resp, "data") and resp.data:
+            _debug_supabase(f"get_organization OK -> user={username}")
+            return resp.data[0]
+        _debug_supabase(f"get_organization vide -> user={username} (pas d'onboarding)")
+        return None
+    except Exception as e:
+        _debug_supabase("get_organization EXCEPTION", e)
+        return None
+
+
+def save_organization(username, sector_key=None, revenue_bracket=None,
+                      employee_count=None, location=None, company_name=None,
+                      plan=None):
+    """Cree ou met a jour la fiche entreprise d'un utilisateur.
+    Passe onboarding_completed a True. Appelee une seule fois, au clic
+    'Confirmer' du recapitulatif d'onboarding.
+
+    upsert sur owner_user_id : si la ligne existe deja, elle est mise a jour ;
+    sinon elle est creee. Grace a la contrainte UNIQUE sur owner_user_id,
+    un utilisateur ne peut avoir qu'une seule fiche entreprise.
+    """
+    sb = get_supabase()
+    if not sb:
+        _debug_supabase("save_organization : pas de client Supabase")
+        return False
+    try:
+        payload = {
+            "owner_user_id": str(username),
+            "onboarding_completed": True,
+            "updated_at": datetime.datetime.now().isoformat(),
+        }
+        # On n'ajoute que les champs reellement fournis (evite d'ecraser
+        # avec des None si on rappelle la fonction plus tard)
+        if sector_key is not None:
+            payload["sector_key"] = str(sector_key)
+        if revenue_bracket is not None:
+            payload["revenue_bracket"] = str(revenue_bracket)
+        if employee_count is not None:
+            payload["employee_count"] = int(employee_count)
+        if location is not None:
+            payload["location"] = str(location)
+        if company_name is not None:
+            payload["company_name"] = str(company_name)
+        if plan is not None:
+            payload["plan"] = str(plan)
+
+        sb.table("organizations").upsert(
+            payload, on_conflict="owner_user_id"
+        ).execute()
+        _debug_supabase(f"save_organization OK -> user={username} sector={sector_key}")
+        return True
+    except Exception as e:
+        _debug_supabase("save_organization EXCEPTION", e)
+        return False
