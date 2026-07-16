@@ -340,61 +340,78 @@ def _compute_stock_enrichment(df, sector_key, lang="fr"):
         if len(df_perim) > 0:
             df_perim["_jours_avant_peremption"] = (df_perim["date_peremption"] - _today).dt.days
 
+            # Helper : formate une ligne article de facon coherente
+            def _fmt_item(r, deja_perime=False):
+                j = int(r["_jours_avant_peremption"])
+                if has_prix and pd.notna(r.get("prix_unitaire")) and r.get("prix_unitaire", 0) > 0:
+                    _mnt = f", {r['quantite']*r['prix_unitaire']:,.0f} EUR"
+                else:
+                    _mnt = (", montant a confirmer (prix requis)" if not _en else ", amount to confirm (price needed)")
+                if deja_perime:
+                    _delai = (f"expired {abs(j)} days ago" if _en else f"perime depuis {abs(j)} jours")
+                else:
+                    _delai = (f"expires in {j} days" if _en else f"expire dans {j} jours")
+                _u = "units" if _en else "unites"
+                return f"  - {r['reference']} : {r['quantite']:.0f} {_u}, {_delai}{_mnt}"
+
+            def _montant_bloc(subset):
+                if not has_prix:
+                    return None
+                m = (subset["quantite"].fillna(0) * subset["prix_unitaire"].fillna(0)).sum()
+                return m if m > 0 else None
+
+            # DEJA PERIME : commun aux deux branches, TOUJOURS separe (jours < 0)
+            deja = df_perim[df_perim["_jours_avant_peremption"] < 0]
+
             if has_conso and _has_lc and df_perim[_last_conso].fillna(0).sum() > 0:
                 # ── Branche AVEC consommation : croisement couverture vs peremption ──
-                df_perim["_conso_j"] = df_perim[_last_conso].fillna(0) / 365.0
-                df_perim["_couverture_jours"] = np.where(
-                    df_perim["_conso_j"] > 0,
-                    df_perim["quantite"] / df_perim["_conso_j"],
-                    99999
-                )
-                # Non ecoulable a temps = la couverture depasse le temps restant avant peremption
-                at_risk = df_perim[df_perim["_couverture_jours"] > df_perim["_jours_avant_peremption"]]
-                at_risk = at_risk[at_risk["_jours_avant_peremption"] <= 60]
-
+                futur = df_perim[df_perim["_jours_avant_peremption"] >= 0].copy()
+                futur["_conso_j"] = futur[_last_conso].fillna(0) / 365.0
+                futur["_couverture_jours"] = np.where(
+                    futur["_conso_j"] > 0, futur["quantite"] / futur["_conso_j"], 99999)
+                at_risk = futur[(futur["_couverture_jours"] > futur["_jours_avant_peremption"])
+                                & (futur["_jours_avant_peremption"] <= 60)]
                 critique = at_risk[at_risk["_jours_avant_peremption"] <= 7]
                 alerte = at_risk[(at_risk["_jours_avant_peremption"] > 7) & (at_risk["_jours_avant_peremption"] <= 30)]
                 surveiller = at_risk[(at_risk["_jours_avant_peremption"] > 30) & (at_risk["_jours_avant_peremption"] <= 60)]
-
-                if len(at_risk) > 0:
-                    lines.append(f"\n=== {'EXPIRY RISK (consumption-based)' if _en else 'RISQUE DE PEREMPTION (base sur la consommation)'} ===")
-                    lines.append("[INTERNAL] Coverage in days exceeds days remaining before expiry -- stock will NOT be sold in time at current pace.")
-
-                    for label, subset, tag_en, tag_fr in [
-                        (None, critique, "CRITICAL (<= 7 days)", "CRITIQUE (<= 7 jours)"),
-                        (None, alerte, "ALERT (8-30 days)", "ALERTE (8-30 jours)"),
-                        (None, surveiller, "MONITOR (31-60 days)", "SURVEILLER (31-60 jours)"),
-                    ]:
-                        if len(subset) > 0:
-                            montant = (subset["quantite"].fillna(0) * subset["prix_unitaire"].fillna(0)).sum() if has_prix else 0
-                            lines.append(f"\n{tag_en if _en else tag_fr} -- {len(subset)} {'items' if _en else 'articles'}"
-                                         + (f", {montant:,.0f} EUR {'at risk' if _en else 'a risque'}" if montant > 0 else ""))
-                            for _, r in subset.sort_values("_jours_avant_peremption").head(5).iterrows():
-                                _mnt = f", {r['quantite']*r.get('prix_unitaire',0):,.0f} EUR" if has_prix else ""
-                                lines.append(f"  - {r['reference']} : {r['quantite']:.0f} {'units' if _en else 'unites'}, "
-                                             f"{'expires in' if _en else 'expire dans'} {int(r['_jours_avant_peremption'])} {'days' if _en else 'jours'}{_mnt}")
-
+                _entete = ("EXPIRY RISK (consumption-based)" if _en else "RISQUE DE PEREMPTION (base sur la consommation)")
+                _note = "[INTERNAL] Coverage in days exceeds days remaining before expiry -- stock will NOT be sold in time at current pace."
             else:
                 # ── Branche SANS consommation : alerte sur la date brute uniquement ──
-                critique = df_perim[df_perim["_jours_avant_peremption"] <= 7]
-                alerte = df_perim[(df_perim["_jours_avant_peremption"] > 7) & (df_perim["_jours_avant_peremption"] <= 30)]
+                futur = df_perim[df_perim["_jours_avant_peremption"] >= 0]
+                critique = futur[futur["_jours_avant_peremption"] <= 7]
+                alerte = futur[(futur["_jours_avant_peremption"] > 7) & (futur["_jours_avant_peremption"] <= 30)]
+                surveiller = futur[(futur["_jours_avant_peremption"] > 30) & (futur["_jours_avant_peremption"] <= 60)]
+                _entete = ("EXPIRY RISK (date-based only)" if _en else "RISQUE DE PEREMPTION (base sur la date uniquement)")
+                _note = ("[INTERNAL] No consumption data available -- risk is based on expiry date alone, regardless of stock velocity. "
+                         + ("Tell the user consumption was not available to cross-check sell-through speed."
+                            if _en else "Dis au client que la consommation n etait pas disponible pour croiser avec la vitesse d ecoulement."))
 
-                if len(critique) > 0 or len(alerte) > 0:
-                    lines.append(f"\n=== {'EXPIRY RISK (date-based only)' if _en else 'RISQUE DE PEREMPTION (base sur la date uniquement)'} ===")
-                    lines.append(f"[INTERNAL] No consumption data available -- risk is based on expiry date alone, "
-                                 f"regardless of stock velocity. Tell the user this explicitly in the report: "
-                                 f"{'consumption data was not available to cross-check sell-through speed' if _en else 'les donnees de consommation n etaient pas disponibles pour croiser avec la vitesse d ecoulement'}.")
+            if len(deja) > 0 or len(critique) > 0 or len(alerte) > 0 or len(surveiller) > 0:
+                lines.append(f"\n=== {_entete} ===")
+                lines.append(_note)
 
-                    for subset, tag_en, tag_fr in [(critique, "CRITICAL (<= 7 days)", "CRITIQUE (<= 7 jours)"),
-                                                     (alerte, "ALERT (8-30 days)", "ALERTE (8-30 jours)")]:
-                        if len(subset) > 0:
-                            montant = (subset["quantite"].fillna(0) * subset["prix_unitaire"].fillna(0)).sum() if has_prix else 0
-                            lines.append(f"\n{tag_en if _en else tag_fr} -- {len(subset)} {'items' if _en else 'articles'}"
-                                         + (f", {montant:,.0f} EUR {'at risk' if _en else 'a risque'}" if montant > 0 else ""))
-                            for _, r in subset.sort_values("_jours_avant_peremption").head(5).iterrows():
-                                _mnt = f", {r['quantite']*r.get('prix_unitaire',0):,.0f} EUR" if has_prix else ""
-                                lines.append(f"  - {r['reference']} : {r['quantite']:.0f} {'units' if _en else 'unites'}, "
-                                             f"{'expires in' if _en else 'expire dans'} {int(r['_jours_avant_peremption'])} {'days' if _en else 'jours'}{_mnt}")
+                # DEJA PERIME en premier, avec son propre libelle sans ambiguite
+                if len(deja) > 0:
+                    m = _montant_bloc(deja)
+                    _tag = ("ALREADY EXPIRED (remove from sale, write-off, health/legal risk)"
+                            if _en else "DEJA PERIME (retrait de la vente, perte a acter, risque sanitaire/legal)")
+                    lines.append(f"\n{_tag} -- {len(deja)} {'items' if _en else 'articles'}"
+                                 + (f", {m:,.0f} EUR {'realized loss' if _en else 'perte realisee'}" if m else ""))
+                    for _, r in deja.sort_values("_jours_avant_peremption").head(6).iterrows():
+                        lines.append(_fmt_item(r, deja_perime=True))
+
+                for subset, tag_en, tag_fr in [
+                    (critique, "CRITICAL (<= 7 days)", "CRITIQUE (<= 7 jours)"),
+                    (alerte, "ALERT (8-30 days)", "ALERTE (8-30 jours)"),
+                    (surveiller, "MONITOR (31-60 days)", "SURVEILLER (31-60 jours)"),
+                ]:
+                    if len(subset) > 0:
+                        m = _montant_bloc(subset)
+                        lines.append(f"\n{tag_en if _en else tag_fr} -- {len(subset)} {'items' if _en else 'articles'}"
+                                     + (f", {m:,.0f} EUR {'at risk' if _en else 'a risque'}" if m else ""))
+                        for _, r in subset.sort_values("_jours_avant_peremption").head(5).iterrows():
+                            lines.append(_fmt_item(r, deja_perime=False))
 
     return "\n".join(lines) if lines else ""
 
@@ -521,9 +538,11 @@ ONLY if a "STOCKOUT PREDICTIONS" data block is explicitly present. If that block
 Rank 5 actions by cash impact and urgency. Introduce the list with one sentence explaining the logic of the ranking. Each action MUST name the specific references (exact name), quantity, EUR amount at stake, action verb, and a few words on why it ranks there. Use simulations from the data. NEVER an action without a named reference. Where a legal/health risk exists (expired food on shelf), rank it first and say why.
 
 ### COST OF INACTION
-If provided in the data, state the 90-day cost clearly and translate it into a concrete business consequence.
+Cost of inaction is NOT only financial. Cover both dimensions when relevant:
+- Financial: if a 90-day cost is provided in the data, state it clearly and translate it into a concrete business consequence (cash tied up, holding cost, lost sales).
+- Legal & compliance: if the data shows ALREADY EXPIRED items still in stock, state plainly that keeping expired food on the shelf is a regulatory and criminal exposure, not just a loss — in France, selling expired perishable goods (past a use-by / DLC date) breaches consumer-protection law and exposes the business to DGCCRF inspection, fines, and forced closure, plus reputational damage. This is the single most urgent point and must be framed as non-negotiable: the items must leave the shelf today. Do NOT quote specific article numbers or exact fine amounts (you are not a lawyer) — describe the nature of the risk, and recommend the owner document the write-off.
 
-STOP after the last action. NO scoring section. NO closing phrase."""
+STOP after this section. NO scoring section. NO closing phrase."""
 
     _rh = ("3 audits ou plus disponibles. Tu PEUX confirmer les stocks morts (consommation zero confirmee sur plusieurs periodes)." if _enough
            else "Moins de 3 audits. Tu NE DOIS PAS utiliser les mots 'mort' ou 'dormant'. Pour les articles sans consommation recente, ecris : 'Aucun mouvement detecte sur les 12 derniers mois — a confirmer avec le client (saisonnalite ? stock reserve ?)'. POSE LA QUESTION, n'affirme pas.")
@@ -574,9 +593,14 @@ UNIQUEMENT si un bloc de donnees "PREDICTIONS RUPTURE" est explicitement present
 Classe 5 actions par impact cash et urgence. Introduis la liste par une phrase expliquant la logique du classement. Chaque action DOIT nommer les references concernees (nom exact), la quantite, le montant EUR en jeu, le verbe d'action, et quelques mots sur pourquoi elle est classee la. Utilise les simulations fournies. JAMAIS d'action sans reference nommee. Lorsqu'un risque sanitaire/legal existe (denree perimee en rayon), classe-le en premier et dis pourquoi.
 
 ### COUT DE L INACTION
-Si fourni dans les donnees, enonce clairement le cout a 90 jours et traduis-le en consequence concrete pour l'entreprise.
+Le cout de l'inaction n'est PAS que financier. Couvre les deux dimensions quand c'est pertinent :
+- Financier : si un cout a 90 jours est fourni dans les donnees, enonce-le clairement et traduis-le en consequence concrete (cash immobilise, cout de possession, ventes perdues).
+- Legal et conformite : si les donnees montrent des articles DEJA PERIMES encore en stock, dis clairement que garder une denree perimee en rayon est une exposition reglementaire et penale, pas seulement une perte — en France, vendre un produit perissable perime (date limite de consommation / DLC depassee) enfreint le Code de la consommation et expose l'entreprise a un controle DGCCRF, des amendes, une fermeture administrative, et une atteinte a la reputation. C'est le point le PLUS urgent et il doit etre formule comme non negociable : ces articles doivent quitter le rayon aujourd'hui. Ne cite PAS d'article de loi precis ni de montant d'amende exact (tu n'es pas juriste) — decris la nature du risque, et recommande au dirigeant de documenter la mise au rebut.
 
-ARRETE-TOI apres la derniere action. PAS de section scoring. PAS de phrase de cloture."""
+ARRETE-TOI apres cette section. PAS de section scoring. PAS de phrase de cloture."""
+
+    # ════════════════════════════════════════════════════════════════════════
+    # (fin prompt manager FR)
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -776,11 +800,51 @@ def _strip_congratulations(texte, lang="fr"):
     return out
 
 
+def _has_conso_data(df_raw):
+    """Vrai seulement si le fichier contient un historique de consommation exploitable."""
+    if df_raw is None:
+        return True  # dans le doute, ne pas filtrer
+    try:
+        if "_has_conso" in df_raw.columns:
+            return bool(df_raw["_has_conso"].iloc[0])
+    except Exception:
+        pass
+    return True
+
+
+def _strip_invented_consumption(texte, lang="fr"):
+    """Garde-fou deterministe : quand il n'y a PAS de conso, retire les phrases
+    ou l'IA invente un rythme de consommation ou une prediction de rupture chiffree.
+    Ceinture de securite en complement des regles de prompt."""
+    if not texte:
+        return texte
+    import re as _re
+    # Phrases entieres contenant un rythme de conso invente ou une prediction.
+    # .*? tolere les mots intermediaires (unites/units accentues, etc.)
+    patterns = [
+        r"[^.\n]*\b(?:consommation|conso)\b.*?\d[\d\s.,]*\s*\S*\s*(?:/|par|per)\s*(?:semaine|jour|mois|an|week|day|month|year)[^.\n]*\.",
+        r"[^.\n]*\bconsumption\b.*?\d[\d\s.,]*\s*\S*\s*(?:/|par|per)\s*(?:week|day|month|year)[^.\n]*\.",
+        r"[^.\n]*\b(?:se vend|vend|sells?)\b.*?\d[\d\s.,]*\s*\S*\s*(?:/|par|per)\s*(?:semaine|jour|mois|week|day|month)[^.\n]*\.",
+        r"[^.\n]*\brupture\s+(?:critique\s+)?dans\s+(?:environ\s+)?\d+\s*(?:jours?|semaines?)[^.\n]*\.",
+        r"[^.\n]*\bstockout\s+in\s+\d+\s*(?:days?|weeks?)[^.\n]*\.",
+        r"[^.\n]*\bcouverture\s+de\s+\d[\d\s.,]*\s*(?:jours?|semaines?|mois)[^.\n]*\.",
+    ]
+    out = texte
+    for p in patterns:
+        out = _re.sub(p, "", out, flags=_re.IGNORECASE)
+    # Nettoyer les lignes devenues vides ou orphelines
+    out = _re.sub(r'\n{3,}', '\n\n', out)
+    return out
+
+
 def _strip_scoring_and_outro_safe(texte, lang, data_summary, df_raw):
-    """Post-traitement complet : nettoyage standard + garde-fou anti-felicitation."""
+    """Post-traitement complet : nettoyage + garde-fous deterministes."""
     texte = _strip_scoring_and_outro(texte, lang)
     if _has_stockout_signal(data_summary, df_raw):
         texte = _strip_congratulations(texte, lang)
+    # Si pas de conso reelle, retirer toute conso/rupture inventee par l'IA
+    if not _has_conso_data(df_raw):
+        texte = _strip_invented_consumption(texte, lang)
     return texte
 
 
