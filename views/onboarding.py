@@ -249,13 +249,24 @@ def _screen_recap(lang):
                     employee_count=st.session_state.get("onb_employees_sort"),
                     location=st.session_state.get("onb_location"),
                 )
-                # On enchaine sur le choix de profil (Manager / Terrain) meme si
-                # l'ecriture echoue (mode degrade), en gardant le secteur en session.
-                st.session_state.rgpd_ok = True
-                st.session_state._onboarding_done = True
-                st.session_state["_user_sector"] = st.session_state.get("onb_sector")
-                st.session_state.page = "profil"
-                st.rerun()
+                if not ok:
+                    # L'ecriture a echoue : on NE continue PAS en silence, sinon
+                    # l'onboarding reviendra a la prochaine connexion. On montre
+                    # l'erreur pour pouvoir diagnostiquer.
+                    st.error(
+                        "L'enregistrement de votre profil a echoue. "
+                        "Verifiez votre connexion et reessayez. "
+                        "Si le probleme persiste : contact@logiflo.io"
+                        if lang == "fr" else
+                        "Saving your profile failed. Please check your connection "
+                        "and try again. If it persists: contact@logiflo.io"
+                    )
+                else:
+                    st.session_state.rgpd_ok = True
+                    st.session_state._onboarding_done = True
+                    st.session_state["_user_sector"] = st.session_state.get("onb_sector")
+                    st.session_state.page = "profil"
+                    st.rerun()
 
 
 # ── POINT D'ENTREE ───────────────────────────────────────────────────────
