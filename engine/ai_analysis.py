@@ -78,9 +78,24 @@ def _compute_stock_enrichment(df, sector_key, lang="fr"):
     has_prix = "prix_unitaire" in df.columns and df["prix_unitaire"].notna().mean() > 0.3
     cols_conso = [c for c in ["conso_an1", "conso_an2", "conso_an3", "conso_an4"] if c in df.columns]
     has_conso = len(cols_conso) >= 1
-    # Aussi detecter _conso_moy (calcule par logiflo_app) ou colonnes hebdo/mensuelles
-    if not has_conso and "_conso_moy" in df.columns and df["_conso_moy"].notna().sum() > 0:
-        has_conso = True
+    # Le flag de l'ingester fait autorite : s'il dit qu'il n'y a pas de conso,
+    # il n'y en a pas, quoi que contiennent les colonnes derivees.
+    if "_has_conso" in df.columns and len(df) > 0:
+        try:
+            has_conso = has_conso and bool(df["_has_conso"].iloc[0])
+        except Exception:
+            pass
+    # BUG CORRIGE (V7.1) : _conso_moy vaut 0.0 (et NON NaN) quand il n'y a pas
+    # de consommation. notna() comptait donc les zeros et activait has_conso a
+    # tort -> mode A au lieu de B -> l'IA ne recevait jamais l'avertissement
+    # "pas d'historique de consommation" et inventait des rythmes de vente.
+    # On teste desormais la SOMME des valeurs, pas leur simple presence.
+    if not has_conso and "_conso_moy" in df.columns:
+        try:
+            if pd.to_numeric(df["_conso_moy"], errors="coerce").fillna(0).sum() > 0:
+                has_conso = True
+        except Exception:
+            pass
     nb_annees_conso = len(cols_conso)
     # Variable safe : la colonne de conso la plus recente (ou None)
     _last_conso = cols_conso[-1] if cols_conso else ("_conso_moy" if "_conso_moy" in df.columns else None)
@@ -101,7 +116,10 @@ def _compute_stock_enrichment(df, sector_key, lang="fr"):
     if mode in ("C", "D"):
         lines.append(f"[INTERNAL] NO prices available. NEVER write EUR amounts in your response.")
     if mode in ("B", "D"):
-        lines.append(f"[INTERNAL] NO consumption history. Cannot calculate rotation, dead stock, coverage.")
+        lines.append("[INTERNAL] NO consumption history in this file. FORBIDDEN: any consumption rate "
+                     "(X/week, X/month, X/year), any coverage in days or months, any stockout prediction, "
+                     "any overstock claim, any dead-stock claim. Omit those sections entirely and state "
+                     "plainly that these analyses require sales history.")
 
     # ── R4 : COUT DE POSSESSION SECTORIEL ──
     if mode in ("A", "B"):
