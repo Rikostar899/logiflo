@@ -850,7 +850,15 @@ def _strip_invented_consumption(texte, lang="fr"):
     # Affirmation interdite : un terme de vitesse/rotation + un chiffre
     _TERME = (r"(?:consommation|conso|consumption|se\s+vend|vend\b|sells?\b|"
               r"ventes?\s+moyennes?|couverture|coverage|rotation|"
-              r"rupture\s+(?:critique\s+)?dans|stockout\s+in|"
+              # rupture PREDITE ou MOYENNE (interdite sans conso) — a ne pas
+              # confondre avec le simple comptage des ruptures constatees,
+              # qui est un fait tire du fichier et doit etre conserve.
+              r"rupture[s]?\s+(?:critique[s]?\s+)?(?:dans|sous|moyenne[s]?|"
+              r"pr[eé]vue?[s]?|pr[eé]visionnelle[s]?|estim[eé]e?[s]?|"
+              r"anticip[eé]e?[s]?|attendue?[s]?|imminente[s]?\s+dans)|"
+              r"(?:avant|d[eé]lai[s]?\s+(?:moyen[s]?\s+)?(?:avant|de))\s+rupture|"
+              r"risque\s+de\s+rupture\s+(?:dans|sous|pr[eé]vu)|"
+              r"stockout\s+(?:in|within|expected|predicted)|"
               r"jours?\s+de\s+stock|days?\s+of\s+stock|surstock|overstock|"
               r"stock\s+mort|dead\s+stock)")
     _CHIFFRE = r"\d"
@@ -908,9 +916,27 @@ def _strip_invented_consumption(texte, lang="fr"):
                 compteur = 0        # une ligne vide termine la liste
             finales.append(ligne)
 
-    out = "\n".join(finales)
+    # Retirer les titres de section devenus vides : si tout le contenu d'une
+    # section a ete filtre, son "### TITRE" resterait seul a l'ecran.
+    nettoyees, i = [], 0
+    while i < len(finales):
+        l = finales[i]
+        if l.strip().startswith("### "):
+            j, vide = i + 1, True
+            while j < len(finales) and not finales[j].strip().startswith("### "):
+                if finales[j].strip():
+                    vide = False
+                    break
+                j += 1
+            if vide:
+                i += 1
+                continue
+        nettoyees.append(l)
+        i += 1
+
+    out = "\n".join(nettoyees)
     out = _re.sub(r"\n{3,}", "\n\n", out)
-    return out
+    return out.strip()
 
 
 def _strip_scoring_and_outro_safe(texte, lang, data_summary, df_raw):
