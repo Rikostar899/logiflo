@@ -831,27 +831,85 @@ def _has_conso_data(df_raw):
 
 
 def _strip_invented_consumption(texte, lang="fr"):
-    """Garde-fou deterministe : quand il n'y a PAS de conso, retire les phrases
-    ou l'IA invente un rythme de consommation ou une prediction de rupture chiffree.
-    Ceinture de securite en complement des regles de prompt."""
+    """Garde-fou deterministe : quand le fichier n'a PAS d'historique de
+    consommation, retire toute affirmation chiffree de conso, de rotation,
+    de couverture ou de prediction de rupture.
+
+    V7.2 — traitement LIGNE PAR LIGNE (et non plus par phrase terminee par un
+    point). Les puces et les lignes numerotees, qui deviennent des cartes dans
+    l'interface, ne se terminent pas par un point : l'ancienne version ne les
+    voyait jamais. C'est par la que passait la carte "conso moyenne".
+
+    On preserve explicitement les phrases qui CONSTATENT l'absence de donnee
+    (\"sans historique de consommation...\") : elles sont honnetes et utiles.
+    """
     if not texte:
         return texte
     import re as _re
-    # Phrases entieres contenant un rythme de conso invente ou une prediction.
-    # .*? tolere les mots intermediaires (unites/units accentues, etc.)
-    patterns = [
-        r"[^.\n]*\b(?:consommation|conso)\b.*?\d[\d\s.,]*\s*\S*\s*(?:/|par|per)\s*(?:semaine|jour|mois|an|week|day|month|year)[^.\n]*\.",
-        r"[^.\n]*\bconsumption\b.*?\d[\d\s.,]*\s*\S*\s*(?:/|par|per)\s*(?:week|day|month|year)[^.\n]*\.",
-        r"[^.\n]*\b(?:se vend|vend|sells?)\b.*?\d[\d\s.,]*\s*\S*\s*(?:/|par|per)\s*(?:semaine|jour|mois|week|day|month)[^.\n]*\.",
-        r"[^.\n]*\brupture\s+(?:critique\s+)?dans\s+(?:environ\s+)?\d+\s*(?:jours?|semaines?)[^.\n]*\.",
-        r"[^.\n]*\bstockout\s+in\s+\d+\s*(?:days?|weeks?)[^.\n]*\.",
-        r"[^.\n]*\bcouverture\s+de\s+\d[\d\s.,]*\s*(?:jours?|semaines?|mois)[^.\n]*\.",
-    ]
-    out = texte
-    for p in patterns:
-        out = _re.sub(p, "", out, flags=_re.IGNORECASE)
-    # Nettoyer les lignes devenues vides ou orphelines
-    out = _re.sub(r'\n{3,}', '\n\n', out)
+
+    # Affirmation interdite : un terme de vitesse/rotation + un chiffre
+    _TERME = (r"(?:consommation|conso|consumption|se\s+vend|vend\b|sells?\b|"
+              r"ventes?\s+moyennes?|couverture|coverage|rotation|"
+              r"rupture\s+(?:critique\s+)?dans|stockout\s+in|"
+              r"jours?\s+de\s+stock|days?\s+of\s+stock|surstock|overstock|"
+              r"stock\s+mort|dead\s+stock)")
+    _CHIFFRE = r"\d"
+    _SIG = _re.compile(_TERME, _re.IGNORECASE)
+    _NUM = _re.compile(_CHIFFRE)
+
+    # Formulations d'ABSENCE : on les garde, elles expliquent la limite au client
+    _ABSENCE = _re.compile(
+        r"(?:aucun|aucune|sans\s+(?:historique|donnee|donnees)|pas\s+de\s+"
+        r"(?:donnee|donnees|historique|consommation|conso)|absence|"
+        r"non\s+disponible|indisponible|impossible|ne\s+peu[tx]|"
+        r"necessite|requiert|requis|ajoutez|ajouter|permettrait|debloqu|"
+        r"n['e]est\s+pas|no\s+(?:consumption|sales|history)|not\s+available|"
+        r"cannot|requires?|add\s+your|would\s+unlock)",
+        _re.IGNORECASE)
+
+    def _ligne_interdite(l):
+        if not _SIG.search(l):
+            return False
+        if _ABSENCE.search(l):
+            return False           # constat d'absence : on garde
+        return bool(_NUM.search(l))
+
+    sorties = []
+    for ligne in texte.split("\n"):
+        nu = ligne.strip()
+        if not nu:
+            sorties.append(ligne)
+            continue
+
+        est_puce = bool(_re.match(r"^\s*(?:[-*\u2022]|\d+[.)])\s+", ligne))
+        if est_puce:
+            # Une puce / ligne numerotee = une carte dans l'UI : tout ou rien
+            if _ligne_interdite(nu):
+                continue
+            sorties.append(ligne)
+            continue
+
+        # Prose : on ne retire que les phrases fautives, pas le paragraphe
+        phrases = _re.split(r"(?<=[.!?])\s+", nu)
+        gardees = [p for p in phrases if not _ligne_interdite(p)]
+        if gardees:
+            sorties.append(" ".join(gardees))
+        # si tout le paragraphe etait fautif, il disparait
+
+    # Renumeroter les listes : apres suppression on aurait "1." puis "4."
+    finales, compteur = [], 0
+    for ligne in sorties:
+        m = _re.match(r"^(\s*)(\d+)([.)])(\s+)(.*)$", ligne)
+        if m:
+            compteur += 1
+            finales.append(f"{m.group(1)}{compteur}{m.group(3)}{m.group(4)}{m.group(5)}")
+        else:
+            if not ligne.strip():
+                compteur = 0        # une ligne vide termine la liste
+            finales.append(ligne)
+
+    out = "\n".join(finales)
+    out = _re.sub(r"\n{3,}", "\n\n", out)
     return out
 
 
