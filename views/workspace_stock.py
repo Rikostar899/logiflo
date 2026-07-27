@@ -82,6 +82,33 @@ def render_workspace():
                 "A transaction file needs to be aggregated by product before analysis.")
 
         pg.step(_("step_detect"))
+
+        # V8.5 : bandeau de controle du mapping. Visible en permanence : c'est le
+        # seul moyen de voir quelle colonne du fichier a ete interpretee comme une
+        # consommation, et donc de diagnostiquer une prediction de rupture fantome.
+        try:
+            _map = st.session_state.get("_logiflo_mapping", {})
+            _diag = st.session_state.get("_logiflo_conso_diag", [])
+            _hc = st.session_state.get("_logiflo_has_conso", False)
+            if _map:
+                _conso_src = [f"`{src}` -> {dst}" for src, dst in _map.items()
+                              if str(dst).startswith("conso_")]
+                with st.expander(
+                    ("Colonnes detectees -- consommation ACTIVE" if _hc
+                     else "Colonnes detectees -- consommation inactive"),
+                    expanded=bool(_conso_src)):
+                    for src, dst in _map.items():
+                        st.text(f"{src}  ->  {dst}")
+                    if _conso_src:
+                        st.warning("Interpretees comme CONSOMMATION : "
+                                   + " | ".join(_conso_src))
+                    if _diag:
+                        st.caption("Volume : " + " | ".join(_diag))
+                    if not _hc:
+                        st.caption("has_conso = False : predictions de rupture, "
+                                   "surstock et stock mort desactives.")
+        except Exception:
+            pass
         df_propre, statut = smart_ingester_stock_ultime(df_brut, client_ai=client)
         pg.step(_("step_calc"))
         pg.done()
@@ -95,6 +122,26 @@ def render_workspace():
     _df_key = "df_stock_manager" if view == "MANAGER" else "df_stock_terrain"
     if st.session_state.get(_df_key) is None:
         return
+
+    # V8.5 : un df memorise par une version anterieure de l'ingester porte des
+    # colonnes calculees par l'ancien code (dont d'eventuelles conso fantomes).
+    # On refuse de l'exploiter et on demande un nouvel import.
+    try:
+        from engine.ingester import INGESTER_VERSION
+        _cached = st.session_state[_df_key]
+        _ver = (str(_cached["_ingester_version"].iloc[0])
+                if "_ingester_version" in _cached.columns and len(_cached) else None)
+        if _ver != INGESTER_VERSION:
+            st.session_state[_df_key] = None
+            st.warning(
+                "Votre fichier a ete analyse par une version anterieure du moteur. "
+                "Re-televersez-le pour appliquer les corrections."
+                if lang == "fr" else
+                "Your file was analysed by an earlier engine version. "
+                "Please re-upload it to apply the fixes.")
+            return
+    except Exception:
+        pass
 
     df = st.session_state[_df_key].copy()
     sans_prix = bool(df.get("_sans_prix", pd.Series([True])).iloc[0]) if "_sans_prix" in df.columns else True
