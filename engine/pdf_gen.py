@@ -71,10 +71,17 @@ def _format_kpi_val(val, label=""):
         "capital", "cout", "cost", "marge nette", "net margin",
         "immobilise", "tied",
     ])
-    if isinstance(val, float) and abs(val) >= 1000:
-        return _s(f"{val:,.0f}")
+    # V8.4 : format francais (espace milliers) + unite EUR sur les montants.
+    # Avant : "6,087" -> separateur anglo-saxon et aucune unite sur le KPI principal.
+    _is_money = any(kw in label_low for kw in [
+        "capital", "immobilise", "tied", "cout", "cost", "montant", "valeur", "cash",
+    ])
+    if isinstance(val, (int, float)) and not _is_pct and _is_money:
+        return _s(f"{val:,.0f}".replace(",", " ") + " EUR")
+    if isinstance(val, (int, float)) and not _is_pct and abs(val) >= 1000:
+        return _s(f"{val:,.0f}".replace(",", " "))
     elif isinstance(val, float) and _is_pct and not _is_count:
-        return _s(f"{val:.1f}%")
+        return _s(f"{val:.1f}".replace(".", ",") + " %")
     elif isinstance(val, (int, float)):
         v = int(val) if float(val) == int(val) else val
         return _s(str(v))
@@ -404,7 +411,8 @@ def generate_free_pdf(module, summary_text, kpis, labels):
         return b""
 
 
-def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, module="stock"):
+def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, module="stock",
+                        df=None, sector_key="generique", score=None):
     if kpis is None:   kpis = []
     if labels is None: labels = []
     pdf = PDFReport()
@@ -458,15 +466,57 @@ def generate_expert_pdf(title, content, figs=None, kpis=None, labels=None, modul
             pdf.cell(card_w-4,12,val_str,align='C')
         pdf.ln(34)  # V6.1: resserré (était 46)
 
+    # V8.4 : le PDF recalculait le score avec df=None. Sans dataframe, le moteur
+    # ne voit ni les perimes ni la qualite des donnees : la conformite retombait
+    # a 100/100 et le plafond legal ne s'appliquait jamais. Le PDF affichait donc
+    # un score flatteur pendant que l'application affichait le vrai. On passe
+    # desormais le meme df -- ou directement le score deja calcule par la vue.
     try:
-        from engine.scoring import compute_logiflo_score
-        _score_pdf = compute_logiflo_score(module=module,df=None,kpis=kpis,labels=labels,sector_key="generique",lang=lang)
+        if score:
+            _score_pdf = score
+        else:
+            from engine.scoring import compute_logiflo_score
+            _score_pdf = compute_logiflo_score(module=module, df=df, kpis=kpis,
+                                               labels=labels, sector_key=sector_key, lang=lang)
         _details_pdf = _score_pdf.get("details", {})
     except Exception:
+        _score_pdf = {}
         _details_pdf = {}
 
+    # ── Score global + plafond legal ──
+    if _score_pdf and _score_pdf.get("global") is not None:
+        _g = int(_score_pdf.get("global", 0))
+        _rc, _gc, _bc = (0,168,122) if _g >= 70 else (243,156,18) if _g >= 40 else (232,48,74)
+        _gy = pdf.get_y()
+        pdf.set_font("Arial","",8); pdf.set_text_color(74,96,128)
+        pdf.set_xy(10,_gy); pdf.cell(60,8,_s("LOGIFLO SCORE" if lang=="en" else "SCORE LOGIFLO"),align='L')
+        pdf.set_font("Arial","B",16); pdf.set_text_color(_rc,_gc,_bc)
+        pdf.set_xy(70,_gy-2); pdf.cell(30,10,_s(f"{_g}/100"),align='L')
+        _rel = _score_pdf.get("reliability", None)
+        if _rel is not None:
+            pdf.set_font("Arial","",8); pdf.set_text_color(74,96,128)
+            pdf.set_xy(105,_gy); pdf.cell(95,8,
+                _s(("Analysis reliability: " if lang=="en" else "Fiabilite de l analyse : ") + f"{int(_rel)}%"),
+                align='R')
+        pdf.ln(11)
+
+        if _score_pdf.get("legal_capped"):
+            _nbp = int(_score_pdf.get("nb_deja_perime", 0) or 0)
+            _cap_txt = (f"Score capped: {_nbp} reference(s) already expired in stock -- "
+                        f"compliance risk. Withdraw from sale as a priority."
+                        if lang == "en" else
+                        f"Score plafonne : {_nbp} reference(s) deja perimee(s) en stock -- "
+                        f"risque de conformite (Code de la consommation / DGCCRF). "
+                        f"A retirer de la vente en priorite.")
+            _cy = pdf.get_y()
+            pdf.set_fill_color(253,235,238); pdf.rect(10,_cy,190,11,'F')
+            pdf.set_fill_color(232,48,74); pdf.rect(10,_cy,1.5,11,'F')
+            pdf.set_xy(14,_cy+1); pdf.set_font("Arial","B",7.5); pdf.set_text_color(200,30,55)
+            pdf.multi_cell(182,4.5,_s(_cap_txt),align='L')
+            pdf.set_y(_cy+13)
+
     if _details_pdf:
-        for _dim_label, _sv in list(_details_pdf.items())[:3]:
+        for _dim_label, _sv in list(_details_pdf.items())[:4]:
             _sv = int(_sv) if _sv else 0
             rc,gc,bc = (0,168,122) if _sv>=70 else (243,156,18) if _sv>=40 else (232,48,74)
             _lx=10; _bx=72; _sx=183; _row_y=pdf.get_y()
