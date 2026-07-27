@@ -160,15 +160,18 @@ def _compute_stock_enrichment(df, sector_key, lang="fr"):
                     _n_missing = _n_total - _n_priced
                     _pct_priced = _n_priced / _n_total * 100
                     _pct_missing = _n_missing / _n_total * 100
+                    # V8.5 : on ne transmet QU'UN SEUL nombre. Fournir les deux
+                    # (226 avec prix / 163 sans) laissait le modele piocher le
+                    # mauvais et l'etiqueter a l'envers. Le chiffre des references
+                    # DEJA renseignees n'a aucune utilite dans le rapport : on le
+                    # retire du payload plutot que d'interdire au modele de s'en servir.
                     lines.append(f"{'DATA QUALITY' if _en else 'QUALITE DONNEE'} : "
-                                 f"{_n_missing}/{_n_total} "
-                                 f"{'references WITHOUT a purchase price' if _en else 'references SANS prix d achat'} ({_pct_missing:.0f}%) ; "
-                                 f"{_n_priced} {'have one' if _en else 'en ont un'} ({_pct_priced:.0f}%). "
+                                 f"{_n_missing} {'of' if _en else 'references sur'} {_n_total} "
+                                 f"{'references have NO purchase price' if _en else 'n ont AUCUN prix d achat renseigne'} ({_pct_missing:.0f}%). "
                                  f"{'Real capital is HIGHER than shown; completing prices is a priority.' if _en else 'Le capital reel est SUPERIEUR a celui affiche ; completer les prix est une priorite.'}")
                     lines.append(f"[INTERNAL -- DO NOT MENTION THIS TO THE USER] "
-                                 f"The number of references to COMPLETE is {_n_missing}, never {_n_priced}. "
-                                 f"Use {_n_missing} in every sentence about missing prices, in the diagnosis AND in the actions. "
-                                 f"Never perform this subtraction yourself.")
+                                 f"{_n_missing} is the ONLY figure to quote about missing prices, "
+                                 f"in the diagnosis AND in the actions. Never compute a complement.")
 
                 # Concentration du capital
                 if _n_val >= 10:
@@ -568,7 +571,7 @@ This is often the section that matters most for perishable retail — treat it s
 ONLY if a "STOCKOUT PREDICTIONS" data block is explicitly present. If that block is absent (no consumption history), OMIT this section entirely — write nothing, do not invent consumption rates or stockout timing. When present: open with the overall exposure, then list the at-risk references. Delays < 2 weeks in DAYS, not weeks.
 
 ### TOP 5 PRIORITY ACTIONS
-Rank 5 actions by cash impact and urgency. STRICT RULE: after the legal/health action (which always ranks first), the remaining actions MUST appear in strictly DECREASING order of the EUR amount at stake -- an action worth 5,000 EUR can never rank below one worth 7 EUR. If an action is worth less than 1% of the largest amount, drop it and pick a bigger lever instead. Introduce the list with one sentence explaining the logic of the ranking. Each action MUST name the specific references (exact name), quantity, EUR amount at stake, action verb, and a few words on why it ranks there. Use simulations from the data. NEVER an action without a named reference. Where a legal/health risk exists (expired food on shelf), rank it first and say why.
+Rank 5 actions by cash impact and urgency. FEASIBILITY: every action must be executable as written by the merchant. For a retail business (convenience store, grocery, shop), a general freeze or halt of replenishment is FORBIDDEN: revenue depends on shelf availability. To cut overstock, target specific references and talk about reducing order quantities or spacing out orders on those references, never about freezing supply. STRICT RULE: after the legal/health action (which always ranks first), the remaining actions MUST appear in strictly DECREASING order of the EUR amount at stake -- an action worth 5,000 EUR can never rank below one worth 7 EUR. If an action is worth less than 1% of the largest amount, drop it and pick a bigger lever instead. Introduce the list with one sentence explaining the logic of the ranking. Each action MUST name the specific references (exact name), quantity, EUR amount at stake, action verb, and a few words on why it ranks there. Use simulations from the data. NEVER an action without a named reference. Where a legal/health risk exists (expired food on shelf), rank it first and say why.
 
 ### COST OF INACTION
 Cost of inaction is NOT only financial. Cover both dimensions when relevant:
@@ -623,7 +626,7 @@ C'est souvent la section qui compte le plus pour un commerce de produits perissa
 UNIQUEMENT si un bloc de donnees "PREDICTIONS RUPTURE" est explicitement present. Si ce bloc est absent (pas d'historique de consommation), OMETS entierement cette section — n'ecris rien, n'invente aucun rythme de consommation ni delai de rupture. Quand present : ouvre par l'exposition globale, puis liste les references a risque. Delais < 2 semaines en JOURS, pas en semaines.
 
 ### TOP 5 ACTIONS PRIORITAIRES
-Classe 5 actions par impact cash et urgence. REGLE STRICTE : apres l'action legale/sanitaire (toujours en premier), les actions suivantes DOIVENT apparaitre par montant EUR strictement DECROISSANT -- une action a 5 000 EUR ne peut jamais etre classee apres une action a 7 EUR. Si une action pese moins de 1% du plus gros montant, retire-la et choisis un levier plus important. Introduis la liste par une phrase expliquant la logique du classement. Chaque action DOIT nommer les references concernees (nom exact), la quantite, le montant EUR en jeu, le verbe d'action, et quelques mots sur pourquoi elle est classee la. Utilise les simulations fournies. JAMAIS d'action sans reference nommee. Lorsqu'un risque sanitaire/legal existe (denree perimee en rayon), classe-le en premier et dis pourquoi.
+Classe 5 actions par impact cash et urgence. FAISABILITE : chaque action doit etre executable telle quelle par le commercant. Pour un commerce de detail (superette, epicerie, magasin), un arret ou un gel general des approvisionnements est INTERDIT : le chiffre d'affaires depend de la disponibilite en rayon. Si le surstock doit etre reduit, vise des references precises et parle de reduire les quantites commandees ou d'espacer les commandes sur ces references, jamais de geler les appros. REGLE STRICTE : apres l'action legale/sanitaire (toujours en premier), les actions suivantes DOIVENT apparaitre par montant EUR strictement DECROISSANT -- une action a 5 000 EUR ne peut jamais etre classee apres une action a 7 EUR. Si une action pese moins de 1% du plus gros montant, retire-la et choisis un levier plus important. Introduis la liste par une phrase expliquant la logique du classement. Chaque action DOIT nommer les references concernees (nom exact), la quantite, le montant EUR en jeu, le verbe d'action, et quelques mots sur pourquoi elle est classee la. Utilise les simulations fournies. JAMAIS d'action sans reference nommee. Lorsqu'un risque sanitaire/legal existe (denree perimee en rayon), classe-le en premier et dis pourquoi.
 
 ### COUT DE L INACTION
 Le cout de l'inaction n'est PAS que financier. Couvre les deux dimensions quand c'est pertinent :
