@@ -90,7 +90,10 @@ def _compute_stock_enrichment(df, sector_key, lang="fr"):
     # tort -> mode A au lieu de B -> l'IA ne recevait jamais l'avertissement
     # "pas d'historique de consommation" et inventait des rythmes de vente.
     # On teste desormais la SOMME des valeurs, pas leur simple presence.
-    if not has_conso and "_conso_moy" in df.columns:
+    # V8.4 : ce rattrapage ne s'applique QUE si l'ingester n'a pas pose son
+    # drapeau. Quand "_has_conso" existe, il fait autorite dans les DEUX sens :
+    # on ne doit jamais reactiver has_conso qu'il a explicitement mis a False.
+    if not has_conso and "_conso_moy" in df.columns and "_has_conso" not in df.columns:
         try:
             if pd.to_numeric(df["_conso_moy"], errors="coerce").fillna(0).sum() > 0:
                 has_conso = True
@@ -150,10 +153,22 @@ def _compute_stock_enrichment(df, sector_key, lang="fr"):
                 _n_total = len(df[df["quantite"].fillna(0) > 0]) if "quantite" in df.columns else len(df)
                 _n_priced = int((df["prix_unitaire"].fillna(0) > 0).sum()) if "prix_unitaire" in df.columns else 0
                 if _n_total > 0 and _n_priced < _n_total:
+                    # V8.4 : on fournit LES DEUX nombres explicitement. Avant, seul
+                    # le compte des references AVEC prix etait transmis, et le modele
+                    # devait faire la soustraction lui-meme : il ecrivait le diagnostic
+                    # avec le bon chiffre puis l'action corrective avec le mauvais.
+                    _n_missing = _n_total - _n_priced
                     _pct_priced = _n_priced / _n_total * 100
-                    lines.append(f"{'DATA QUALITY' if _en else 'QUALITE DONNEE'} : {_n_priced}/{_n_total} "
-                                 f"{'references have a purchase price' if _en else 'references ont un prix d achat'} ({_pct_priced:.0f}%). "
+                    _pct_missing = _n_missing / _n_total * 100
+                    lines.append(f"{'DATA QUALITY' if _en else 'QUALITE DONNEE'} : "
+                                 f"{_n_missing}/{_n_total} "
+                                 f"{'references WITHOUT a purchase price' if _en else 'references SANS prix d achat'} ({_pct_missing:.0f}%) ; "
+                                 f"{_n_priced} {'have one' if _en else 'en ont un'} ({_pct_priced:.0f}%). "
                                  f"{'Real capital is HIGHER than shown; completing prices is a priority.' if _en else 'Le capital reel est SUPERIEUR a celui affiche ; completer les prix est une priorite.'}")
+                    lines.append(f"[INTERNAL -- DO NOT MENTION THIS TO THE USER] "
+                                 f"The number of references to COMPLETE is {_n_missing}, never {_n_priced}. "
+                                 f"Use {_n_missing} in every sentence about missing prices, in the diagnosis AND in the actions. "
+                                 f"Never perform this subtraction yourself.")
 
                 # Concentration du capital
                 if _n_val >= 10:
@@ -553,7 +568,7 @@ This is often the section that matters most for perishable retail — treat it s
 ONLY if a "STOCKOUT PREDICTIONS" data block is explicitly present. If that block is absent (no consumption history), OMIT this section entirely — write nothing, do not invent consumption rates or stockout timing. When present: open with the overall exposure, then list the at-risk references. Delays < 2 weeks in DAYS, not weeks.
 
 ### TOP 5 PRIORITY ACTIONS
-Rank 5 actions by cash impact and urgency. Introduce the list with one sentence explaining the logic of the ranking. Each action MUST name the specific references (exact name), quantity, EUR amount at stake, action verb, and a few words on why it ranks there. Use simulations from the data. NEVER an action without a named reference. Where a legal/health risk exists (expired food on shelf), rank it first and say why.
+Rank 5 actions by cash impact and urgency. STRICT RULE: after the legal/health action (which always ranks first), the remaining actions MUST appear in strictly DECREASING order of the EUR amount at stake -- an action worth 5,000 EUR can never rank below one worth 7 EUR. If an action is worth less than 1% of the largest amount, drop it and pick a bigger lever instead. Introduce the list with one sentence explaining the logic of the ranking. Each action MUST name the specific references (exact name), quantity, EUR amount at stake, action verb, and a few words on why it ranks there. Use simulations from the data. NEVER an action without a named reference. Where a legal/health risk exists (expired food on shelf), rank it first and say why.
 
 ### COST OF INACTION
 Cost of inaction is NOT only financial. Cover both dimensions when relevant:
@@ -608,7 +623,7 @@ C'est souvent la section qui compte le plus pour un commerce de produits perissa
 UNIQUEMENT si un bloc de donnees "PREDICTIONS RUPTURE" est explicitement present. Si ce bloc est absent (pas d'historique de consommation), OMETS entierement cette section — n'ecris rien, n'invente aucun rythme de consommation ni delai de rupture. Quand present : ouvre par l'exposition globale, puis liste les references a risque. Delais < 2 semaines en JOURS, pas en semaines.
 
 ### TOP 5 ACTIONS PRIORITAIRES
-Classe 5 actions par impact cash et urgence. Introduis la liste par une phrase expliquant la logique du classement. Chaque action DOIT nommer les references concernees (nom exact), la quantite, le montant EUR en jeu, le verbe d'action, et quelques mots sur pourquoi elle est classee la. Utilise les simulations fournies. JAMAIS d'action sans reference nommee. Lorsqu'un risque sanitaire/legal existe (denree perimee en rayon), classe-le en premier et dis pourquoi.
+Classe 5 actions par impact cash et urgence. REGLE STRICTE : apres l'action legale/sanitaire (toujours en premier), les actions suivantes DOIVENT apparaitre par montant EUR strictement DECROISSANT -- une action a 5 000 EUR ne peut jamais etre classee apres une action a 7 EUR. Si une action pese moins de 1% du plus gros montant, retire-la et choisis un levier plus important. Introduis la liste par une phrase expliquant la logique du classement. Chaque action DOIT nommer les references concernees (nom exact), la quantite, le montant EUR en jeu, le verbe d'action, et quelques mots sur pourquoi elle est classee la. Utilise les simulations fournies. JAMAIS d'action sans reference nommee. Lorsqu'un risque sanitaire/legal existe (denree perimee en rayon), classe-le en premier et dis pourquoi.
 
 ### COUT DE L INACTION
 Le cout de l'inaction n'est PAS que financier. Couvre les deux dimensions quand c'est pertinent :
