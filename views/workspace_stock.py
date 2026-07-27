@@ -278,9 +278,12 @@ def _render_manager(df, val_totale, tx_serv, ruptures, sans_prix, has_conso, lan
             f"Items:{len(df)}. Service:{tx_serv:.1f}%. Stockouts:{len(ruptures)}. Top:{top_str}.{prix}{med}",
             historique_txt=_hist_txt, df_raw=df, sector_key=_sector)
 
+        # V8.4 : on transmet le dataframe ET le secteur au PDF, sinon le score
+        # du rapport est recalcule a vide et diverge de celui affiche a l'ecran.
         st.session_state.last_pdf = generate_expert_pdf(
             _("pdf_title_stock"), st.session_state.analysis_stock_manager,
-            figs=None, kpis=_kpis, labels=_labels, module="stock")
+            figs=None, kpis=_kpis, labels=_labels, module="stock",
+            df=df, sector_key=_sector)
         pg2.done()
 
     # Affichage résultat
