@@ -83,32 +83,6 @@ def render_workspace():
 
         pg.step(_("step_detect"))
 
-        # V8.5 : bandeau de controle du mapping. Visible en permanence : c'est le
-        # seul moyen de voir quelle colonne du fichier a ete interpretee comme une
-        # consommation, et donc de diagnostiquer une prediction de rupture fantome.
-        try:
-            _map = st.session_state.get("_logiflo_mapping", {})
-            _diag = st.session_state.get("_logiflo_conso_diag", [])
-            _hc = st.session_state.get("_logiflo_has_conso", False)
-            if _map:
-                _conso_src = [f"`{src}` -> {dst}" for src, dst in _map.items()
-                              if str(dst).startswith("conso_")]
-                with st.expander(
-                    ("Colonnes detectees -- consommation ACTIVE" if _hc
-                     else "Colonnes detectees -- consommation inactive"),
-                    expanded=bool(_conso_src)):
-                    for src, dst in _map.items():
-                        st.text(f"{src}  ->  {dst}")
-                    if _conso_src:
-                        st.warning("Interpretees comme CONSOMMATION : "
-                                   + " | ".join(_conso_src))
-                    if _diag:
-                        st.caption("Volume : " + " | ".join(_diag))
-                    if not _hc:
-                        st.caption("has_conso = False : predictions de rupture, "
-                                   "surstock et stock mort desactives.")
-        except Exception:
-            pass
         df_propre, statut = smart_ingester_stock_ultime(df_brut, client_ai=client)
         pg.step(_("step_calc"))
         pg.done()
