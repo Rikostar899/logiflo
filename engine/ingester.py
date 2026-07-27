@@ -3,7 +3,7 @@
 Logiflo - engine/ingester.py
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Smart Ingester unifie Stock + Transport
-Version 8.6 (juillet 2026) — fin des nombres fabriques a partir de texte libre
+Version 8.7 (juillet 2026) — nombres fabriques + colonne de stock lue comme conso
 
 MARQUEUR DE VERSION (pour verifier le deploiement) :
 LOGIFLO_INGESTER_VERSION = "8.3-dtype-guard"
@@ -356,7 +356,7 @@ def _safe_numeric(series):
 # ════════════════════════════════════════════════════════════════════════════
 # MODE DEBUG (logs pour diagnostiquer le mapping)
 # ════════════════════════════════════════════════════════════════════════════
-INGESTER_VERSION = "8.6"
+INGESTER_VERSION = "8.7"
 
 
 def _debug_log(msg, level="info"):
@@ -885,12 +885,33 @@ def _build_score_matrix(df, concepts):
     # "Marge" sont des montants, jamais des quantites consommees.
     _conso_all = [s for s in concepts if s.startswith("conso_")]
     _conso_block = ("valeur", "montant", "marge", "tarif", "prix", "cout", "cost", "amount", "revenue")
+
+    # ══ GARDE-FOU V8.7 : UN STOCK N'EST PAS UNE CONSOMMATION ══════════════
+    # "Qte affichee", "Qte calcul", "Stock dispo" obtiennent un score de
+    # similarite eleve avec les alias "quantite2025"/"qte2025" (rapidfuzz
+    # renvoie 54 la ou difflib renvoie 42 : le resultat dependait de la
+    # librairie installee). Une colonne de STOCK etait alors interpretee
+    # comme un historique de ventes, et l'integralite du stock devenait une
+    # consommation annuelle -> predictions de rupture entierement fictives.
+    # Regle : un nom qui evoque un etat de stock ne peut etre une
+    # consommation QUE s'il porte aussi une annee ou un mot de vente.
+    _stock_kw = ("qte", "quantite", "stock", "dispo", "disponible", "affiche",
+                 "inventaire", "solde", "reste", "restant", "physique",
+                 "theorique", "calcul", "comptage", "compte", "onhand", "onstock")
+    _vente_kw = ("conso", "vente", "vendu", "sortie", "sold", "sales", "demand",
+                 "usage", "consumption", "ecoule", "debit", "outbound")
+    _annee_re = re.compile(r"(?:19|20)\d{2}|(?<!\d)2[0-9](?!\d)")
+
     for cs in _conso_all:
         for col in df.columns:
             cn = propres[col]
             if _score_nom(cn, cs) < 45:
                 scores[cs][col] = 0
             elif any(b in cn for b in _conso_block) or cn.startswith("pv") or cn.startswith("pa"):
+                scores[cs][col] = 0
+            elif (any(k in cn for k in _stock_kw)
+                  and not any(v in cn for v in _vente_kw)
+                  and not _annee_re.search(cn)):
                 scores[cs][col] = 0
 
     # ══ GARDE-FOU V8.1 : PRIX UNITAIRE vs VALEUR TOTALE vs PRIX DE VENTE ══
