@@ -367,6 +367,9 @@ def _compute_stock_enrichment(df, sector_key, lang="fr"):
             lines.append(f"{'TOTAL COST OF INACTION' if _en else 'COUT TOTAL INACTION'} : -{cost_inaction:,.0f} EUR {'over 90 days' if _en else 'sur 90 jours'}")
 
     # ── R11 : RISQUE DE PEREMPTION (V8) ──────────────────────────────────
+    # V8.7 : si le fichier porte des dates de peremption, cette section est
+    # OBLIGATOIRE dans le rapport. C'est la donnee la plus sensible pour un
+    # commerce : elle ne peut jamais etre arbitree par une autre analyse.
     has_peremption = bool(df["_has_peremption"].iloc[0]) if "_has_peremption" in df.columns and len(df) > 0 else False
     if has_peremption and "date_peremption" in df.columns:
         _today = pd.Timestamp.now().normalize()
@@ -399,25 +402,30 @@ def _compute_stock_enrichment(df, sector_key, lang="fr"):
             # DEJA PERIME : commun aux deux branches, TOUJOURS separe (jours < 0)
             deja = df_perim[df_perim["_jours_avant_peremption"] < 0]
 
+            # ══ V8.7 : LA DATE PRIME TOUJOURS ═══════════════════════════════
+            # Auparavant, quand une consommation existait, seuls les articles
+            # dont la couverture depassait la DLC etaient retenus : tout ce qui
+            # "devait s'ecouler a temps" disparaissait du rapport. Avec une
+            # consommation erronee, la section entiere se vidait. Pour un
+            # commerce, une DLC proche est un risque en soi : les paliers sont
+            # desormais TOUJOURS calcules sur la date. La consommation ne sert
+            # plus qu'a hierarchiser, jamais a exclure.
+            futur = df_perim[df_perim["_jours_avant_peremption"] >= 0].copy()
+            critique = futur[futur["_jours_avant_peremption"] <= 7]
+            alerte = futur[(futur["_jours_avant_peremption"] > 7) & (futur["_jours_avant_peremption"] <= 30)]
+            surveiller = futur[(futur["_jours_avant_peremption"] > 30) & (futur["_jours_avant_peremption"] <= 60)]
+
             if has_conso and _has_lc and df_perim[_last_conso].fillna(0).sum() > 0:
-                # ── Branche AVEC consommation : croisement couverture vs peremption ──
-                futur = df_perim[df_perim["_jours_avant_peremption"] >= 0].copy()
                 futur["_conso_j"] = futur[_last_conso].fillna(0) / 365.0
                 futur["_couverture_jours"] = np.where(
                     futur["_conso_j"] > 0, futur["quantite"] / futur["_conso_j"], 99999)
-                at_risk = futur[(futur["_couverture_jours"] > futur["_jours_avant_peremption"])
-                                & (futur["_jours_avant_peremption"] <= 60)]
-                critique = at_risk[at_risk["_jours_avant_peremption"] <= 7]
-                alerte = at_risk[(at_risk["_jours_avant_peremption"] > 7) & (at_risk["_jours_avant_peremption"] <= 30)]
-                surveiller = at_risk[(at_risk["_jours_avant_peremption"] > 30) & (at_risk["_jours_avant_peremption"] <= 60)]
-                _entete = ("EXPIRY RISK (consumption-based)" if _en else "RISQUE DE PEREMPTION (base sur la consommation)")
-                _note = "[INTERNAL] Coverage in days exceeds days remaining before expiry -- stock will NOT be sold in time at current pace."
+                _n_lent = int((futur["_couverture_jours"] > futur["_jours_avant_peremption"]).sum())
+                _entete = ("EXPIRY RISK" if _en else "RISQUE DE PEREMPTION")
+                _note = ("[INTERNAL] Buckets are date-based. Consumption is available: "
+                         f"{_n_lent} of these items will NOT sell through before their expiry date at the current pace -- "
+                         "treat those as the highest priority. NEVER drop an item from this section just because "
+                         "it might sell in time: a near expiry date is a risk in itself for a retail business.")
             else:
-                # ── Branche SANS consommation : alerte sur la date brute uniquement ──
-                futur = df_perim[df_perim["_jours_avant_peremption"] >= 0]
-                critique = futur[futur["_jours_avant_peremption"] <= 7]
-                alerte = futur[(futur["_jours_avant_peremption"] > 7) & (futur["_jours_avant_peremption"] <= 30)]
-                surveiller = futur[(futur["_jours_avant_peremption"] > 30) & (futur["_jours_avant_peremption"] <= 60)]
                 _entete = ("EXPIRY RISK (date-based only)" if _en else "RISQUE DE PEREMPTION (base sur la date uniquement)")
                 _note = ("[INTERNAL] No consumption data available -- risk is based on expiry date alone, regardless of stock velocity. "
                          + ("Tell the user consumption was not available to cross-check sell-through speed."
@@ -570,8 +578,8 @@ This is often the section that matters most for perishable retail — treat it s
 ### STOCKOUT PREDICTIONS
 ONLY if a "STOCKOUT PREDICTIONS" data block is explicitly present. If that block is absent (no consumption history), OMIT this section entirely — write nothing, do not invent consumption rates or stockout timing. When present: open with the overall exposure, then list the at-risk references. Delays < 2 weeks in DAYS, not weeks.
 
-### TOP 5 PRIORITY ACTIONS
-Rank 5 actions by cash impact and urgency. FEASIBILITY: every action must be executable as written by the merchant. For a retail business (convenience store, grocery, shop), a general freeze or halt of replenishment is FORBIDDEN: revenue depends on shelf availability. To cut overstock, target specific references and talk about reducing order quantities or spacing out orders on those references, never about freezing supply. STRICT RULE: after the legal/health action (which always ranks first), the remaining actions MUST appear in strictly DECREASING order of the EUR amount at stake -- an action worth 5,000 EUR can never rank below one worth 7 EUR. If an action is worth less than 1% of the largest amount, drop it and pick a bigger lever instead. Introduce the list with one sentence explaining the logic of the ranking. Each action MUST name the specific references (exact name), quantity, EUR amount at stake, action verb, and a few words on why it ranks there. Use simulations from the data. NEVER an action without a named reference. Where a legal/health risk exists (expired food on shelf), rank it first and say why.
+### TOP 3 PRIORITY ACTIONS
+Rank exactly 3 actions by cash impact and urgency. FEASIBILITY: every action must be executable as written by the merchant. For a retail business (convenience store, grocery, shop), a general freeze or halt of replenishment is FORBIDDEN: revenue depends on shelf availability. To cut overstock, target specific references and talk about reducing order quantities or spacing out orders on those references, never about freezing supply. STRICT RULE: after the legal/health action (which always ranks first), the remaining actions MUST appear in strictly DECREASING order of the EUR amount at stake -- an action worth 5,000 EUR can never rank below one worth 7 EUR. If an action is worth less than 1% of the largest amount, drop it and pick a bigger lever instead. Exactly three, never more: the merchant must be able to act on all of them today. Introduce the list with one sentence explaining the logic of the ranking. Each action MUST name the specific references (exact name), quantity, EUR amount at stake, action verb, and a few words on why it ranks there. Use simulations from the data. NEVER an action without a named reference. Where a legal/health risk exists (expired food on shelf), rank it first and say why.
 
 ### COST OF INACTION
 Cost of inaction is NOT only financial. Cover both dimensions when relevant:
@@ -625,8 +633,8 @@ C'est souvent la section qui compte le plus pour un commerce de produits perissa
 ### PREDICTIONS DE RUPTURE
 UNIQUEMENT si un bloc de donnees "PREDICTIONS RUPTURE" est explicitement present. Si ce bloc est absent (pas d'historique de consommation), OMETS entierement cette section — n'ecris rien, n'invente aucun rythme de consommation ni delai de rupture. Quand present : ouvre par l'exposition globale, puis liste les references a risque. Delais < 2 semaines en JOURS, pas en semaines.
 
-### TOP 5 ACTIONS PRIORITAIRES
-Classe 5 actions par impact cash et urgence. FAISABILITE : chaque action doit etre executable telle quelle par le commercant. Pour un commerce de detail (superette, epicerie, magasin), un arret ou un gel general des approvisionnements est INTERDIT : le chiffre d'affaires depend de la disponibilite en rayon. Si le surstock doit etre reduit, vise des references precises et parle de reduire les quantites commandees ou d'espacer les commandes sur ces references, jamais de geler les appros. REGLE STRICTE : apres l'action legale/sanitaire (toujours en premier), les actions suivantes DOIVENT apparaitre par montant EUR strictement DECROISSANT -- une action a 5 000 EUR ne peut jamais etre classee apres une action a 7 EUR. Si une action pese moins de 1% du plus gros montant, retire-la et choisis un levier plus important. Introduis la liste par une phrase expliquant la logique du classement. Chaque action DOIT nommer les references concernees (nom exact), la quantite, le montant EUR en jeu, le verbe d'action, et quelques mots sur pourquoi elle est classee la. Utilise les simulations fournies. JAMAIS d'action sans reference nommee. Lorsqu'un risque sanitaire/legal existe (denree perimee en rayon), classe-le en premier et dis pourquoi.
+### TOP 3 ACTIONS PRIORITAIRES
+Classe exactement 3 actions par impact cash et urgence. FAISABILITE : chaque action doit etre executable telle quelle par le commercant. Pour un commerce de detail (superette, epicerie, magasin), un arret ou un gel general des approvisionnements est INTERDIT : le chiffre d'affaires depend de la disponibilite en rayon. Si le surstock doit etre reduit, vise des references precises et parle de reduire les quantites commandees ou d'espacer les commandes sur ces references, jamais de geler les appros. REGLE STRICTE : apres l'action legale/sanitaire (toujours en premier), les actions suivantes DOIVENT apparaitre par montant EUR strictement DECROISSANT -- une action a 5 000 EUR ne peut jamais etre classee apres une action a 7 EUR. Si une action pese moins de 1% du plus gros montant, retire-la et choisis un levier plus important. Exactement trois, jamais plus : le commercant doit pouvoir toutes les traiter dans la journee. Introduis la liste par une phrase expliquant la logique du classement. Chaque action DOIT nommer les references concernees (nom exact), la quantite, le montant EUR en jeu, le verbe d'action, et quelques mots sur pourquoi elle est classee la. Utilise les simulations fournies. JAMAIS d'action sans reference nommee. Lorsqu'un risque sanitaire/legal existe (denree perimee en rayon), classe-le en premier et dis pourquoi.
 
 ### COUT DE L INACTION
 Le cout de l'inaction n'est PAS que financier. Couvre les deux dimensions quand c'est pertinent :
