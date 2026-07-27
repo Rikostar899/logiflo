@@ -3,7 +3,7 @@
 Logiflo - engine/ingester.py
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Smart Ingester unifie Stock + Transport
-Version 8.3 (juillet 2026) — dtype-guard quantite/prix + peremption + anti-conso-fantome
+Version 8.4 (juillet 2026) — has_conso exige du volume reel + trace du mapping
 
 MARQUEUR DE VERSION (pour verifier le deploiement) :
 LOGIFLO_INGESTER_VERSION = "8.3-dtype-guard"
@@ -102,16 +102,16 @@ SYNONYMES = {
         "prixmoyenpondere", "productprice", "mrp",
     ],
     "conso_an1": ["conso2022", "conso22", "consommation2022", "sorties2022",
-                   "ventes2022", "c2022", "n3", "nminus3", "annee2022", "a2022",
+                   "ventes2022", "c2022", "nminus3", "annee2022",
                    "quantite2022", "qte2022", "cso22", "cso2022"],
     "conso_an2": ["conso2023", "conso23", "consommation2023", "sorties2023",
-                   "ventes2023", "c2023", "n2", "nminus2", "annee2023", "a2023",
+                   "ventes2023", "c2023", "nminus2", "annee2023",
                    "quantite2023", "qte2023", "cso23", "cso2023"],
     "conso_an3": ["conso2024", "conso24", "consommation2024", "sorties2024",
-                   "ventes2024", "c2024", "n1", "nminus1", "annee2024", "a2024",
+                   "ventes2024", "c2024", "nminus1", "annee2024",
                    "quantite2024", "qte2024", "cso24", "cso2024"],
     "conso_an4": ["conso2025", "conso25", "consommation2025", "sorties2025",
-                   "ventes2025", "c2025", "n0", "nactuel", "annee2025", "a2025",
+                   "ventes2025", "c2025", "nactuel", "annee2025",
                    "quantite2025", "qte2025", "cso25", "cso2025",
                    "sortie2025", "consoactuelle", "consoencoursannee",
                    # EN: sold / consumption (e-commerce, ERP, WMS)
@@ -1192,6 +1192,18 @@ def smart_ingester_stock_ultime(df, client_ai=None):
 
     df = df.rename(columns=trouvees)
 
+    # ── TRACE DU MAPPING (indispensable pour diagnostiquer une conso fantome) ──
+    try:
+        _map_txt = " | ".join(f"'{src}' -> {dst}" for src, dst in trouvees.items())
+        _debug_log(f"Mapping retenu : {_map_txt}", "info")
+        _map_conso = [f"'{src}' -> {dst}" for src, dst in trouvees.items()
+                      if str(dst).startswith("conso_")]
+        if _map_conso:
+            _debug_log("Colonnes interpretees comme CONSOMMATION : "
+                       + " | ".join(_map_conso), "warn")
+    except Exception:
+        pass
+
     manq = [c for c in ["reference", "quantite"] if c not in df.columns]
     if manq:
         return None, (
@@ -1211,13 +1223,42 @@ def smart_ingester_stock_ultime(df, client_ai=None):
         df["prix_unitaire"] = _safe_numeric(df["prix_unitaire"]).fillna(0)
         df["_sans_prix"] = (df["prix_unitaire"] == 0).all()
 
+    # ══ GARDE-FOU V8.4 : has_conso EXIGE DU VOLUME REEL ═══════════════════
+    # BUG HISTORIQUE : has_conso passait a True des que la COLONNE EXISTAIT,
+    # sans verifier qu'elle contienne la moindre valeur > 0. Une colonne
+    # parasite mappee par erreur (code article, numero de ligne...) suffisait
+    # a activer tout le moteur de predictions. Tous les garde-fous en aval
+    # lisent ce drapeau : s'il est faux ici, ils sont tous inoperants.
+    # Desormais : au moins _CONSO_MIN_RATIO des lignes doivent porter une
+    # valeur strictement positive, avec un plancher absolu de 3 lignes.
+    _CONSO_MIN_RATIO = 0.10
+    _CONSO_MIN_ROWS = 3
+
     has_conso = False
     conso_cols = []
+    _conso_diag = []
+    _n_lignes = max(len(df), 1)
+    _seuil_lignes = max(_CONSO_MIN_ROWS, int(_n_lignes * _CONSO_MIN_RATIO))
+
     for c in ["conso_an1", "conso_an2", "conso_an3", "conso_an4"]:
         if c in df.columns:
             df[c] = _safe_numeric(df[c]).fillna(0)
-            conso_cols.append(c)
-            has_conso = True
+            _n_pos = int((df[c] > 0).sum())
+            _conso_diag.append(f"{c}: {_n_pos}/{_n_lignes} lignes > 0")
+            if _n_pos >= _seuil_lignes:
+                conso_cols.append(c)
+                has_conso = True
+            else:
+                # Colonne mappee mais vide/quasi-vide -> neutralisee.
+                df[c] = 0.0
+
+    if _conso_diag:
+        _debug_log("Conso detectee -> " + " | ".join(_conso_diag)
+                   + f" (seuil={_seuil_lignes} lignes)",
+                   "info" if has_conso else "warn")
+    if not has_conso:
+        _debug_log("has_conso = FALSE : aucune colonne de consommation exploitable. "
+                   "Predictions de rupture, surstock et stock mort desactives.", "warn")
 
     df["_has_conso"] = has_conso
     df["_conso_moy"] = df[conso_cols].mean(axis=1) if has_conso else 0.0
