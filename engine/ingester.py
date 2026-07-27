@@ -3,7 +3,7 @@
 Logiflo - engine/ingester.py
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Smart Ingester unifie Stock + Transport
-Version 8.5 (juillet 2026) — has_conso exige du volume reel + mapping expose en session
+Version 8.6 (juillet 2026) — fin des nombres fabriques a partir de texte libre
 
 MARQUEUR DE VERSION (pour verifier le deploiement) :
 LOGIFLO_INGESTER_VERSION = "8.3-dtype-guard"
@@ -310,20 +310,53 @@ def _normalize_geo(text):
     return t
 
 
+def _parse_nombre(val):
+    """
+    Convertit UNE valeur en nombre, ou NaN si elle est ambigue.
+
+    BUG CORRIGE (V8.6) : l'ancienne version supprimait tout caractere non
+    numerique et recollait les chiffres restants. "14 packs de 4 + 15 unites"
+    devenait 14415, "2 pour 3EUR" devenait 23. Des quantites et des prix
+    etaient donc FABRIQUES a partir de texte libre, sans aucun signal d'erreur.
+
+    Regle : un texte contenant plusieurs nombres distincts est AMBIGU et
+    renvoie NaN. Mieux vaut une valeur manquante, visible et signalee, qu'une
+    valeur inventee qui traverse silencieusement toute la chaine d'analyse.
+    """
+    if val is None:
+        return np.nan
+    if isinstance(val, (int, float, np.integer, np.floating)):
+        return np.nan if pd.isna(val) else float(val)
+
+    t = str(val).replace('\u00a0', ' ').replace('\u202f', ' ').strip()
+    if not t or t.lower() in ('nan', 'none', 'null', '-'):
+        return np.nan
+
+    t = re.sub(r'^[\s\u20ac$\u00a3%]+|[\s\u20ac$\u00a3%]+$', '', t)
+    compact = t.replace(' ', '')
+
+    if re.fullmatch(r'[-+]?\d+(?:[.,]\d+)?', compact):
+        return float(compact.replace(',', '.'))
+    if re.fullmatch(r'[-+]?\d{1,3}(?:\.\d{3})+(?:,\d+)?', compact):
+        return float(compact.replace('.', '').replace(',', '.'))
+    if re.fullmatch(r'[-+]?\d{1,3}(?:,\d{3})+(?:\.\d+)?', compact):
+        return float(compact.replace(',', ''))
+
+    tokens = re.findall(r'\d+(?:[.,]\d+)?', t)
+    if len(tokens) == 1:
+        return float(tokens[0].replace(',', '.'))
+    return np.nan
+
+
 def _safe_numeric(series):
     """Convertit une serie pandas en numerique en preservant les NaN."""
-    return pd.to_numeric(
-        series.astype(str)
-            .str.replace(r'[^\d.,-]', '', regex=True)
-            .str.replace(',', '.'),
-        errors='coerce'
-    )
+    return pd.to_numeric(series.map(_parse_nombre), errors='coerce')
 
 
 # ════════════════════════════════════════════════════════════════════════════
 # MODE DEBUG (logs pour diagnostiquer le mapping)
 # ════════════════════════════════════════════════════════════════════════════
-INGESTER_VERSION = "8.5"
+INGESTER_VERSION = "8.6"
 
 
 def _debug_log(msg, level="info"):
