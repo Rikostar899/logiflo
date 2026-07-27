@@ -3,7 +3,7 @@
 Logiflo - engine/ingester.py
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Smart Ingester unifie Stock + Transport
-Version 8.4 (juillet 2026) — has_conso exige du volume reel + trace du mapping
+Version 8.5 (juillet 2026) — has_conso exige du volume reel + mapping expose en session
 
 MARQUEUR DE VERSION (pour verifier le deploiement) :
 LOGIFLO_INGESTER_VERSION = "8.3-dtype-guard"
@@ -323,6 +323,9 @@ def _safe_numeric(series):
 # ════════════════════════════════════════════════════════════════════════════
 # MODE DEBUG (logs pour diagnostiquer le mapping)
 # ════════════════════════════════════════════════════════════════════════════
+INGESTER_VERSION = "8.5"
+
+
 def _debug_log(msg, level="info"):
     """Stocke un log de debug si debug_mode est active."""
     if not st.session_state.get("debug_mode", False):
@@ -1193,7 +1196,12 @@ def smart_ingester_stock_ultime(df, client_ai=None):
     df = df.rename(columns=trouvees)
 
     # ── TRACE DU MAPPING (indispensable pour diagnostiquer une conso fantome) ──
+    # V8.5 : _debug_log ne stocke rien tant que st.session_state["debug_mode"]
+    # n'est pas actif, et render_debug_logs() n'est appele nulle part -- la trace
+    # etait donc invisible. On expose le mapping directement en session pour que
+    # la vue puisse l'afficher sans dependre du mode debug.
     try:
+        st.session_state["_logiflo_mapping"] = {str(k): str(v) for k, v in trouvees.items()}
         _map_txt = " | ".join(f"'{src}' -> {dst}" for src, dst in trouvees.items())
         _debug_log(f"Mapping retenu : {_map_txt}", "info")
         _map_conso = [f"'{src}' -> {dst}" for src, dst in trouvees.items()
@@ -1252,6 +1260,12 @@ def smart_ingester_stock_ultime(df, client_ai=None):
                 # Colonne mappee mais vide/quasi-vide -> neutralisee.
                 df[c] = 0.0
 
+    try:
+        st.session_state["_logiflo_conso_diag"] = list(_conso_diag)
+        st.session_state["_logiflo_has_conso"] = bool(has_conso)
+    except Exception:
+        pass
+
     if _conso_diag:
         _debug_log("Conso detectee -> " + " | ".join(_conso_diag)
                    + f" (seuil={_seuil_lignes} lignes)",
@@ -1259,6 +1273,13 @@ def smart_ingester_stock_ultime(df, client_ai=None):
     if not has_conso:
         _debug_log("has_conso = FALSE : aucune colonne de consommation exploitable. "
                    "Predictions de rupture, surstock et stock mort desactives.", "warn")
+
+    # V8.5 : tampon de version. Streamlit conserve le df ingere dans
+    # st.session_state : apres un deploiement, l'application continue de servir
+    # un df produit par l'ANCIEN code tant que le fichier n'est pas re-televerse.
+    # C'est ainsi qu'une prediction de rupture peut survivre a son correctif.
+    # La vue compare ce tampon a INGESTER_VERSION et invalide le df s'il differe.
+    df["_ingester_version"] = INGESTER_VERSION
 
     df["_has_conso"] = has_conso
     df["_conso_moy"] = df[conso_cols].mean(axis=1) if has_conso else 0.0
